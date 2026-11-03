@@ -1,4 +1,4 @@
-// Package sqlitedb is the SQLite adapter: one database file (vvterm.db) holds hosts, groups,
+// Package sqlitedb is the SQLite adapter: one database file (vutty.db) holds hosts, groups,
 // identities, port forwards and the encrypted vault. It implements store.Persister and
 // vault.Persister, so the rest of the app is unaware of the storage engine.
 package sqlitedb
@@ -14,8 +14,8 @@ import (
 
 	_ "modernc.org/sqlite" // pure-Go driver, no CGO
 
-	"vvterm/internal/domain"
-	"vvterm/internal/vault"
+	"vutty/internal/domain"
+	"vutty/internal/vault"
 )
 
 // DB wraps the connection and exposes the persisters.
@@ -131,6 +131,7 @@ var additions = []struct{ table, column, def string }{
 	{"hosts", "terminal_theme", "TEXT NOT NULL DEFAULT ''"},  // a theme of its own
 	{"hosts", "telnet_username", "TEXT NOT NULL DEFAULT ''"}, // its own login
 	{"hosts", "telnet_encoding", "TEXT NOT NULL DEFAULT ''"},
+	{"hosts", "forward_agent", "INTEGER NOT NULL DEFAULT 0"},  // ssh -A
 	{"port_forwards", "label", "TEXT NOT NULL DEFAULT ''"},    // a name for a rule
 	{"identities", "certificate", "TEXT NOT NULL DEFAULT ''"}, // OpenSSH user certificate
 }
@@ -224,21 +225,21 @@ func (p StorePersister) Load() (domain.Data, bool, error) {
 	}
 	rows.Close()
 
-	rows, err = p.db.Query(`SELECT id,label,group_id,hostname,port,username,identity_id,jump_host_id,env,tags,keepalive_sec,created_at,updated_at,deleted_at,os,telnet_enabled,telnet_port,terminal_theme,telnet_username,telnet_encoding FROM hosts ORDER BY rowid`)
+	rows, err = p.db.Query(`SELECT id,label,group_id,hostname,port,username,identity_id,jump_host_id,env,tags,keepalive_sec,created_at,updated_at,deleted_at,os,telnet_enabled,telnet_port,terminal_theme,telnet_username,telnet_encoding,forward_agent FROM hosts ORDER BY rowid`)
 	if err != nil {
 		return data, false, err
 	}
 	for rows.Next() {
 		var h domain.Host
 		var env, tags, cr, upd string
-		var telnet int
+		var telnet, fwd int
 		var del sql.NullString
-		if err := rows.Scan(&h.ID, &h.Label, &h.GroupID, &h.Hostname, &h.Port, &h.Username, &h.IdentityID, &h.JumpHostID, &env, &tags, &h.KeepaliveSec, &cr, &upd, &del, &h.OS, &telnet, &h.TelnetPort, &h.TerminalTheme, &h.TelnetUsername, &h.TelnetEncoding); err != nil {
+		if err := rows.Scan(&h.ID, &h.Label, &h.GroupID, &h.Hostname, &h.Port, &h.Username, &h.IdentityID, &h.JumpHostID, &env, &tags, &h.KeepaliveSec, &cr, &upd, &del, &h.OS, &telnet, &h.TelnetPort, &h.TerminalTheme, &h.TelnetUsername, &h.TelnetEncoding, &fwd); err != nil {
 			rows.Close()
 			return data, false, err
 		}
 		h.Env = domain.Env(env)
-		h.TelnetEnabled = telnet != 0
+		h.TelnetEnabled, h.ForwardAgent = telnet != 0, fwd != 0
 		_ = json.Unmarshal([]byte(tags), &h.Tags)
 		h.CreatedAt, h.UpdatedAt, h.DeletedAt = parseTS(cr), parseTS(upd), parseTSNull(del)
 		data.Hosts = append(data.Hosts, h)
@@ -326,9 +327,9 @@ func (p StorePersister) Save(d domain.Data) error {
 		if h.Tags == nil {
 			tags = []byte("[]")
 		}
-		if _, err := tx.Exec(`INSERT INTO hosts(id,label,group_id,hostname,port,username,identity_id,jump_host_id,env,tags,keepalive_sec,created_at,updated_at,deleted_at,os,telnet_enabled,telnet_port,terminal_theme,telnet_username,telnet_encoding) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		if _, err := tx.Exec(`INSERT INTO hosts(id,label,group_id,hostname,port,username,identity_id,jump_host_id,env,tags,keepalive_sec,created_at,updated_at,deleted_at,os,telnet_enabled,telnet_port,terminal_theme,telnet_username,telnet_encoding,forward_agent) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			h.ID, h.Label, h.GroupID, h.Hostname, h.Port, h.Username, h.IdentityID, h.JumpHostID, string(h.Env), string(tags),
-			h.KeepaliveSec, ts(h.CreatedAt), ts(h.UpdatedAt), tsNull(h.DeletedAt), h.OS, b2i(h.TelnetEnabled), h.TelnetPort, h.TerminalTheme, h.TelnetUsername, h.TelnetEncoding); err != nil {
+			h.KeepaliveSec, ts(h.CreatedAt), ts(h.UpdatedAt), tsNull(h.DeletedAt), h.OS, b2i(h.TelnetEnabled), h.TelnetPort, h.TerminalTheme, h.TelnetUsername, h.TelnetEncoding, b2i(h.ForwardAgent)); err != nil {
 			return err
 		}
 	}

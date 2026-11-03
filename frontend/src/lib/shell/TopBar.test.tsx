@@ -1,7 +1,7 @@
 import {createEvent, fireEvent, render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {TopBar} from './TopBar'
-import {newTab} from '../layout'
+import {newTab, PANE_DRAG, setDraggingPane} from '../layout'
 import {host} from '../../test/fakeBackend'
 
 const base = {snippets: [], onRunSnippet: vi.fn(), onSplit: vi.fn(), onNew: vi.fn(), onSettings: vi.fn()}
@@ -66,20 +66,20 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 
 describe('Brand wordmark', () => {
-  it('keeps the two V letters apart (regression: tight letter-spacing made "VV" read as "W")', () => {
+  it('keeps the Vu part of the wordmark from being squeezed', () => {
     const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
-    const rule = css.match(/\.wordmark \.vv \{([^}]*)\}/)![1]
+    const rule = css.match(/\.wordmark \.vu \{([^}]*)\}/)![1]
     const spacing = rule.match(/letter-spacing:\s*(-?[\d.]+)em/)
-    expect(spacing, 'the .vv rule sets a letter-spacing').not.toBeNull()
+    expect(spacing, 'the .vu rule sets a letter-spacing').not.toBeNull()
     expect(Number(spacing![1])).toBeGreaterThanOrEqual(0)
   })
 
-  it('renders logo and wordmark in one flex row with the accessible name VVTerm', () => {
+  it('renders logo and wordmark in one flex row with the accessible name Vutty', () => {
     render(<Brand size="lg" heading />)
-    const el = screen.getByRole('heading', {name: 'VVTerm'})
+    const el = screen.getByRole('heading', {name: 'Vutty'})
     expect(el).toHaveClass('brand-lockup', 'lg')
     expect(el.querySelector('img')).not.toBeNull()
-    expect(el.querySelector('.wordmark')).toHaveTextContent('VVTerm_')
+    expect(el.querySelector('.wordmark')).toHaveTextContent('Vutty_')
   })
 })
 
@@ -279,5 +279,65 @@ describe('TopBar: dragging tabs', () => {
   it('is not draggable without a handler', () => {
     render(<TopBar {...base} tabs={[a]} active="a" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} />)
     expect(tab('A')).not.toHaveAttribute('draggable', 'true')
+  })
+})
+
+describe('TopBar: a pane header dragged up to the bar', () => {
+  const dt = () => {
+    const data: Record<string, string> = {}
+    return {data, types: [] as string[], effectAllowed: '', dropEffect: '', setData(k: string, v: string) { data[k] = v; this.types = [k] }, getData: (k: string) => data[k]}
+  }
+  const a = {...newTab('h1', 'A'), id: 'a'}, b = {...newTab('h2', 'B'), id: 'b'}, sftp = {...newTab('', 'SFTP'), id: 'sftp-main', pinned: true, kind: 'sftp' as const}
+  const bar = () => screen.getByRole('tablist', {name: 'Open tabs'})
+  const tab = (name: string) => screen.getByRole('tab', {name})
+  const carry = () => { const t = dt(); t.setData(PANE_DRAG, 'p1'); return t }
+  afterEach(() => setDraggingPane(null))
+
+  it('lights up the bar and, dropped there, asks for the pane to become a tab of its own', () => {
+    const onPaneOut = vi.fn(), onPaneToTab = vi.fn()
+    render(<TopBar {...base} tabs={[sftp, a, b]} active="a" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} onPaneOut={onPaneOut} onPaneToTab={onPaneToTab} />)
+    setDraggingPane({tabId: 'a', paneId: 'p1'})
+    const t = carry()
+    fireEvent.dragOver(bar(), {dataTransfer: t})
+    expect(bar()).toHaveClass('pane-drop')
+    fireEvent.drop(bar(), {dataTransfer: t})
+    expect(onPaneOut).toHaveBeenCalledWith('a', 'p1')
+    expect(onPaneToTab).not.toHaveBeenCalled()
+    expect(bar()).not.toHaveClass('pane-drop')
+  })
+
+  it('dropped on another terminal tab it joins that tab; on its own tab it becomes a tab; a file-browser tab is not a place for it', () => {
+    const onPaneOut = vi.fn(), onPaneToTab = vi.fn()
+    render(<TopBar {...base} tabs={[sftp, a, b]} active="a" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} onPaneOut={onPaneOut} onPaneToTab={onPaneToTab} />)
+    setDraggingPane({tabId: 'a', paneId: 'p1'})
+    const t = carry()
+    fireEvent.dragOver(tab('B'), {dataTransfer: t})
+    expect(tab('B')).toHaveClass('drop-into')
+    expect(bar()).not.toHaveClass('pane-drop')
+    fireEvent.drop(tab('B'), {dataTransfer: t})
+    expect(onPaneToTab).toHaveBeenCalledWith('a', 'p1', 'b')
+    expect(onPaneOut).not.toHaveBeenCalled()
+    setDraggingPane({tabId: 'a', paneId: 'p1'})
+    fireEvent.drop(tab('A'), {dataTransfer: t}) // its own tab: falls to the bar
+    expect(onPaneOut).toHaveBeenCalledWith('a', 'p1')
+    onPaneOut.mockClear(); onPaneToTab.mockClear()
+    setDraggingPane({tabId: 'a', paneId: 'p1'})
+    fireEvent.drop(tab('SFTP'), {dataTransfer: t}) // not a terminal: the bar's rule, a tab of its own
+    expect(onPaneToTab).not.toHaveBeenCalled()
+    expect(onPaneOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('does nothing when no pane is being dragged, or without the handlers', () => {
+    const onPaneOut = vi.fn()
+    const {rerender} = render(<TopBar {...base} tabs={[a, b]} active="a" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} onPaneOut={onPaneOut} />)
+    const t = carry()
+    fireEvent.dragOver(bar(), {dataTransfer: t}) // nothing is being dragged: only the type is there
+    fireEvent.drop(bar(), {dataTransfer: t})
+    expect(bar()).not.toHaveClass('pane-drop')
+    expect(onPaneOut).not.toHaveBeenCalled()
+    setDraggingPane({tabId: 'a', paneId: 'p1'})
+    rerender(<TopBar {...base} tabs={[a, b]} active="a" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} />)
+    fireEvent.dragOver(bar(), {dataTransfer: t})
+    expect(bar()).not.toHaveClass('pane-drop')
   })
 })

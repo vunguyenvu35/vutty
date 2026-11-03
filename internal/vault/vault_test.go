@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 const pw = "correct horse battery"
@@ -347,7 +347,7 @@ func TestPasswordBackupRoundTrip(t *testing.T) {
 }
 
 func TestGenerateAndParseKey(t *testing.T) {
-	priv, pub, err := GenerateEd25519("vvterm-test")
+	priv, pub, err := GenerateEd25519("vutty-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -468,3 +468,163 @@ func TestKeychainNeedsTheAuthenticator(t *testing.T) {
 }
 
 var errCancelled = os.ErrPermission
+
+// ---- the key check: a key that comes from the keychain must be the vault's own ----
+
+func TestKeychainRefusesAStaleKeyEvenWhenTheVaultHasNoSecrets(t *testing.T) {
+	v, dir, kc := newVault(t)
+	if err := v.Create(pw); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.f.Header.KeyCheck) == 0 {
+		t.Fatal("a new vault must carry a key check")
+	}
+	// the keychain holds a key left by an older vault of the same place
+	stale := bytes.Repeat([]byte{7}, dekLen)
+	if err := kc.Set("vvterm", dir, stale); err != nil {
+		t.Fatal(err)
+	}
+	v.Lock()
+	if err := v.UnlockKeychain(); err != ErrNoKeychain {
+		t.Fatalf("a stale key was accepted: %v", err)
+	}
+	if st := v.Status(); st.Unlocked {
+		t.Fatal("unlocked with a key of another vault")
+	}
+	if _, err := kc.Get("vvterm", dir); err == nil {
+		t.Fatal("the stale key must be removed so it is not offered again")
+	}
+	// the master password still opens it
+	if err := v.Unlock(pw); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestKeychainUnlockStillWorksWithTheRightKey(t *testing.T) {
+	v, _, _ := newVault(t)
+	if err := v.Create(pw); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.EnableKeychain(); err != nil {
+		t.Fatal(err)
+	}
+	v.Lock()
+	if err := v.UnlockKeychain(); err != nil {
+		t.Fatalf("the vault's own key must open it: %v", err)
+	}
+}
+
+func TestAVaultFromBeforeTheKeyCheckGetsOneAtTheNextPasswordUnlock(t *testing.T) {
+	v, dir, kc := newVault(t)
+	if err := v.Create(pw); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.EnableKeychain(); err != nil {
+		t.Fatal(err)
+	}
+	v.f.Header.KeyCheck = nil // what an older vault looks like
+	if err := v.flush(); err != nil {
+		t.Fatal(err)
+	}
+	v.Lock()
+	// with no check and no secret a key from outside cannot be trusted: the password is asked for, the entry stays
+	if err := v.UnlockKeychain(); err != ErrNoKeychain {
+		t.Fatalf("an unverifiable key was accepted: %v", err)
+	}
+	if _, err := kc.Get("vvterm", dir); err != nil {
+		t.Fatal("an entry that could not be checked must not be deleted")
+	}
+	if err := v.Unlock(pw); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.f.Header.KeyCheck) == 0 {
+		t.Fatal("the password unlock must add the check")
+	}
+	v.Lock()
+	if err := v.UnlockKeychain(); err != nil {
+		t.Fatalf("with the check in place the keychain works again: %v", err)
+	}
+}
+
+func TestKeyCheckSurvivesChangePasswordAndAdopt(t *testing.T) {
+	v, _, _ := newVault(t)
+	if err := v.Create(pw); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.ChangePassword(pw, "a brand new master password"); err != nil {
+		t.Fatal(err)
+	}
+	h, _ := v.Header()
+	if len(h.KeyCheck) == 0 {
+		t.Fatal("ChangePassword lost the key check")
+	}
+	v.Lock()
+	if err := v.UnlockKeychain(); err == nil {
+		t.Fatal("no keychain entry: it must not unlock")
+	}
+	// a header from a repository made before the check existed gets one when it is adopted
+	old := h
+	old.KeyCheck = nil
+	v2, _, _ := newVault(t)
+	if err := v2.Adopt("a brand new master password", old, nil); err != nil {
+		t.Fatal(err)
+	}
+	h2, _ := v2.Header()
+	if len(h2.KeyCheck) == 0 {
+		t.Fatal("Adopt must add the check")
+	}
+}
+
+func TestCheckKeyAndUnreadable(t *testing.T) {
+	v, _, _ := newVault(t)
+	if err := v.CheckKey(); err != ErrNoVault {
+		t.Fatalf("no vault: %v", err)
+	}
+	if err := v.Create(pw); err != nil {
+		t.Fatal(err)
+	}
+	good, _ := v.AddSecret(domain.SecretPassword, []byte("one"))
+	if err := v.CheckKey(); err != nil {
+		t.Fatalf("the key of the vault was refused: %v", err)
+	}
+	if bad, err := v.Unreadable(); err != nil || len(bad) != 0 {
+		t.Fatalf("%v %v", bad, err)
+	}
+
+	// a secret that another vault sealed arrives with a sync: it is listed, nothing else is
+	other, _, _ := newVault(t)
+	if err := other.Create("another master password"); err != nil {
+		t.Fatal(err)
+	}
+	foreign, _ := other.AddSecret(domain.SecretPassword, []byte("two"))
+	if err := v.ReplaceSecrets(append(v.Secrets(), other.Secrets()...)); err != nil {
+		t.Fatal(err)
+	}
+	bad, err := v.Unreadable()
+	if err != nil || len(bad) != 1 || bad[0] != foreign {
+		t.Fatalf("unreadable %v %v (good one was %s)", bad, err, good)
+	}
+	// a deleted secret is not reported
+	if err := v.DeleteSecret(foreign); err != nil {
+		t.Fatal(err)
+	}
+	if bad, _ := v.Unreadable(); len(bad) != 0 {
+		t.Fatalf("a deleted secret was reported: %v", bad)
+	}
+
+	// a key that is not the header's (a leftover from another vault) is caught
+	v.mu.Lock()
+	realKey := v.dek
+	v.dek = bytes.Repeat([]byte{7}, len(realKey))
+	v.mu.Unlock()
+	if err := v.CheckKey(); err != ErrKeyMismatch {
+		t.Fatalf("a wrong key passed: %v", err)
+	}
+	v.Lock()
+	if err := v.CheckKey(); err != ErrLocked {
+		t.Fatalf("locked: %v", err)
+	}
+	if _, err := v.Unreadable(); err != ErrLocked {
+		t.Fatalf("locked: %v", err)
+	}
+}

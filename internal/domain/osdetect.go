@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// KnownOS lists the values Host.OS may hold: what VVTerm can tell a server apart by (and draw an icon for).
+// KnownOS lists the values Host.OS may hold: what Vutty can tell a server apart by (and draw an icon for).
 // The empty string means "not detected yet".
 var KnownOS = map[string]bool{
 	"ubuntu": true, "debian": true, "raspbian": true, "kali": true, "centos": true, "rhel": true, "fedora": true,

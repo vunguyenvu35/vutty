@@ -1,16 +1,103 @@
-<p align="center"><img src="docs/brand/logo-mark-256.png" alt="VVTerm" width="88"></p>
+<p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# VVTerm 1.1.0
+# Vutty 1.3.0
 
-Release date: 2026-10-28 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-03 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased: AI terminal assistant
+## What's new in 1.3.0
 
-Ask an AI about what is on your terminal, without leaving VVTerm and without handing it your secrets. VVTerm runs the AI command-line tool you already use and are signed in to, so your own subscription is used and **no API key is stored**.
+**Updates that install themselves (macOS, Apple silicon).** *Help → About → Check for updates → Install and restart* downloads the new version, checks that the release's checksum list is signed with the project's key and that the download matches it, replaces the app and restarts it. An update that fails either check is not installed. It does not need an Apple certificate: macOS only asks about files that a browser downloaded, and the signature, not Apple, is what makes the update trustworthy ([Release signing](docs/ReleaseSigning.md)). **This version has to be installed by hand once** (earlier versions do not carry the key); from the next release on, updates install from inside the app. Windows, Linux and Intel Macs still use the release page.
+
+**Signing in and the vault**
+- **Servers that ask for more than a password** (a verification code, a Duo choice, a one-time password): a *Sign in to <host>* box shows the server's own questions, over the terminal, in the SFTP pane, the sidebar, port forwards and *Test connection*. A saved password answers the password question by itself, and nothing you type is saved or logged.
+- **Vault health check.** Keys and passwords that were sealed with another key (the leftover quick-unlock key of older versions) are marked *Can't be read* in Keychain, and a host that uses one says what to do instead of "message authentication failed". Enter it again with **Edit**.
+- **Sync refuses to send** what was sealed with a key that is not the vault's, and a Mac with nothing in it can simply use the repository's vault (*Use the repository's vault*).
+- **Edit a key, password or ssh-agent identity** in Keychain; the hosts that use it keep using it.
+- **Lock when the computer sleeps** (on by default): the vault locks as a Mac goes to sleep and when its screen is locked; elsewhere it locks when the computer wakes up.
+
+**Everyday work**
+- **Run on hosts**: one command on several hosts at once, each on its own connection, with the exit code and output of every host (the first 64 KB), a timeout, *Cancel* and *Copy all output*. A confirmation is asked when a production host is among them.
+- **Snippet blanks**: `{{name}}` and `{{name|default}}` in a script are asked for when it runs; `{{host}}`, `{{hostname}}` and `{{user}}` are filled in by *Run on hosts*.
+- **Forward my keys to this host** (`ssh -A`): your running ssh-agent, or the host's saved key when there is none; off by default, and read from and written to ssh config.
+- **Production hosts** are marked (a red frame and a PROD badge) and, with *Be careful on production hosts* (on by default), Vutty asks before text with a line break is pasted there or a snippet is run.
+- **`ssh://` links** open a saved host after a yes, or the New host form filled in: a link never connects by itself.
+- **Session logs** (off by default): one text file per session, line by line with the time, readable only by you.
+- **SFTP**: choose *This computer* on the right side to copy between two folders of your own machine.
+- **Import hosts from a cloud or an inventory**: a listing you made with `aws ec2 describe-instances`, `gcloud compute instances list`, `ansible-inventory --list` (or an INI inventory) or a CSV. Vutty never contacts a cloud and never sees its credentials.
+- The **Connect** button of the host search connects only to a saved host typed in full or to a complete address; a half-typed search just filters.
+
+**Look and feel.** Settings was redesigned (grouped menu, page titles, grouped rows) and opens at once with the values it showed last time, on an opaque background; Import & export has three tabs (Import, Export, Backup); check boxes have one design everywhere.
+
+## What's new in 1.2.1
+
+- **Sync now works between two machines that made their own vaults.** Each vault has its own random key, and a plain sync stopped with *encrypted with a different vault key* even when both machines used the same master password. **Settings → Sync** now shows a box for this: enter the master password of the vault that made the repository and choose **Join this vault and sync**. This machine keeps its hosts, groups, snippets and saved keys, merges them in and, from then on, uses that vault's master password. A copy of what it had is saved first in `backups/before-joining-…`; a wrong password changes nothing.
+- **Replace a repository that nobody can open.** If the bundle in the repository was not locked with the key of its own header (it cannot be opened even with the right password), Join cannot help. The same box has *The password does not work…*: type `REPLACE` and the repository then holds this machine's data. The two files that were there are copied to `backups/replaced-remote-…` first, and a repository that this vault can read is never replaced.
+- **Quick unlock checks its key against the vault.** The key kept in the OS keychain was checked only against the first saved secret, so a vault with no secret yet accepted any key left by an older vault, and then sealed the sync bundle with that wrong key. The header now carries a key check (older vaults get one at the next unlock with the password). A key that does not belong to the vault is refused and removed, and the master password is asked for.
+- **The Join / Replace box stays after a failed join**, with a message that says what is wrong, so the way out is not taken away.
+- Sync and the Settings window: the Settings window used an old helper after a rebuild or an update of the app (it showed an old version of everything); it now runs only the program that is running, and a window of another version is refused.
+- **New host and New group start in the group you are in.** Open a group on the Hosts page and press *New host*: the *Group* field is already filled in with it (you can still change it). The same goes for *New group*, which is created inside the open group. Editing an existing host never moves it.
+
+## What's new in 1.2.0
+
+- **VuTerm is now Vutty.** The VuTerm name was used for a few days only, and Vutty is shorter and says more (a *tty* is a terminal). The logo mark is unchanged, the wordmark now reads Vutty. Your data comes with you from VuTerm and from VVTerm alike: on first start the data folder (`vuterm` or `vvterm`) is renamed to `vutty`, the database file is renamed too, saved view settings are copied to the new names, `$VUTERM_DATA_DIR` and `$VVTERM_DATA_DIR` still work next to the new `$VUTTY_DATA_DIR`, and Quick unlock (Touch ID) and `.vvbak` / `.vubak` backups keep working. The app is now `vutty.app`, and the update check and the links point to `github.com/vunguyenvu35/vutty`.
+
+- **VVTerm is now VuTerm.** Another project already used the name VVTerm, so this one is renamed. The logo mark is unchanged. Your data comes with you: on first start the data folder `vvterm` is renamed to `vuterm`, the database file is renamed too, saved view settings are copied to the new names, Quick unlock keeps working, and backups, sync bundles and `~/.ssh/config` files exported by VVTerm are still read. The old `VVTERM_DATA_DIR` setting still works (the new one is `VUTERM_DATA_DIR`). The app is now `vuterm.app` / `vuterm-<version>-…`, and the GitHub repository is `vunguyenvu35/vuterm` (the old address redirects). Backups you save get the extension `.vubak`; `.vvbak` files still open.
+
+- **Command suggestions and History are kept for each host.** The list of commands you typed was shared by every terminal, so a `cd Data/projects/...` typed on your Mac was offered at a server where that folder does not exist. Each host (a saved host, or *local*, a serial port, a Telnet host) now has its own list, used by the suggestions and shown in the sidebar's History tab, and *Clear history* clears only that host's. Commands typed before this update are not carried over (they cannot be told apart by host); snippets are still offered everywhere, as they are yours on purpose.
+### SFTP is complete
+
+- **A transfer queue.** Uploads and downloads run in the background, two at a time, and are listed in a **Transfers** panel with a bar for each one and **Pause**, **Resume**, **Cancel**, **Retry** and **Clear finished**. You can keep browsing, or start more transfers, while they run. The batch still asks **once** before replacing files that already exist.
+- **Resume.** A transfer that is paused, fails or is cut by a lost connection continues from the bytes already copied instead of starting over, for uploads and downloads. The partial copy is named after the size and time of the source, so it is only continued when the file has not changed; the last 64 KB are written again in case the last chunk was cut short. **Cancel** deletes the partial file.
+- **Sync folders.** Compare a local folder with a remote one (either direction), see what is new or changed, then copy it through the queue. Nothing is ever deleted at the target; the files only it has are listed.
+- **Edit and save back.** Right-click a remote file → **Edit and save back**: it is opened on your computer and uploaded again each time you save, keeping the permissions of the file it replaces. If the server's copy changed meanwhile, you are asked before it is replaced.
+- **Files in the terminal sidebar.** A **Files (SFTP)** section beside every SSH terminal: browse, upload, download, with the same queue.
+- Replacing a file over SFTP now keeps its permissions (a `0600` key stays `0600`).
+- **For developers:** `RemoteFS.Upload` and `Download` take a context; `RemoteFS.Stat` is new; new `SftpService` calls `Enqueue`, `Queue`, `Pause`, `Resume`, `Cancel`, `Retry`, `ClearFinished`, `Conflicts`, `SyncPlan`, `EditStart`, `EditPush`, `EditStop` and events `sftp:queue:<sid>`, `sftp:edit:<sid>` (see Architecture notes in `internal/usecase/queue.go`). `testssh` can serve the real file system for tests that need permissions.
+
+- **Panes can be dragged by their header.** The bar with the host name that shows over a pane of a split is now a handle: drop it on a side of another pane to move the pane there (also into another tab), **on the tab bar to make it a tab of its own**, or on another terminal tab to join it. The pane keeps its session, nothing reconnects. The "Move pane to its own tab" button is still there.
+- **It is now clear which pane has the keyboard.** In a tab with several panes the focused pane has a frame in the accent colour and a dot by its name on the pane bar, and the other panes are dimmed (a little less under the pointer, as an invitation to click). A tab with one pane looks as before.
+- **A tidier bar on each pane.** The bar that shows over a pane of a split has a handle (six dots) to drag the pane by, the name in bold with a small tag for what it is, quieter buttons (the close button turns red under the pointer) and no tooltip over the name.
+- **For developers:** `make e2e` and `e2e/update-shots.sh` no longer open your default browser. `wails dev -browser` does that by itself, and a tab on the unlock screen (a focused password field) makes macOS turn on secure input for every app, which stops input tools such as OpenKey. If you start `wails dev -browser` yourself, close that tab (see Development.md).
+
+## What's new in 1.1.2
+
+- **The Settings window answers at once when it opens.** Until now it showed a blank "Loading…" page until the main process had answered, so a busy main process left the menu missing or unclickable for seconds. The window and its menu now appear immediately and work while the saved settings are on their way; the pages (and the Theme switch, which would otherwise save placeholder values) wait for them. Measured in the system web view with a main process made 4 s slow: the menu appeared after 25 ms instead of 4 s, and every click was answered in under 15 ms.
+- **Less loaded on first open.** The Settings window no longer loads the terminal app's code (the page it needs went from 210 KB to 67 KB compressed), and the AI assistant, Sync and Support pages are loaded when first opened. Focusing the window again re-reads the data at most every 3 seconds.
+- **The AI tools are looked up when first needed**, not at start-up: starting each CLI takes seconds of CPU, which used to compete with a Settings window opened just after the app launched.
+- **Command suggestions cost next to nothing while a program writes a lot of output**, and nothing is looked up for a pasted line of hundreds of characters.
+
+## What's new in 1.1.1
+
+A patch release: fixes for typing and for the macOS input tools, and two new things in the terminal and in Settings.
+
+### New: command suggestions in the terminal
+
+- **A list of matching commands appears under the cursor while you type.** Each row says where it comes from: a command you ran in VVTerm, the shell history of this computer (local terminal: `~/.zsh_history`, `~/.bash_history`), one of your one-line Snippets (also found by its name) or, if you turn it on, the shell history of an SSH server.
+- **Nothing is taken unless you choose it.** ↓ ↑ choose a row, then **Enter** or **Tab** put it on the line (it is never run for you); **Esc** closes the list. Until a row is chosen, Enter, Tab and the arrows are the shell's, as always.
+- **⌘⇧G** (Ctrl+Shift+G elsewhere) turns suggestions off and on; **⌘⇧J** (Ctrl+Shift+J) opens the list by hand, also on an empty line. Both are in the **View** menu and can be changed in Settings → Shortcuts. **Settings → Terminal → Suggest commands** switches it off for good.
+- **Safe by design.** No suggestions at a password prompt, in vim or htop, or while the shell is changing the line; a line that looks like a password, token or key is never suggested; a Snippet of several lines is never suggested (its first lines would run at once). The shell history of an SSH server is **off by default**, read once per terminal, kept in memory only, and goes through the secret filter on the way in.
+- **The history keeps the command that ran**, as the screen shows it, instead of the keys that were pressed: a line completed with Tab or with your shell's own suggestion is saved whole, and a command with long output (`ls -la`) is no longer lost.
+
+### New: Settings → Storage
+
+- **Clear cache** removes the files VVTerm can make again and forgets what it found out about your AI tools (they are looked up again). It says what it removed.
+- **Reset settings** puts appearance, terminal, general options, shortcuts and auto-lock back to their defaults, after a confirmation. Your profile, sync target, hosts, keys and vault are never touched.
+
+### Fixed
+
+- **A password field no longer leaves macOS "secure input" switched on.** While it is on, input tools such as OpenKey and GoTiengViet stop working in every app. Clicking an empty part of the unlock card (or of a panel with a password field) and then unlocking used to leave it on until some text field was focused; VVTerm now releases it. Measured with the system web view: a focused password field turns it on, a click on empty space keeps it on, focusing a text field turns it off.
+- **Vietnamese typed in the terminal on macOS**: words replaced by the input method (`insertReplacementText`) were lost.
+- **Settings → AI assistant no longer re-reads the whole page every 0.6 s** while it looks for your AI tools, which could make the page unresponsive; it also keeps what you are typing, and no longer makes the main window refresh for it. A failing load can no longer repeat itself on every notification.
+- **Settings window ran a stale helper** after a rebuild or an app update.
+- Development only: `make dev` hides the line macOS' Vietnamese input method prints for every key typed.
+
+## Also in 1.1.1: AI terminal assistant
+
+Ask an AI about what is on your terminal, without leaving VVTerm and without handing it your secrets. VVTerm runs the official AI command-line tool you installed and signed in to, and **no API key is stored**. The use of each tool is governed by its provider's terms; VVTerm is not affiliated with Anthropic, OpenAI or Google.
 
 ### Get started
 
-1. **Settings → AI assistant**: switch on a tool VVTerm found (Claude Code, Codex CLI, Antigravity CLI, Gemini CLI, or a command of your own). It stays off until you do, after a short isolation test.
+1. **Settings → AI assistant**: switch on a tool VVTerm found (Claude Code, Codex CLI, or a command of your own; the Antigravity and Gemini CLIs are listed but cannot be switched on yet, see Limits). It stays off until you do, after a short isolation test.
 2. Open a terminal, then the ✨ icon in the sidebar. Pick the provider and model from the chip under the message box, and ask.
 3. Drop a log or a screenshot on the panel, or paste one, to add it to your question.
 
@@ -24,6 +111,7 @@ Ask an AI about what is on your terminal, without leaving VVTerm and without han
 - **MCP servers.** Add MCP servers (a command or an HTTP address), test them, and choose a mode per tool: *Allow*, *Ask each time* or *Off*. New tools of a server stay off until you review them. Import servers from Claude Code or Gemini CLI. Currently used through Claude Code.
 - **Per-host switch.** On a host's form: *Off*, *Ask first (in the chat)* or *On*. Hosts are **On** by default and **Off** on production hosts.
 - **Typing Vietnamese (and other input methods)** in the terminal now shows the text you are composing at the cursor, highlighted, until you commit it.
+- **Vietnamese and other accented text typed in a terminal** is now sent to the shell as whole letters. macOS input methods can deliver a letter in pieces (the `ệ` of *việt* as `e` + dot + circumflex); `zsh` cannot edit those and showed them as `<0087>`.
 
 ### Your secrets stay yours
 
@@ -31,8 +119,16 @@ Ask an AI about what is on your terminal, without leaving VVTerm and without han
 - **What will be sent** shows the exact redacted text, inside the chat, before or after you ask. Every use is written to the activity log (Logs → Assistant).
 - A command with a hidden value cannot be run from the panel. A secret in a tool's arguments blocks the call; tool results are redacted.
 - **Pictures are the exception**: a secret inside a picture cannot be found, so VVTerm asks you to confirm each time (in the chat) and says so plainly.
-- The AI tool runs in an empty temporary folder with a cleaned environment and no tools of its own. A provider can only be switched on after a self-test in which it is asked to run a command and must fail. For Antigravity, whose own allow-rules would let a command run, every call overrides them with deny rules.
+- The AI tool runs in an empty temporary folder with a cleaned environment and no tools of its own. A provider can only be switched on after a self-test in which it is asked to run a command and to search the web, and must fail at both. Codex CLI is started with its shell tool, its apps connector and its web search turned off.
 - Redaction is best effort. A password written in an ordinary sentence cannot always be recognised.
+
+### Also new: sync through a cloud folder
+
+**Settings → Sync → Cloud folder**: pick a folder inside Google Drive, iCloud Drive, Dropbox or OneDrive. Only the two encrypted files are written there, with no sign-in and no token. Extra "conflict copies" made by the cloud client are merged per record (newest edit wins) and removed. Git sync still works as before.
+
+### Also new: find things in every list
+
+- **Snippets, Port Forwarding, Known Hosts and Keychain** now have what the host list has: a search box, filter chips (state and type of a forward, key type of a known host, key / password / ssh-agent in the Keychain), a **Sort** menu (name, host, type, status, port, recently changed…) and a **Grid / List** switch. The **host list** gets a Sort menu too (name, production first, recently connected), the **Logs** page sorts by newest, oldest, host or problems first, and each **SFTP pane** sorts by name or size or date (folders always first). The sort and the view are remembered for each page. Names sort the way people read them (case and accents ignored, `web-2` before `web-10`).
 
 ### Also fixed in this release
 
@@ -42,7 +138,8 @@ Ask an AI about what is on your terminal, without leaving VVTerm and without han
 
 ### Limits you should know about
 
-- Gemini CLI shares `~/.gemini` with Antigravity, which sets a sign-in the Gemini CLI does not support. Use the Antigravity CLI provider, or sign in again with `gemini`.
+- **Antigravity CLI cannot be switched on yet.** Its web search tool keeps working whatever deny rule is given (several were tried), so text from your terminal could leave in a search query, and the isolation self-test correctly fails. It will be usable when Antigravity offers a way to turn that tool off.
+- Gemini CLI shares `~/.gemini` with Antigravity, which sets a sign-in the Gemini CLI does not support. Sign in again with `gemini` (Login with Google) to use it.
 - The Gemini CLI adapter could not be tested against a signed-in account; its isolation is checked by the self-test when you switch it on.
 - MCP tools work through Claude Code only. Pictures work with Claude Code and Codex CLI only.
 - The assistant is not run on Windows or Linux yet, and chat history is kept in memory only (a new chat starts empty after a restart).
@@ -52,17 +149,17 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 
 ## Highlights
 
-- **New host, the Termius way**: a form docked next to the list (no popup) that follows the natural flow, with **Test connection** (checks address, credentials and jump host without saving anything) and **Connect** (save + open a terminal).
+- **New host, step by step**: a form docked next to the list (no popup) that follows the natural flow, with **Test connection** (checks address, credentials and jump host without saving anything) and **Connect** (save + open a terminal).
 - **Settings as its own macOS window**: a real window with its own title bar, movable outside the main window, with macOS full screen, holding terminal themes (26), light / dark / auto appearance, font, cursor, scrollback, security and sync, plus help links and the version (⌘/Ctrl + ,). It closes when you quit VVTerm.
 - **Forgot your master password?** The unlock screen now offers a clearly explained **reset** that keeps your hosts and erases only the secrets.
 - **SFTP**: a file browser in its own tab, through jump hosts, with upload, download, new folder, rename, delete and a confirmation before anything is replaced.
 - **More in Settings**: new *General* (interface zoom, reduce motion, confirm before closing) and *Account* (local profile, ready for sign-in later) sections, **shortcuts you can change**, and a window you can maximise, roll up and resize.
 - **Snippets**: save commands you run often and type them into the focused terminal with one click. They sync, back up and export like everything else.
-- **New interface**, inspired by Termius: a *Vaults* tab with the terminals as tabs, left navigation, one search box that also connects (`ssh user@host`), group and host cards, custom dropdowns.
+- **New interface**: a *Vaults* tab with the terminals as tabs, left navigation, one search box that also connects (`ssh user@host`), group and host cards, custom dropdowns.
 - **New brand**: logo and wordmark on one row, macOS and Windows icons, favicon, social preview ([brand kit](docs/brand/README.md)).
 - **Docker** for CI and development fixtures, and a **dev / prod deploy script**.
 - **Terminal sidebar** (hosts, snippets with Run / Paste, command history, themes and font), **drag a tab onto a pane to split** without reconnecting, drag tabs to order them, take a pane back out into a tab, and **Duplicate in new window** (the whole app in a second window).
-- **Termius-style connecting**: *Choose protocol*, a connecting screen whose line moves with the real connection (error, Retry, Show logs), connected / lost badges on tabs, a **New Tab** page with recent connections.
+- **Clearer connecting**: *Choose protocol*, a connecting screen whose line moves with the real connection (error, Retry, Show logs), connected / lost badges on tabs, a **New Tab** page with recent connections.
 - **This computer, Serial and Telnet** (own login, encoding), Known Hosts and Logs pages, output highlighting, copy on select and right-click paste, tag filter, drag hosts into groups, SFTP right-click menu with permissions.
 
 ## What's new in 1.1.0
@@ -88,7 +185,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 - The database gets columns added later on every start (schema v4 + idempotent additions), so a database that already had the newest version is never left behind (the cause of a *no such column* start-up error).
 
 ### Known limits of this part
-- Mosh and the cloud integrations of Termius (AWS, DigitalOcean, Azure) and multiplayer are not built.
+- Mosh, cloud provider integrations (AWS, DigitalOcean, Azure) and multiplayer are not built.
 - Telnet is not encrypted. Keys stored *hashed* in `known_hosts` are listed but cannot be forgotten from the app.
 - The new window and the Settings window are separate processes: the new window has its own Dock icon, the Settings window is hidden from the Dock (macOS then shows no menu bar of its own for it). A change made in one window is picked up by the other when it next refreshes.
 - Typing Vietnamese with a system-wide input method (GoTiengViet, OpenKey…) can fail to compose in the terminal: those tools treat unknown apps differently; add VVTerm to their app list.
@@ -110,7 +207,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 
 ### Settings window
 - **A second native window** (a second VVTerm process, see [ADR-0006](docs/CleanArchitecture.md)): the standard red / yellow / green buttons, resize, full screen. It opens from the navigation, the gear or the shortcut, is raised instead of opened twice, and closes when the main app quits. Where no native window exists (browser mode, the E2E run) the same settings appear in an in-app floating window (drag, roll up, maximise) (Esc closes an open dropdown first). Opens from the navigation, the gear in the title bar, or ⌘/Ctrl + , (also inside a terminal).
-- Left menu like Termius: General, Account, Terminal, Security, Sync, Shortcuts, then Theme (Auto / Light / Dark), Documentation, Request a feature, Report a bug, Release notes, Support on Ko-fi, and the Version.
+- Left menu: General, Account, Terminal, Security, Sync, Shortcuts, then Theme (Auto / Light / Dark), Documentation, Request a feature, Report a bug, Release notes, Support on Ko-fi, and the Version.
 - **Terminal theme picker**: 26 themes in a two-column list with live swatches, dark/light filter, *Match app theme*, and a live preview with your font, size and cursor.
 - Font, size stepper, cursor style, blinking, scrollback. Auto-lock, keychain unlock and master-password change under Security.
 - **General**: interface zoom 80 %–160 %, reduce motion, confirm before closing a tab. **Account**: display name and email (local only), plan, disabled *Sign in*.
@@ -169,18 +266,21 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 ## Known issues
 
 1. **Keychain unlock is not biometric-gated**: anyone who can read your login keychain can unlock the vault.
-2. **The vault does not lock when the Mac sleeps**; only the idle timer applies.
+2. **Locking when the Mac sleeps** relies on the notifications macOS sends. The one for a *sleep* was exercised by a test that posts it by hand; the one for a *locked screen* needs the running app and was not exercised. On Windows and Linux the vault locks when the computer wakes up, and a sleep of a few seconds is not noticed.
 3. **Settings runs as a second process**: it shows a second Dock icon while open. It reads and writes through a local, token-protected bridge to the main app, so it needs the main app running. The native window itself could not be screenshotted here, so its look is covered by tests and the in-app variant's screenshots; please check it on your Mac.
 4. The packaged app was built and its icon, About box and bundle were checked, but it is **not notarized**: on first launch right-click → Open. The *release* pipeline can sign and notarize when you provide a Developer ID.
 5. The native macOS window, file dialogs and Keychain prompts were not exercised in this environment (the UI is verified in a browser against the real backend). Run the manual checklist in [docs/TestPlan.md](docs/TestPlan.md).
-6. Terminal performance on heavy output in WKWebView is unmeasured.
+6. **Terminal performance on heavy output** was measured in the real macOS WKWebView ([docs/Assessment.md](docs/Assessment.md) G4, `tools/termperf/run.sh`). Text output (plain, log lines, colours, Vietnamese/CJK) at the most the backend sends (about 3.7 MB/s) keeps 55–60 frames per second. A screen that is redrawn in place with every cell coloured (a heavier htop) drops to about 20 frames per second with the default renderer, and nothing slows the data down when a program writes faster than the terminal can draw: the page can then stop answering for seconds until it has caught up.
 7. Sync was tested against local Git remotes only. Edits made during the few seconds of a sync can be overwritten. After a vault reset the sync repository still holds the old vault: use a new repository.
 8. Last-write-wins depends on reasonably correct clocks.
 9. `ssh_config`: `ProxyCommand`, `Match`, token expansion are reported as warnings and skipped.
-10. Snippets run in the focused pane only (no multi-host targets or variables yet). A saved host cannot choose its own terminal theme (the theme is global). No CLI (`vvt`). SFTP moves single files only (no folders, queue or resume). Account sign-in is a placeholder.
-11. Windows and Linux are not built or tested.
+10. No CLI (`vvt`). Account sign-in is a placeholder.
+11. Windows and Linux builds are made by the release workflow but are much less tested than macOS. Updates install by themselves on macOS with Apple silicon only.
 12. Use cases still depend directly on some infrastructure packages (documented debt, capped by a test).
 13. Replacing a saved host password creates a new identity; the old one stays in Keychain until you delete it.
+14. **New in 1.3.0 and not yet exercised on real hardware or against a real release:** installing an update by itself (every step is covered by tests, including the real swap script, but not a whole update of the packaged app), the `ssh://` registration in the macOS bundle, a verification-code prompt against a real bastion, and a hardware (FIDO2) key through ssh-agent. Run the checklist in [docs/TestPlan.md](docs/TestPlan.md) and tell us what you find.
+15. A port forward that starts with the app cannot answer a verification code: it waits three minutes and fails. Start it from the Port Forwarding page. *Run on hosts* never asks anything, so a host with an untrusted key or that wants a code fails there: open it once in a terminal tab first.
+16. Session logs are not rotated or deleted, and hold everything that was shown on screen. No tmux integration, no X11 forwarding, no Mosh.
 
 ## Changes from the original design
 
@@ -204,7 +304,7 @@ Open the new build: the database migrates itself (v1 → v2) on first start. Bac
 ```bash
 make test        # all unit, integration and component tests
 make e2e         # walkthrough against the real backend; refreshes docs/screenshots
-make build       # build/bin/vvterm.app
+make build       # build/bin/vutty.app
 scripts/deploy.sh prod --dry-run   # the release pipeline without side effects
 ```
 

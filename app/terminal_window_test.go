@@ -54,7 +54,7 @@ func TestOpenWindowFallsBackWithoutNativeWindows(t *testing.T) {
 	if err := s.OpenWindow("local", "Local"); err != nil || host != "local" || title != "Local" {
 		t.Fatalf("%v %q %q", err, host, title)
 	}
-	t.Setenv("VVTERM_NO_NATIVE_DIALOGS", "1")
+	t.Setenv("VUTTY_NO_NATIVE_DIALOGS", "1")
 	if err := s.OpenWindow("local", "Local"); err == nil {
 		t.Fatal("the e2e switch keeps everything in one window")
 	}

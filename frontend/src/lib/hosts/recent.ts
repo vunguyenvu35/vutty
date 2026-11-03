@@ -1,5 +1,5 @@
 /** The hosts opened most recently (newest first), for the "Recent connections" of a new tab. Kept in this browser profile. */
-const KEY = 'vvterm.recent'
+const KEY = 'vutty.recent'
 const MAX = 12
 
 export function getRecent(): string[] {

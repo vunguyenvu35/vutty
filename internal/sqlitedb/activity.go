@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 // maxActivityRows is how much history is kept; older lines are dropped as new ones arrive.

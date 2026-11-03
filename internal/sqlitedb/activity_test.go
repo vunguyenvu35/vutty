@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 func openLog(t *testing.T) *ActivityLog {

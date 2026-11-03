@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -23,6 +24,7 @@ type Services struct {
 	KnownHost *KnownHostsService
 	Settings  *SettingsService
 	Assistant *AssistantService
+	Exec      *ExecService
 }
 
 // New builds every use case service.
@@ -31,6 +33,8 @@ func New(core *Core) *Services {
 	sess := NewSessionService(core, fwd)
 	assist := NewAssistantService(core, sess)
 	sess.OnClose = assist.ForgetSession
+	settings := NewSettingsService(core)
+	settings.OnClearCache = assist.ClearCache
 	return &Services{
 		Core:      core,
 		Host:      NewHostService(core),
@@ -40,13 +44,14 @@ func New(core *Core) *Services {
 		Forward:   fwd,
 		Sync:      NewSyncService(core),
 		ImportExp: NewImportExportService(core),
-		Settings:  NewSettingsService(core),
+		Settings:  settings,
 		Snippet:   NewSnippetService(core),
 		Sftp:      NewSftpService(core),
 		Local:     NewLocalService(),
 		Serial:    NewSerialService(core),
 		Log:       NewLogService(core),
 		KnownHost: NewKnownHostsService(core),
+		Exec:      NewExecService(core),
 	}
 }
 
@@ -62,15 +67,22 @@ func (s *Services) Shutdown() {
 }
 
 // SettingsService reads and writes settings.json (theme, font, auto-lock).
-type SettingsService struct{ c *Core }
+type SettingsService struct {
+	c *Core
+	// OnClearCache drops what other services remember (set where the services are built).
+	OnClearCache func()
+}
 
-func NewSettingsService(c *Core) *SettingsService { return &SettingsService{c} }
+func NewSettingsService(c *Core) *SettingsService { return &SettingsService{c: c} }
 
 func (s *SettingsService) Get() Settings {
 	s.c.setMu.Lock()
 	defer s.c.setMu.Unlock()
 	return s.c.settings
 }
+
+// SessionLogFolder is the folder session logs are written to now (the one in Settings, else the default inside the data folder).
+func (s *SettingsService) SessionLogFolder() string { return s.c.sessionLogDir() }
 
 // Save updates appearance and terminal settings. Sync URL and auto-lock have dedicated methods.
 func (s *SettingsService) Save(in Settings) (Settings, error) {
@@ -89,10 +101,20 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	s.c.settings.Scrollback = in.Scrollback
 	s.c.settings.Zoom = in.Zoom
 	s.c.settings.ConfirmTabClose = in.ConfirmTabClose
+	s.c.settings.ConfirmProd = in.ConfirmProd
+	s.c.settings.LockOnSleep = in.LockOnSleep
+	s.c.settings.SessionLog = in.SessionLog
+	if s.c.settings.SessionLog == "" {
+		s.c.settings.SessionLog = SessionLogOff
+	}
+	s.c.settings.SessionLogDir = in.SessionLogDir
 	s.c.settings.AskProtocol = in.AskProtocol
 	s.c.settings.Highlight = in.Highlight
 	s.c.settings.ReduceMotion = in.ReduceMotion
+	s.c.settings.AutoUpdateCheck = in.AutoUpdateCheck
 	s.c.settings.BiometricOnOpen = in.BiometricOnOpen
+	s.c.settings.Suggest = in.Suggest
+	s.c.settings.SuggestHost = in.SuggestHost
 	s.c.settings.AccountName = strings.TrimSpace(in.AccountName)
 	s.c.settings.AccountEmail = strings.TrimSpace(in.AccountEmail)
 	s.c.settings.Shortcuts = cloneShortcuts(in.Shortcuts)
@@ -131,6 +153,14 @@ func validateSettings(in Settings) error {
 	}
 	if in.Zoom < 80 || in.Zoom > 160 {
 		return errors.New("zoom must be between 80 and 160 percent")
+	}
+	switch in.SessionLog {
+	case "", SessionLogOff, SessionLogProd, SessionLogAll:
+	default:
+		return errors.New("session logs must be off, prod or all")
+	}
+	if d := in.SessionLogDir; d != "" && (len(d) > 1024 || strings.ContainsRune(d, 0) || !filepath.IsAbs(d)) {
+		return errors.New("the folder for session logs must be an absolute path")
 	}
 	if err := validateAccount(in.AccountName, in.AccountEmail); err != nil {
 		return err

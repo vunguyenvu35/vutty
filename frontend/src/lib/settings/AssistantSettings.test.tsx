@@ -162,7 +162,7 @@ describe('AssistantSettings: the host list', () => {
 
   it('a host list that cannot be read does not break the page or show an error', async () => {
     const be = makeFake()
-    be.hosts.listHosts = async () => { throw new Error('VVTerm cannot reach its backend from this window.') }
+    be.hosts.listHosts = async () => { throw new Error('Vutty cannot reach its backend from this window.') }
     render(<Providers be={be}><AssistantSettings /></Providers>)
     await userEvent.click(await screen.findByRole('button', {name: 'Add server'}))
     expect(screen.queryByText(/cannot reach its backend/)).toBeNull()
@@ -287,5 +287,17 @@ describe('AssistantSettings: MCP servers', () => {
     await waitFor(() => expect(calls(be, 'assistant.mcp.save')[0][1]).toMatchObject({id: 'm1', enabled: true}))
     await userEvent.click(within(screen.getByTestId('mcp-Docs')).getByRole('button', {name: 'Delete'}))
     await waitFor(() => expect(calls(be, 'assistant.mcp.remove')).toEqual([['assistant.mcp.remove', 'm1']]))
+  })
+})
+
+describe('AssistantSettings: while the tools are being looked for', () => {
+  it('keeps what is being typed and does not read the rest of the page again', async () => {
+    const be = setup(b => { b.state.ai.checking = 3 })
+    const pats = await screen.findByLabelText('Extra redaction patterns')
+    const settings = vi.spyOn(be.assistant, 'settings')
+    await userEvent.type(pats, 'EMP-1')
+    await waitFor(() => expect(within(screen.getByTestId('provider-claude')).getByText('Ready')).toBeInTheDocument(), {timeout: 4000})
+    expect(pats).toHaveValue('EMP-1')
+    expect(settings).not.toHaveBeenCalled()
   })
 })

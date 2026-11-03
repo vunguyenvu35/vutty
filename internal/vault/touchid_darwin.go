@@ -43,7 +43,7 @@ import (
 // BiometricAvailable reports whether this Mac can ask for Touch ID (or the Apple Watch / login password).
 func BiometricAvailable() bool { return C.canAuth() == 1 }
 
-// BiometricAuth shows the macOS Touch ID sheet; reason completes "VVTerm is trying to …".
+// BiometricAuth shows the macOS Touch ID sheet; reason completes "Vutty is trying to …".
 func BiometricAuth(reason string) error {
 	r := C.CString(reason)
 	defer C.free(unsafe.Pointer(r))

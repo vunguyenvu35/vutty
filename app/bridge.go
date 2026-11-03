@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"vvterm/internal/usecase"
+	"vutty/internal/usecase"
 )
 
 // The Settings window is a second native window. Wails v2 can only create one window per process, so it
-// is a second VVTerm process that holds no data of its own: every read and write goes through this bridge
+// is a second Vutty process that holds no data of its own: every read and write goes through this bridge
 // to the main process, which owns the vault and the database. The bridge listens on loopback only, needs
 // a random token that is stored in a 0600 file inside the data directory, and exposes an explicit
 // allow-list of use case methods.
@@ -94,14 +94,15 @@ func NewBridge(a *App, onChange func(service string)) *Bridge {
 			"HostService": a.Host, "VaultService": a.Vault, "SessionService": a.Session, "ForwardService": a.Forward,
 			"SyncService": a.Sync, "ImportExportService": a.ImportExp, "SettingsService": a.Settings, "SnippetService": a.Snippet,
 			"SftpService": a.Sftp, "LocalService": a.Local, "SerialService": a.Serial, "LogService": a.Log, "KnownHostsService": a.KnownHost, "AssistantService": a.Assistant,
+			"ExecService": a.Exec,
 		},
 		wake: make(chan struct{}),
 		targets: map[string]bridgeTarget{
-			"SettingsService": {a.Settings, allow("Get", "Save")},
+			"SettingsService": {a.Settings, allow("Get", "Save", "ResetSettings", "ClearCache", "SessionLogFolder")},
 			"VaultService":    {a.Vault, allow("Status", "ChangePassword", "SetAutoLock", "EnableBiometric", "DisableBiometric", "ResetVault", "SetHint")},
-			"SyncService":     {a.Sync, allow("Configure", "SyncNow", "JoinExisting", "Status")},
+			"SyncService":     {a.Sync, allow("Configure", "ConfigureFolder", "SyncNow", "JoinExisting", "JoinRemoteVault", "ReplaceRemote", "Status")},
 			// a terminal window drives its own session and reads the hosts for their names and themes
-			"SessionService": {a.Session, allow("Open", "Attach", "Write", "Resize", "Reconnect", "Close", "TrustHostKey")},
+			"SessionService": {a.Session, allow("Open", "Attach", "Write", "Resize", "Reconnect", "Close", "TrustHostKey", "AnswerAuth")},
 			"HostService":    {a.Host, allow("ListHosts")},
 			// the AI assistant page of Settings: providers, models, redaction options and MCP servers (never a terminal)
 			"AssistantService": {a.Assistant, allow("Providers", "RefreshProviders", "SetProviderEnabled", "SetDefaultProvider", "SetProviderModel",
@@ -241,8 +242,11 @@ func (b *Bridge) SetMenuHandler(f func(action string)) { b.onMenu = f }
 
 // readOnlyCall is true for calls that only read or only drive a session: the other windows need not refresh.
 func readOnlyCall(service, method string) bool {
-	if service == "SessionService" || service == "SftpService" || service == "LocalService" || service == "SerialService" || service == "LogService" {
+	if service == "ExecService" || service == "SessionService" || service == "SftpService" || service == "LocalService" || service == "SerialService" || service == "LogService" {
 		return true
+	}
+	if service == "AssistantService" && (method == "Providers" || method == "Settings" || method == "Models") {
+		return true // the Settings page asks again while the tools are being looked for: no window needs to refresh for that
 	}
 	for _, p := range []string{"List", "Get", "Status", "Info", "Home", "Search", "Dump", "Export"} {
 		if strings.HasPrefix(method, p) {
@@ -281,6 +285,12 @@ func (b *Bridge) handler() http.Handler {
 	mux := http.NewServeMux()
 	guard := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
+			// Only the app's own processes call the bridge. A request from a web page (it carries an Origin) or one
+			// addressed to a name other than the loopback address (DNS rebinding) is refused before the token is looked at.
+			if r.Header.Get("Origin") != "" || !strings.HasPrefix(r.Host, "127.0.0.1:") {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
 			if !b.authorised(r) {
 				http.Error(w, "unauthorised", http.StatusUnauthorized)
 				return
@@ -288,7 +298,11 @@ func (b *Bridge) handler() http.Handler {
 			h(w, r)
 		}
 	}
-	mux.HandleFunc("/ping", guard(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	version := Version // the version this main process started as
+	mux.HandleFunc("/ping", guard(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(versionHeader, version)
+		w.WriteHeader(http.StatusNoContent)
+	}))
 	mux.HandleFunc("/call", guard(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST only", http.StatusMethodNotAllowed)
@@ -420,7 +434,7 @@ type BridgeClient struct {
 func ConnectBridge(dir string) (*BridgeClient, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, bridgeFile))
 	if err != nil {
-		return nil, errors.New("VVTerm is not running: open Settings from the main window")
+		return nil, errors.New("Vutty is not running: open Settings from the main window")
 	}
 	var info bridgeInfo
 	if err := json.Unmarshal(raw, &info); err != nil || info.Port == 0 || info.Token == "" {
@@ -456,7 +470,7 @@ func (c *BridgeClient) Call(service, method, argsJSON string) (string, error) {
 	body, _ := json.Marshal(callRequest{Service: service, Method: method, Args: args})
 	resp, err := c.do(context.Background(), http.MethodPost, "/call", body)
 	if err != nil {
-		return "", errors.New("VVTerm is not running")
+		return "", errors.New("Vutty is not running")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -472,7 +486,10 @@ func (c *BridgeClient) Call(service, method, argsJSON string) (string, error) {
 	return string(out.Result), nil
 }
 
-// Ping reports whether the main process still answers.
+// versionHeader carries the app's version on /ping, so a window of another version can tell.
+const versionHeader = "X-Vutty-Version"
+
+// Ping reports whether the main process still answers, and that it is the same version as this process.
 func (c *BridgeClient) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -483,6 +500,11 @@ func (c *BridgeClient) Ping() error {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		return errors.New(resp.Status)
+	}
+	// A window left over from another version of the app (the app was updated while it was open) must not keep
+	// talking to the new main process: it would show, and ask for, things the two versions do not agree on.
+	if v := resp.Header.Get(versionHeader); v != Version {
+		return fmt.Errorf("this window is Vutty %s but the app is %s: close it and open it again", Version, v)
 	}
 	return nil
 }
@@ -554,7 +576,7 @@ func (c *BridgeClient) CallApp(service, method, argsJSON string) (string, error)
 	body, _ := json.Marshal(callRequest{Service: service, Method: method, Args: args})
 	resp, err := c.do(context.Background(), http.MethodPost, "/appcall", body)
 	if err != nil {
-		return "", errors.New("VVTerm is not running")
+		return "", errors.New("Vutty is not running")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

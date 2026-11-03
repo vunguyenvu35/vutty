@@ -85,6 +85,40 @@ describe('TerminalPane', () => {
     expect(be.state.calls).toContainEqual(['session.trustHostKey', sid, ''])
   })
 
+  it('asks what the server asks while signing in (a verification code) and sends the answer, hidden while typing', async () => {
+    const {be, sid} = await mount()
+    act(() => be.emit(`term:auth:${sid}`, {host: 'bastion', name: '', instruction: '', prompts: [{text: 'Verification code: ', echo: false}]}))
+    const dlg = screen.getByRole('alertdialog', {name: 'Sign-in question'})
+    expect(within(dlg).getByText('Sign in to bastion')).toBeInTheDocument()
+    const box = within(dlg).getByLabelText('Verification code')
+    expect(box).toHaveAttribute('type', 'password') // not echoed
+    expect(within(dlg).getByRole('button', {name: 'Continue'})).toBeDisabled() // nothing typed yet
+    await userEvent.type(box, '123456{Enter}')
+    expect(be.state.calls).toContainEqual(['session.answerAuth', sid, ['123456']])
+    expect(screen.queryByRole('alertdialog', {name: 'Sign-in question'})).toBeNull()
+  })
+
+  it('cancelling the sign-in question sends null, and the question goes away when the shell is ready', async () => {
+    const {be, sid} = await mount()
+    act(() => be.emit(`term:auth:${sid}`, {host: 'b', name: 'Duo', instruction: 'Choose a method', prompts: [{text: 'Passcode or option (1-3): ', echo: true}]}))
+    expect(screen.getByText('Choose a method')).toBeInTheDocument()
+    expect(screen.getByLabelText('Passcode or option (1-3)')).toHaveAttribute('type', 'text') // the server allows it to be shown
+    await userEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+    expect(be.state.calls).toContainEqual(['session.answerAuth', sid, null])
+    act(() => be.emit(`term:auth:${sid}`, {host: 'b', name: '', instruction: '', prompts: [{text: 'Verification code: ', echo: false}]}))
+    expect(screen.getByRole('alertdialog', {name: 'Sign-in question'})).toBeInTheDocument()
+    act(() => be.emit(`term:ready:${sid}`, {}))
+    expect(screen.queryByRole('alertdialog', {name: 'Sign-in question'})).toBeNull()
+  })
+
+  it('a refused answer is shown on the pane, not swallowed', async () => {
+    const {be, sid} = await mount()
+    be.session.answerAuth = async () => { throw 'no question is waiting for an answer' }
+    act(() => be.emit(`term:auth:${sid}`, {host: 'b', name: '', instruction: '', prompts: [{text: 'Verification code: ', echo: false}]}))
+    await userEvent.type(screen.getByLabelText('Verification code'), '1{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('no question is waiting for an answer')
+  })
+
   it('shows the connection-lost banner and reconnects only on Enter', async () => {
     const {be, sid, term} = await mount()
     act(() => be.emit(`term:ready:${sid}`, {}))
@@ -193,6 +227,91 @@ describe('TerminalPane: keystroke order', () => {
     expect(sent).toEqual(['c']) // the snippet waits its turn
     releases[0]()
     await waitFor(() => expect(sent).toEqual(['c', 'df -h\r']))
+  })
+})
+
+describe('TerminalPane: production hosts', () => {
+  beforeEach(() => { created.length = 0 })
+  const ctrlShiftV = () => new KeyboardEvent('keydown', {cancelable: true, key: 'v', code: 'KeyV', ctrlKey: true, shiftKey: true})
+  async function prodPane(extra: Partial<React.ComponentProps<typeof TerminalPane>> = {}) {
+    const be = makeFake()
+    render(<Providers be={be}><TerminalPane {...props} prod {...extra} onFocus={vi.fn()} onExit={vi.fn()} /></Providers>)
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'session.attach')).toBe(true))
+    const sid = be.state.calls.find(c => c[0] === 'session.attach')![1] as string
+    act(() => be.emit('term:ready:' + sid, {}))
+    return {be, term: created[created.length - 1], pane: screen.getByTestId('pane')}
+  }
+
+  it('marks the pane of a production host, and no other', async () => {
+    const {pane} = await prodPane()
+    expect(pane).toHaveClass('prod')
+    expect(screen.getByLabelText('Production host')).toHaveTextContent('PROD')
+  })
+
+  it('a host that is not production has no mark', async () => {
+    const be = makeFake()
+    render(<Providers be={be}><TerminalPane {...props} onFocus={vi.fn()} onExit={vi.fn()} /></Providers>)
+    expect(screen.getByTestId('pane')).not.toHaveClass('prod')
+    expect(screen.queryByLabelText('Production host')).toBeNull()
+  })
+
+  it('asks before pasting text with a line break, and pastes only on yes', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be, term} = await prodPane()
+    be.state.clipboard = 'systemctl stop db\nrm -rf /tmp/x'.replace(/\\n/g, '\n')
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toMatch(/Paste 2 lines into a PRODUCTION terminal/)
+    await new Promise(r => setTimeout(r, 30))
+    expect(term.pasted).toEqual([]) // declined
+    confirm.mockReturnValue(true)
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(term.pasted).toEqual(['systemctl stop db\nrm -rf /tmp/x']))
+  })
+
+  it('a single line with Enter at its end is asked about too, a line without one is not', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be, term} = await prodPane()
+    be.state.clipboard = 'ls -la\n'
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toMatch(/a line that ends with Enter/)
+    await waitFor(() => expect(term.pasted).toEqual(['ls -la\n']))
+    be.state.clipboard = 'ls -la'
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(term.pasted).toHaveLength(2))
+    expect(confirm).toHaveBeenCalledTimes(1) // no question for text that waits on the prompt
+  })
+
+  it('the browser paste (Cmd+V) is asked about before xterm sees it', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {term, pane} = await prodPane()
+    const data = {getData: () => 'a\nb'}
+    const ev = new Event('paste', {bubbles: true, cancelable: true}) as Event & {clipboardData?: unknown}
+    ev.clipboardData = data
+    pane.firstElementChild!.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true) // xterm never gets it
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    await new Promise(r => setTimeout(r, 30))
+    expect(term.pasted).toEqual([])
+  })
+
+  it('does not ask when the setting is off', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be, term} = await prodPane({confirmProd: false})
+    be.state.clipboard = 'a\nb'
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(term.pasted).toEqual(['a\nb']))
+    expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('does not ask on a host that is not production', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be, term} = await prodPane({prod: false})
+    be.state.clipboard = 'c\nd'
+    term.keyHandler(ctrlShiftV())
+    await waitFor(() => expect(term.pasted).toEqual(['c\nd']))
+    expect(confirm).not.toHaveBeenCalled()
   })
 })
 

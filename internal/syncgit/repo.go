@@ -9,15 +9,15 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"vvterm/internal/fsutil"
+	"vutty/internal/fsutil"
 
-	"vvterm/internal/vault"
+	"vutty/internal/vault"
 )
 
 const (
 	BundleFile = "bundle.enc"
 	HeaderFile = "vault-header.json"
-	BundleAAD  = "vvterm/bundle/v1"
+	BundleAAD  = "vvterm/bundle/v1" // data format: keeps its pre-rename name so existing bundles stay readable
 	maxRetries = 5
 )
 
@@ -52,7 +52,7 @@ func (r *Repo) run(args ...string) (string, error) {
 	if g == "" {
 		g = "git"
 	}
-	full := append([]string{"-c", "user.name=VVTerm", "-c", "user.email=vvterm@localhost",
+	full := append([]string{"-c", "user.name=Vutty", "-c", "user.email=vutty@localhost",
 		"-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"}, args...)
 	cmd := exec.Command(g, full...)
 	cmd.Dir = r.Dir
@@ -192,7 +192,7 @@ func (r *Repo) Sync(local Bundle, header vault.Header, s Sealer) (Result, error)
 		if err != nil {
 			return res, err
 		}
-		pushed, err := r.commitPush(header, blob, "VVTerm sync")
+		pushed, err := r.commitPush(header, blob, "Vutty sync")
 		if err == nil {
 			res.Merged, res.Pushed = cur, pushed
 			return res, nil
@@ -202,6 +202,33 @@ func (r *Repo) Sync(local Bundle, header vault.Header, s Sealer) (Result, error)
 		}
 	}
 	return res, ErrPushRace
+}
+
+// Replace publishes local as the whole content of the repository, without reading what is there: for a repository
+// whose bundle no key of this vault can open (see ErrVaultMismatch). Like Sync it starts over when another machine
+// pushed first.
+func (r *Repo) Replace(local Bundle, header vault.Header, s Sealer) error {
+	plain, err := json.Marshal(local)
+	if err != nil {
+		return err
+	}
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if err := r.Fetch(); err != nil {
+			return err
+		}
+		blob, err := s.SealBlob(plain, []byte(BundleAAD))
+		if err != nil {
+			return err
+		}
+		_, err = r.commitPush(header, blob, "Vutty sync (repository replaced)")
+		if err == nil {
+			return nil
+		}
+		if !isRejected(err) {
+			return err
+		}
+	}
+	return ErrPushRace
 }
 
 func unchanged(merged, remote Bundle, h, remoteH vault.Header) bool {

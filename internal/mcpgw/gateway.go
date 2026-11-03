@@ -1,5 +1,5 @@
 // Package mcpgw is the MCP gateway: the only tool channel an AI agent gets. The agent talks to a loopback
-// MCP endpoint of VVTerm; VVTerm talks to the real servers, so every call and every result passes the hooks.
+// MCP endpoint of Vutty; Vutty talks to the real servers, so every call and every result passes the hooks.
 package mcpgw
 
 import (
@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 const (
@@ -204,7 +204,7 @@ func (s *session) dispatch(m rpcMsg) []byte {
 			v = protocolVersion
 		}
 		return reply(m.ID, map[string]any{"protocolVersion": v, "capabilities": map[string]any{"tools": map[string]any{}},
-			"serverInfo": map[string]any{"name": "vvterm", "version": "1"}})
+			"serverInfo": map[string]any{"name": "vutty", "version": "1"}})
 	case "ping":
 		return reply(m.ID, map[string]any{})
 	case "tools/list":

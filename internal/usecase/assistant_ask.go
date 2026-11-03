@@ -13,9 +13,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/domain/secretpolicy"
+	"vutty/internal/domain"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/domain/secretpolicy"
 )
 
 // AskOptions chooses how one question is asked.
@@ -37,7 +37,7 @@ var ErrConfirmImages = errors.New("confirm_images")
 
 var requestID = regexp.MustCompile(`^[A-Za-z0-9_-]{6,40}$`)
 
-// CommandView is a suggested command with everything the card needs. Risk and reasons come from VVTerm.
+// CommandView is a suggested command with everything the card needs. Risk and reasons come from Vutty.
 type CommandView struct {
 	Cmd         string         `json:"cmd"`
 	Why         string         `json:"why"`
@@ -223,7 +223,7 @@ func (a *AssistantService) execute(ctx context.Context, run *assistRun, ag Agent
 		fail("needs_signin", err.Error())
 		return
 	case errors.Is(err, assistant.ErrToolDenied):
-		fail("tool_use", "The assistant only tried to use a tool, which VVTerm does not allow, so there is no answer. Ask again.")
+		fail("tool_use", "The assistant only tried to use a tool, which Vutty does not allow, so there is no answer. Ask again.")
 		return
 	case errors.Is(err, assistant.ErrToolUse):
 		fail("tool_use", "The agent tried to use a tool, so the answer was discarded.")
@@ -318,8 +318,13 @@ type CommandCheck struct {
 	TypedConfirm bool           `json:"typed_confirm"`
 }
 
+// hasControl reports a character that must not be typed into a terminal from the assistant: a control character (a
+// newline would run the command), or an invisible or direction-changing one (zero-width, right-to-left override…),
+// which would let a command read differently from what it does.
 func hasControl(s string) bool {
-	return strings.ContainsFunc(s, func(r rune) bool { return unicode.IsControl(r) && r != '\t' })
+	return strings.ContainsFunc(s, func(r rune) bool {
+		return (unicode.IsControl(r) && r != '\t') || unicode.Is(unicode.Cf, r) || r == '\u2028' || r == '\u2029'
+	})
 }
 
 func (a *AssistantService) check(g secretpolicy.Guard, cmd string, info SessionState) CommandCheck {

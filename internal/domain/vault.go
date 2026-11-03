@@ -16,6 +16,9 @@ type VaultHeader struct {
 	Nonce      []byte    `json:"nonce"`
 	// Hint is a reminder of the master password, kept in clear text so it can be shown while the vault is locked.
 	Hint string `json:"hint,omitempty"`
+	// KeyCheck is a known text sealed with the DEK (nonce, then ciphertext). With it a DEK that comes from somewhere
+	// else than the master password (the OS keychain) can be checked, even when the vault holds no secret yet.
+	KeyCheck []byte `json:"key_check,omitempty"`
 }
 
 // VaultStatus is the frontend-safe view of the vault.

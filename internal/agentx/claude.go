@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 // ErrToolUse is returned when an agent that must have no tools tried to use one. The call is stopped.
@@ -116,7 +118,7 @@ func (c *Claude) cliModels(ctx context.Context) ([]assistant.Model, error) {
 	var models []assistant.Model
 	args := append([]string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"}, c.isolationArgs(c.helpText())...)
 	_, err = run(ctx, runOpts{bin: bin, args: args, dir: dir, env: c.env(),
-		stdin: `{"type":"control_request","request_id":"vvterm-models","request":{"subtype":"initialize"}}` + "\n",
+		stdin: `{"type":"control_request","request_id":"vutty-models","request":{"subtype":"initialize"}}` + "\n",
 		onLine: func(line []byte) error {
 			var m struct {
 				Type     string `json:"type"`
@@ -131,7 +133,7 @@ func (c *Claude) cliModels(ctx context.Context) ([]assistant.Model, error) {
 					} `json:"response"`
 				} `json:"response"`
 			}
-			if json.Unmarshal(line, &m) != nil || m.Type != "control_response" || m.Response.RequestID != "vvterm-models" {
+			if json.Unmarshal(line, &m) != nil || m.Type != "control_response" || m.Response.RequestID != "vutty-models" {
 				return nil
 			}
 			for _, x := range m.Response.Response.Models {
@@ -174,10 +176,16 @@ func (c *Claude) Ask(ctx context.Context, r assistant.Request, emit func(string)
 	}
 	allowedMCP := ""
 	if r.Gateway != nil {
-		cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"vvterm": map[string]any{
+		cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"vutty": map[string]any{
 			"type": "http", "url": r.Gateway.URL, "headers": map[string]string{"Authorization": "Bearer " + r.Gateway.Token}}}})
-		args = append(args, "--mcp-config", string(cfg), "--allowedTools", "mcp__vvterm")
-		allowedMCP = "mcp__vvterm__"
+		// the gateway token goes in a private file, not on the command line: any process of this computer can read
+		// the arguments of another one (ps), and the token lets its holder call the gateway while the question runs
+		cfgPath := filepath.Join(dir, "mcp.json")
+		if err := os.WriteFile(cfgPath, cfg, 0o600); err != nil {
+			return "", err
+		}
+		args = append(args, "--mcp-config", cfgPath, "--allowedTools", "mcp__vutty")
+		allowedMCP = "mcp__vutty__"
 	}
 	stdin := userPrompt(r, false)
 	if len(r.Images) > 0 {

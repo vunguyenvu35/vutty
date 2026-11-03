@@ -13,10 +13,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/domain/secretpolicy"
-	"vvterm/internal/fsutil"
+	"vutty/internal/domain"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/domain/secretpolicy"
+	"vutty/internal/fsutil"
 )
 
 // ErrConfirmShare is returned by Ask when the host's policy is "ask" and the user has not yet confirmed that

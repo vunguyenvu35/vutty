@@ -43,9 +43,10 @@ export function AssistantSettings() {
   const checking = !!providers?.some(p => p.status.state === '')
   useEffect(() => {
     if (!checking) return
-    const t = window.setTimeout(() => { void load() }, 600)
+    // only the providers are asked again: the rest of the page (and what is being typed in it) stays as it is
+    const t = window.setTimeout(() => { void be.assistant.providers().then(setProviders).catch(() => {}) }, 600)
     return () => window.clearTimeout(t)
-  }, [checking, providers, load])
+  }, [be, checking, providers])
   // Settings is its own window: what changed in the main window (hosts, providers) is read again when it is focused
   useEffect(() => {
     const again = () => { void load() }
@@ -92,7 +93,7 @@ export function AssistantSettings() {
     <>
       <section className="card-section" aria-label="AI providers">
         <h4>Providers</h4>
-        <div className="muted">VVTerm runs the AI command-line tool you are already signed in to, so your own subscription is used and no key is stored here. A provider stays off until you switch it on.</div>
+        <div className="muted">Vutty runs the official AI command-line tool you installed and signed in to; no key is stored here, and the use of each tool is governed by its provider's terms. Vutty is not affiliated with Anthropic, OpenAI or Google. A provider stays off until you switch it on.</div>
         {!providers && <div className="muted" role="status">Looking for AI tools on this computer…</div>}
         {providers && providers.length === 0 && <div className="muted">No AI tools were found. Install Claude Code, Codex CLI or Gemini CLI, or add your own command below.</div>}
         {list.map(p => {
@@ -102,11 +103,12 @@ export function AssistantSettings() {
             <div key={p.id} className="ai-provider" data-testid={'provider-' + p.id}>
               <div className="setting-row">
                 <div>
-                  <b>{p.name}</b> {p.status.version && <span className="muted">{p.status.version}</span>}
+                  <b>{p.name}</b> {p.id === 'antigravity' && <span className="badge" title="Antigravity has no documented non-interactive mode">Experimental</span>} {p.status.version && <span className="muted">{p.status.version}</span>}
                   <div className="muted">
                     <span className={'badge ai-state ' + p.status.state}>{STATE_LABEL[p.status.state] ?? p.status.state}</span>{' '}
-                    {p.status.detail}{p.status.hint && <> Run <code>{p.status.hint}</code>.</>}
+                    {p.status.detail && (/[.!?]$/.test(p.status.detail) ? p.status.detail : p.status.detail + '.')}{p.status.hint && <> Run <code>{p.status.hint}</code>.</>}
                   </div>
+                  {p.id === 'antigravity' && <div className="muted">Experimental: Google does not document running agy from another app. Check Google's terms for your account before you switch it on; you use it at your own risk.</div>}
                 </div>
                 <Switch label={'Enable ' + p.name} checked={p.enabled} disabled={busy === p.id || (!p.enabled && !ready)} onChange={v => void toggle(p, v)} />
               </div>
@@ -179,7 +181,7 @@ function CustomProviderForm({onSaved}: {onSaved(): void}) {
   }
   return (
     <div className="ai-custom" role="group" aria-label="Add a command">
-      <div className="muted">For an AI tool VVTerm has no adapter for. Its tools cannot be checked from here, so it must pass the isolation self-test before it can be switched on. Use {'{prompt}'} in the arguments to place the prompt when it is passed as an argument.</div>
+      <div className="muted">For an AI tool Vutty has no adapter for. Its tools cannot be checked from here, so it must pass the isolation self-test before it can be switched on. Use {'{prompt}'} in the arguments to place the prompt when it is passed as an argument.</div>
       <label className="field"><span>Name</span><input aria-label="Provider name" value={name} onChange={e => setName(e.target.value)} placeholder="My AI" /></label>
       <label className="field"><span>Command</span><input aria-label="Provider command" value={command} onChange={e => setCommand(e.target.value)} placeholder="mytool" /></label>
       <label className="field"><span>Arguments</span><input aria-label="Provider arguments" value={args} onChange={e => setArgs(e.target.value)} placeholder='--ask "{prompt}"' /></label>

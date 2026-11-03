@@ -1,5 +1,5 @@
 // Package localtty runs a shell on this computer behind a pseudo-terminal: the "Terminal" tab, like
-// the Terminal app but inside VVTerm. It implements the usecase.Shell port.
+// the Terminal app but inside Vutty. It implements the usecase.Shell port.
 package localtty
 
 import (
@@ -89,7 +89,9 @@ func (s *Shell) Err() error { <-s.done; return s.err }
 // Close hangs up the terminal and stops the process group.
 func (s *Shell) Close() {
 	s.once.Do(func() {
-		s.killProcessGroup()
+		if s.cmd.Process != nil {
+			hangup(s.cmd.Process)
+		}
 		s.tty.Close()
 	})
 }

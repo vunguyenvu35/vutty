@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/vunguyenvu35/vutty/discussions
+    about: Ask how to do something, or talk about an idea before it becomes an issue.
+  - name: Security vulnerability
+    url: https://github.com/vunguyenvu35/vutty/blob/main/SECURITY.md
+    about: Please report security problems privately, as SECURITY.md describes.

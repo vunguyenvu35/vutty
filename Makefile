@@ -1,4 +1,4 @@
-.PHONY: package help dev build test test-go test-web e2e inventory lint release clean-cache deploy-dev deploy-prod
+.PHONY: notices package help dev build test test-go test-web e2e inventory lint release clean-cache deploy-dev deploy-prod
 
 VERSION ?= $(shell cat VERSION)
 WAILS   ?= $(shell go env GOPATH)/bin/wails
@@ -9,16 +9,25 @@ help:
 	@echo "make test       run Go + frontend tests"
 	@echo "make e2e        run the Playwright walkthrough (real backend) and refresh docs/screenshots"
 	@echo "make inventory  regenerate docs/TestInventory.md"
+	@echo "make notices    regenerate THIRD_PARTY_NOTICES.md (run after changing dependencies)"
 	@echo "make package    build and create dist/*.dmg and *.zip (macOS)"
 	@echo "make release    test, build and print checksums"
 
+# The Settings window and "Duplicate in new window" are other processes that show the frontend embedded in the
+# binary (frontend/dist), not the Vite dev server, so build it first: otherwise they show the last build.
 dev:
-	$(WAILS) dev
+	cd frontend && npm run build
+	@# the macOS Vietnamese input method logs this line for every key typed; it is not from Vutty and means nothing
+	$(WAILS) dev 2>&1 | grep --line-buffered -v 'getApplicationProperty: called with invalid property' || true
 
 build:
-	$(WAILS) build -ldflags "-X vvterm/app.Version=$(VERSION)"
-	@if [ "$$(uname)" = Darwin ]; then ./scripts/macos-settings-helper.sh build/bin/vvterm.app; fi
-	@if [ "$$(uname)" = Darwin ]; then codesign --force --deep --sign - build/bin/vvterm.app; fi
+	$(WAILS) build -ldflags "-X vutty/app.Version=$(VERSION)"
+	@if [ "$$(uname)" = Darwin ]; then ./scripts/macos-settings-helper.sh build/bin/vutty.app; fi
+	@if [ "$$(uname)" = Darwin ]; then cp THIRD_PARTY_NOTICES.md LICENSE build/bin/vutty.app/Contents/Resources/; fi
+	@if [ "$$(uname)" = Darwin ]; then codesign --force --deep --sign - build/bin/vutty.app; fi
+
+notices:
+	node scripts/notices.mjs
 
 test: test-go test-web
 
@@ -39,7 +48,11 @@ package:
 	./scripts/package-macos.sh --build
 
 release: test build
-	@shasum -a 256 build/bin/vvterm.app/Contents/MacOS/vvterm
+	@shasum -a 256 build/bin/vutty.app/Contents/MacOS/vutty
+
+# Sign the checksums of a release that is already published (the key is in ~/.config/vutty/update-signing.key): make sign-release TAG=v1.3.0
+sign-release:
+	./scripts/sign-release.sh $(TAG)
 
 deploy-dev:
 	./scripts/deploy.sh dev

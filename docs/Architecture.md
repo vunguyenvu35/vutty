@@ -1,4 +1,4 @@
-# VVTerm — Architecture design document
+# Vutty — Architecture design document
 
 > Updated: 2026-10-28 · Author: Vũ Nguyễn Vũ
 
@@ -20,7 +20,7 @@
 
 ## 1. Overview
 
-VVTerm is a desktop SSH client whose data the user controls and can always export. Hosts and keys are never locked inside the app: everything can be exported in a standard format, and synced through the user's own Git repository.
+Vutty is a desktop SSH client whose data the user controls and can always export. Hosts and keys are never locked inside the app: everything can be exported in a standard format, and synced through the user's own Git repository.
 
 **Goals**
 
@@ -136,7 +136,7 @@ Data is split in two: non-secret configuration (hosts, groups) is stored as plai
 | Secret | id, kind (private_key/password/passphrase), ciphertext, nonce | `vault.json` |
 | KnownHost | hostname:port, key_type, fingerprint | `known_hosts` (OpenSSH format) |
 
-**Data directory layout** (macOS: `~/Library/Application Support/vvterm/`)
+**Data directory layout** (macOS: `~/Library/Application Support/vutty/`)
 
 ```
 data/
@@ -311,7 +311,7 @@ Ciphertext cannot be merged by Git, so the app merges at record level:
 The Go code is split by service; each service is a struct that Wails binds to the frontend. The logic lives in `internal/` and does not depend on Wails, so it can be tested with `go test`.
 
 ```
-vvterm/
+vutty/
   main.go                 # start Wails, register services
   app/                    # thin adapter: services bound to the frontend
     host_service.go
@@ -378,20 +378,20 @@ flowchart LR
     classDef final stroke:#2f6fdb,stroke-width:2px;
 ```
 
-After Gate 2 it is usable every day for basic SSH; Gate 4 is when VVTerm has enough features to be the main SSH tool.
+After Gate 2 it is usable every day for basic SSH; Gate 4 is when Vutty has enough features to be the main SSH tool.
 
 **Risks**
 
 | Risk | Impact | Response |
 | --- | --- | --- |
-| xterm.js on WKWebView is slow with large output | Lag during `tail -f` on a log | Batch events in chunks; measure performance as early as phase 1 |
+| xterm.js on WKWebView is slow with large output | Lag during `tail -f` on a log | Batch events in chunks; measured in the real WKWebView (see [Assessment.md](Assessment.md), G4): fine for text at the backend's rate, slow for full-screen redraws, no flow control yet |
 | Old keys (RSA SHA-1, DSA) are not compatible with `x/crypto/ssh` | Cannot log in to old servers | Support `rsa-sha2-256/512`; say clearly when a key is not supported |
 | Forgotten master password | The whole vault is lost | Warn when the vault is created; remind the user to export a backup regularly |
 | Clock skew between machines when syncing | An edit may be overwritten by mistake | Accepted in the MVP; a version vector can be used later |
 
 **Open questions**
 
-- [x] App name: **VVTerm** (repo `vvterm`, CLI `vvt`)
+- [x] App name: **Vutty** (repo `vutty`, CLI `vvt`)
 - [ ] Svelte or React for the frontend?
 - [ ] Should SFTP come earlier than phase 3?
 - [ ] Personal use only, or will hosts be shared with a team?

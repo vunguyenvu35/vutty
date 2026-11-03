@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 func (h *harness) logs(t *testing.T, f domain.ActivityFilter) []domain.ActivityEntry {
@@ -193,7 +193,7 @@ func TestLogRecordsVaultAndSyncWithoutSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.waitLog(t, "Vault unlocked")
-	if err := h.app.Sync.Configure("file:///nonexistent-vvterm-repo"); err != nil {
+	if err := h.app.Sync.Configure("file:///nonexistent-vutty-repo"); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.app.Sync.SyncNow(); err == nil {

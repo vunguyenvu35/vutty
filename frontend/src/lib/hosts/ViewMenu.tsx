@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {IconGrid, IconList} from '../ui/Icons'
 
 export type ViewMode = 'grid' | 'list'
-const KEY = 'vvterm.hostsView'
+const KEY = 'vutty.hostsView'
 
 /** The remembered view (a per-viewer convenience: any failure of storage means "grid"). */
 export function loadView(): ViewMode {

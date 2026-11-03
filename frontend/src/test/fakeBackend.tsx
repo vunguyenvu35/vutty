@@ -2,8 +2,8 @@ import {ReactNode} from 'react'
 import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
-import type {ActivityEntry, KnownHost, RemoteEntry, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
-  AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool} from '../lib/types'
+import type {ExecRun, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+  CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool} from '../lib/types'
 
 export interface Fake extends Backend {
   state: {
@@ -16,20 +16,38 @@ export interface Fake extends Backend {
     snippets: Snippet[]
     running: Record<string, string>
     settings: Settings
+    /** the newest release GitHub reports (a test sets it higher than the running version to get an update) */
+    latest?: string
     /** remote file system for SFTP: path -> entry ("/" is the root) */
     remote: Record<string, {dir: boolean; size: number}>
     /** this computer's files for the Local pane: path -> entry */
     local: Record<string, {dir: boolean; size: number}>
     /** true: openSettings succeeds like the real app (a native window opens); false: it rejects (browser mode) */
     nativeSettings: boolean
+    /** what the shell history of the server holds */
+    hostHistory: string[]
+    /** what Clear cache reports */
+    cache: CacheReport
     /** serial devices the Serial panel finds */
     serialPorts: string[]
     /** the system clipboard */
     clipboard: string
     knownHosts: KnownHost[]
+    /** true: queued transfers stay running (40 %) until a test finishes them with finishJob */
+    holdQueue: boolean
     /** the activity log, newest first */
     logs: ActivityEntry[]
     testResult: ConnectionTest
+    /** what the vault health check finds (default: nothing wrong) */
+    health?: VaultHealth
+    /** what Install and restart is told (default: this copy cannot update itself) */
+    selfUpdate?: {supported: boolean; reason?: string}
+    /** the reason installUpdate fails with, when a test wants it to */
+    installError?: string
+    /** an ssh:// link that arrived before the screen looked (taking it empties this) */
+    pendingSSHLink?: SSHLink
+    /** runs of a command on several hosts: a test moves them along by emitting `exec:update:<id>` */
+    execRuns: Record<string, ExecRun>
     calls: Array<[string, ...unknown[]]>
     /** the AI assistant */
     ai: {
@@ -55,6 +73,10 @@ export interface Fake extends Backend {
     }
   }
   emit(event: string, data?: unknown): void
+  /** Sets a queued job to a state (default done) and sends the snapshot, like the Go side does when a transfer ends. */
+  finishJob(sid: string, jobId: string, patch?: Partial<QueueJob>): void
+  /** the jobs of a session's queue */
+  jobs(sid: string): QueueJob[]
 }
 
 let n = 0
@@ -86,6 +108,22 @@ function copyTree(from: Tree, to: Tree, sources: string[], destDir: string, over
   }
   return res
 }
+/** What syncing would copy from one tree into the other: files that are missing or have another size. */
+function syncDiff(from: Tree, to: Tree, src: string, dst: string): SyncDiff {
+  const files = (t: Tree, root: string) => Object.entries(t).filter(([p, e]) => !e.dir && p.startsWith(root === '/' ? '/' : root + '/')).map(([p, e]) => ({rel: p.slice(root === '/' ? 1 : root.length + 1), size: e.size}))
+  const there = new Map(files(to, dst).map(f => [f.rel, f.size]))
+  const out: SyncDiff = {copy: [], same: 0, extra: []}
+  const have = new Set<string>()
+  for (const f of files(from, src).sort((a, b) => a.rel.localeCompare(b.rel))) {
+    have.add(f.rel)
+    const t = there.get(f.rel)
+    if (t === undefined) out.copy.push({path: f.rel, size: f.size, reason: 'new'})
+    else if (t !== f.size) out.copy.push({path: f.rel, size: f.size, reason: 'changed'})
+    else out.same++
+  }
+  out.extra = [...there.keys()].filter(r => !have.has(r)).sort()
+  return out
+}
 const id = (p: string) => `${p}${++n}`
 
 /** In-memory Backend that behaves like the Go side closely enough for UI tests. */
@@ -102,12 +140,16 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       '/Users/me/notes.txt': {dir: false, size: 300}, '/Users/me/.zshrc': {dir: false, size: 120}, '/Users/me/Documents/cv.pdf': {dir: false, size: 40960},
     },
     nativeSettings: false,
+    holdQueue: false,
+    hostHistory: [],
+    cache: {files: 3, bytes: 5120},
     serialPorts: ['/dev/cu.usbserial-1410', '/dev/cu.usbmodem1101'],
     clipboard: '',
     knownHosts: [],
     logs: [],
     testResult: {ok: true, message: 'Connected to 10.0.0.1 as root', server_version: 'SSH-2.0-OpenSSH_9.6', latency_ms: 42, hops: 1},
     calls: [],
+    execRuns: {},
     ai: {
       providers: [{id: 'claude', name: 'Claude Code', status: {state: 'ready', version: '2.1.0', detail: '', hint: ''}, enabled: true, default: true, model: '', supports_mcp: true, supports_images: true, custom: false}],
       models: {claude: {models: [{id: '', name: 'Default (CLI decides)'}, {id: 'opus', name: 'Opus 5.5'}, {id: 'sonnet', name: 'Sonnet 5.5'}], error: '', can_list: true}},
@@ -123,6 +165,41 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
   }
   const rec = (name: string, ...a: unknown[]) => { state.calls.push([name, ...a]) }
   const emit = (e: string, d?: unknown) => listeners.get(e)?.forEach(cb => cb(d))
+  // the transfer queue: one list per SFTP session; every change sends the whole list, like the Go side
+  const queues: Record<string, QueueJob[]> = {}
+  const push = (sid: string) => emit('sftp:queue:' + sid, (queues[sid] ?? []).map(j => ({...j})))
+  const patchJob = (sid: string, jobId: string, patch: Partial<QueueJob>) => {
+    const j = (queues[sid] ?? []).find(x => x.id === jobId)
+    if (!j) return
+    Object.assign(j, patch)
+    push(sid)
+  }
+  const run = (sid: string, job: QueueJob, spec: {direction: QueueJob['direction']; sources: string[]; destDir: string; overwrite: boolean}) => {
+    if (job.state !== 'queued') return
+    const up = spec.direction === 'upload' || spec.direction === 'sync-up'
+    const [from, to] = up ? [state.local, state.remote] : [state.remote, state.local]
+    try {
+      let res: TransferResult
+      if (spec.direction === 'upload' || spec.direction === 'download') {
+        res = copyTree(from, to, spec.sources, spec.destDir, spec.overwrite, () => {})
+      } else {
+        const src = spec.sources[0], dst = spec.destDir
+        const diff = syncDiff(from, to, src, dst)
+        res = {files: 0, dirs: 0, bytes: 0, skipped: [], ignored: []}
+        for (const i of diff.copy) {
+          const target = (dst === '/' ? '' : dst) + '/' + i.path
+          for (let d = target.slice(0, target.lastIndexOf('/')); d && d !== '/'; d = d.slice(0, d.lastIndexOf('/'))) if (!to[d]) to[d] = {dir: true, size: 0}
+          to[target] = {dir: false, size: i.size}
+          res.files++
+          res.bytes += i.size
+        }
+      }
+      Object.assign(job, {...res, state: 'done', done: res.bytes, total: res.bytes})
+    } catch (e) {
+      Object.assign(job, {state: 'failed', error: String(e)})
+    }
+    push(sid)
+  }
   const upsert = <T extends {id: string}>(list: T[], item: Partial<T>, prefix: string): T => {
     const full = {...item, id: item.id || id(prefix)} as T
     const i = list.findIndex(x => x.id === full.id)
@@ -155,12 +232,22 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       enableBiometric: async () => { state.vault = {...state.vault, keychain_enabled: true} },
       disableBiometric: async () => { state.vault = {...state.vault, keychain_enabled: false} },
       listIdentities: async () => [...state.identities],
+      health: async () => { rec('vault.health'); return state.health ?? {checked: state.identities.length, unreadable: []} },
       addKey: async (name, path, pass) => { rec('vault.addKey', name, path, pass); return upsert(state.identities, {name, auth_type: 'key', public_key: 'ssh-ed25519 AAAAimported'}, 'i') },
       addKeyPair: async (name, pem, pass, pub, cert) => { rec('vault.addKeyPair', name, pem, pass, pub, cert); return upsert(state.identities, {name, auth_type: 'key', public_key: pub.trim() || 'ssh-ed25519 AAAApasted', certificate: cert.trim() || undefined}, 'i') },
       addKeyPEM: async (name, pem, pass) => { rec('vault.addKeyPEM', name, pem, pass); return upsert(state.identities, {name, auth_type: 'key', public_key: 'ssh-ed25519 AAAApasted'}, 'i') },
+      updateIdentity: async (id, name, user, secret, passphrase, publicKey, certificate) => {
+        rec('vault.updateIdentity', id, name, user, secret, passphrase, publicKey, certificate)
+        const x = state.identities.find(i => i.id === id)
+        if (!x) throw 'not found'
+        if (!name.trim()) throw 'identity name is required'
+        if (secret && x.auth_type === 'key' && !secret.includes('PRIVATE KEY')) throw 'ssh: no key found'
+        Object.assign(x, {name: name.trim(), username: user})
+        return {...x}
+      },
       addPassword: async (name, user, pw) => { rec('vault.addPassword', name, user, pw); return upsert(state.identities, {name, username: user, auth_type: 'password'}, 'i') },
       addAgent: async (name, user) => { rec('vault.addAgent', name, user); return upsert(state.identities, {name, username: user, auth_type: 'agent'}, 'i') },
-      generateKey: async name => upsert(state.identities, {name, auth_type: 'key', public_key: 'ssh-ed25519 AAAAgenerated vvterm'}, 'i'),
+      generateKey: async name => upsert(state.identities, {name, auth_type: 'key', public_key: 'ssh-ed25519 AAAAgenerated vutty'}, 'i'),
       deleteIdentity: async i => {
         if (state.hosts.some(h => h.identity_id === i)) throw 'identity is used by a host'
         state.identities = state.identities.filter(x => x.id !== i)
@@ -186,7 +273,9 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       resize: async () => {},
       reconnect: async s => { rec('session.reconnect', s) },
       close: async s => { rec('session.close', s) },
+      hostHistory: async s => { rec('session.hostHistory', s); return [...state.hostHistory] },
       trustHostKey: async (s, f) => { rec('session.trustHostKey', s, f) },
+      answerAuth: async (k, a) => { rec('session.answerAuth', k, a) },
       testConnection: async (h, p, k) => { rec('session.testConnection', h, p, k); return state.testResult },
     },
     forwards: {
@@ -200,11 +289,15 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
     },
     sync: {
       configure: async u => { rec('sync.configure', u) },
+      configureFolder: async d => { rec('sync.configureFolder', d) },
       syncNow: async () => { rec('sync.syncNow') },
       join: async pw => { rec('sync.join', pw) },
-      status: async () => ({configured: true, repo_url: 'git@example.com:me/sync.git', last_sync: '0001-01-01T00:00:00Z', syncing: false}),
+      joinRemoteVault: async pw => { rec('sync.joinRemoteVault', pw) },
+      replaceRemote: async () => { rec('sync.replaceRemote') },
+      status: async () => ({configured: true, repo_url: 'git@example.com:me/sync.git', folder: '', last_sync: '0001-01-01T00:00:00Z', syncing: false}),
     },
     data: {
+      importInventory: async (p, c, o) => { rec('data.importInventory', p, c, o); return {format: 'AWS EC2 (aws ec2 describe-instances)', hosts_added: 3, groups_added: 1, forwards_added: 0, keys_imported: 0, skipped: ['web-1'], warnings: ['1 instance that is not running was skipped']} },
       importSSHConfig: async (p, c) => { rec('data.import', p, c); return {hosts_added: 2, groups_added: 1, forwards_added: 0, keys_imported: 1, skipped: ['dup'], warnings: ['ProxyCommand ignored']} },
       exportSSHConfig: async (d, k) => { rec('data.exportSSH', d, k); return {files: ['a'], key_files: k ? ['k'] : [], warnings: []} },
       exportPlainJSON: async p => { rec('data.exportJSON', p) },
@@ -214,6 +307,9 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
     settings: {
       get: async () => ({...state.settings}),
       save: async s => { state.settings = {...state.settings, ...s}; return state.settings },
+      reset: async () => { rec('settings.reset'); const {account_name, account_email, sync_url} = state.settings; state.settings = {...DEFAULT_SETTINGS, font_family: 'monospace', account_name, account_email, sync_url}; return state.settings },
+      clearCache: async () => { rec('settings.clearCache'); return {...state.cache} },
+      sessionLogFolder: async () => state.settings.session_log_dir || '/Users/me/Library/Application Support/vutty/session-logs',
     },
     sftp: {
       open: async (h, k) => { rec('sftp.open', h, k); return {sid: id('sf'), home: '/', host: state.hosts.find(x => x.id === h)?.label ?? 'host'} },
@@ -265,6 +361,42 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         rec('sftp.downloadAll', s, remotes, dir, overwrite)
         return copyTree(state.remote, state.local, remotes, dir, overwrite, e => emit('sftp:progress:' + s, {name: e, direction: 'download', done: 1, total: 1}))
       },
+      conflicts: async (s, direction, sources, destDir) => {
+        rec('sftp.conflicts', s, direction, sources, destDir)
+        const [from, to] = direction === 'upload' ? [state.local, state.remote] : [state.remote, state.local]
+        const out: string[] = []
+        for (const src of sources) {
+          const name = src.slice(src.lastIndexOf('/') + 1)
+          for (const p of Object.keys(from).filter(x => x === src || x.startsWith(src + '/')).sort()) {
+            const rel = name + p.slice(src.length)
+            if (!from[p].dir && to[(destDir === '/' ? '' : destDir) + '/' + rel]) out.push(rel)
+          }
+        }
+        return out
+      },
+      enqueue: async (s, spec) => {
+        rec('sftp.enqueue', s, spec)
+        const first = spec.sources[0] ?? ''
+        const base = first.slice(first.lastIndexOf('/') + 1) || first
+        const job: QueueJob = {id: id('job'), direction: spec.direction, name: spec.sources.length > 1 ? `${base} and ${spec.sources.length - 1} more` : base, destDir: spec.destDir,
+          state: 'queued', current: '', done: 0, total: 0, files: 0, dirs: 0, bytes: 0, skipped: [], ignored: [], error: ''}
+        queues[s] = [...(queues[s] ?? []), job]
+        if (state.holdQueue) { Object.assign(job, {state: 'running', current: base, done: 40, total: 100}); push(s) } else { push(s); void Promise.resolve().then(() => run(s, job, spec)) }
+        return job.id
+      },
+      syncPlan: async (s, direction, src, dst) => {
+        rec('sftp.syncPlan', s, direction, src, dst)
+        return direction === 'sync-up' ? syncDiff(state.local, state.remote, src, dst) : syncDiff(state.remote, state.local, src, dst)
+      },
+      queue: async s => { rec('sftp.queue', s); return (queues[s] ?? []).map(j => ({...j})) },
+      pause: async (s, j) => { rec('sftp.pause', s, j); patchJob(s, j, {state: 'paused'}) },
+      resume: async (s, j) => { rec('sftp.resume', s, j); patchJob(s, j, {state: 'running'}) },
+      cancel: async (s, j) => { rec('sftp.cancel', s, j); patchJob(s, j, {state: 'canceled'}) },
+      retry: async (s, j) => { rec('sftp.retry', s, j); patchJob(s, j, {state: 'running', error: ''}) },
+      clearFinished: async s => { rec('sftp.clearFinished', s); queues[s] = (queues[s] ?? []).filter(j => !['done', 'failed', 'canceled'].includes(j.state)); push(s) },
+      editStart: async (s, r, l) => { rec('sftp.editStart', s, r, l) },
+      editPush: async (s, r, f) => { rec('sftp.editPush', s, r, f) },
+      editStop: async (s, r) => { rec('sftp.editStop', s, r) },
     },
     assistant: {
       providers: async () => (state.ai.checking-- > 0 ? state.ai.providers.map(p => ({...p, status: {...p.status, state: '' as const}})) : state.ai.providers.map(p => ({...p}))),
@@ -344,6 +476,17 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       },
       clear: async () => { rec('logs.clear'); state.logs = [] },
     },
+    exec: {
+      run: async spec => {
+        rec('exec.run', spec)
+        const id = 'run' + (Object.keys(state.execRuns).length + 1)
+        state.execRuns[id] = {id, done: false, results: spec.host_ids.map(h => ({host_id: h, label: state.hosts.find(x => x.id === h)?.label ?? h, env: state.hosts.find(x => x.id === h)?.env, state: 'queued' as const, exit_code: 0, output: '', duration_ms: 0}))}
+        return id
+      },
+      cancel: async id => { rec('exec.cancel', id) },
+      get: async id => { const r = state.execRuns[id]; if (!r) throw 'that run is no longer kept'; return {...r, results: r.results.map(x => ({...x}))} },
+      forget: async id => { rec('exec.forget', id); delete state.execRuns[id] },
+    },
     local: {
       home: async () => '/Users/me',
       list: async dir => {
@@ -357,7 +500,26 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         return out.sort((a, b) => Number(b.is_dir) - Number(a.is_dir) || a.name.localeCompare(b.name))
       },
       chmod: async (p, m) => { rec('local.chmod', p, m) },
-      tempDir: async () => '/tmp/vvterm-open-1',
+      tempDir: async () => '/tmp/vutty-open-1',
+      conflicts: async (sources, destDir) => {
+        rec('local.conflicts', sources, destDir)
+        return sources.map(s => destDir + s.slice(s.lastIndexOf('/'))).filter(d => state.local[d] && !state.local[d].dir)
+      },
+      copy: async (sources, destDir, overwrite) => {
+        rec('local.copy', sources, destDir, overwrite)
+        const r: TransferResult = {files: 0, dirs: 0, bytes: 0, skipped: [], ignored: []}
+        for (const s of sources) {
+          const d = destDir + s.slice(s.lastIndexOf('/'))
+          for (const p of Object.keys(state.local)) {
+            if (p !== s && !p.startsWith(s + '/')) continue
+            const to = d + p.slice(s.length), e = state.local[p]
+            if (e.dir) { if (!state.local[to]) { state.local[to] = {...e}; r.dirs++ }; continue }
+            if (state.local[to] && !overwrite) { r.skipped.push(to); continue }
+            state.local[to] = {...e}; r.files++; r.bytes += e.size
+          }
+        }
+        return r
+      },
       mkdir: async p => { rec('local.mkdir', p); if (state.local[p]) throw 'file exists'; state.local[p] = {dir: true, size: 0} },
       rename: async (a, b) => {
         rec('local.rename', a, b)
@@ -389,8 +551,12 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       saveFile: async (_t, name) => '/tmp/' + name,
       openUrl: async u => { rec('system.openUrl', u) },
       info: async () => ({version: '1.1.0-test'}),
+      checkUpdate: async () => { rec('system.checkUpdate'); const latest = state.latest ?? '1.1.0-test'; return {current: '1.1.0-test', latest, available: latest !== '1.1.0-test', url: 'https://github.com/vunguyenvu35/vutty/releases/tag/v' + latest, notes: ''} },
+      selfUpdateStatus: async () => state.selfUpdate ?? {supported: false, reason: 'this copy of Vutty is not an installed application (a development build)'},
+      installUpdate: async () => { rec('system.installUpdate'); if (state.installError) throw state.installError },
       toggleMaximise: async () => { rec('system.toggleMaximise') },
       readClipboard: async () => { rec('system.readClipboard'); return state.clipboard },
+      takePendingSSHLink: async () => { const l = state.pendingSSHLink ?? null; state.pendingSSHLink = undefined; return l },
       writeClipboard: async t => { rec('system.writeClipboard', t); state.clipboard = t },
       openWindow: async (h, t) => { rec('system.openWindow', h, t) },
       openPath: async p => { rec('system.openPath', p) },
@@ -400,6 +566,8 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         if (!state.nativeSettings) throw new Error('native windows are not available')
       },
     },
+    finishJob: (sid, jobId, patch = {}) => patchJob(sid, jobId, {state: 'done', done: 100, total: 100, ...patch}),
+    jobs: sid => (queues[sid] ?? []).map(j => ({...j})),
     on: (event, cb) => {
       if (!listeners.has(event)) listeners.set(event, new Set())
       listeners.get(event)!.add(cb)

@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react'
 import {IconServer} from './Icons'
 
-/** What VVTerm can tell a server apart by (see domain.ParseOS): its name and the colour of its tile. */
+/** What Vutty can tell a server apart by (see domain.ParseOS): its name and the colour of its tile. */
 export const OS_INFO: Record<string, {name: string; color: string}> = {
   ubuntu: {name: 'Ubuntu', color: '#e95420'},
   debian: {name: 'Debian', color: '#a80030'},

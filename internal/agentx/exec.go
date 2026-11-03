@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 // ErrNeedsSignIn is returned when the CLI says the user is not signed in.
@@ -90,7 +90,7 @@ func findBinary(name string) string {
 var secretEnvName = regexp.MustCompile(`(?i)pass|secret|token|key|credential|auth|session|cookie`)
 
 // baseEnv is the only environment an agent process gets: what a CLI needs to find its own login and
-// nothing else. No SSH_AUTH_SOCK, no VVTERM_*, nothing whose name looks like a secret. extra names are
+// nothing else. No SSH_AUTH_SOCK, no VUTTY_*, nothing whose name looks like a secret. extra names are
 // per-adapter settings folders (CLAUDE_CONFIG_DIR, CODEX_HOME, ...).
 func baseEnv(extra ...string) []string {
 	keep := map[string]bool{"HOME": true, "USER": true, "LOGNAME": true, "LANG": true, "TMPDIR": true, "SHELL": true,
@@ -114,7 +114,7 @@ func baseEnv(extra ...string) []string {
 
 // tempDir is the working directory of one agent call: new, empty, removed afterwards.
 func tempDir() (string, func(), error) {
-	d, err := os.MkdirTemp("", "vvterm-agent-*")
+	d, err := os.MkdirTemp("", "vutty-agent-*")
 	if err != nil {
 		return "", nil, err
 	}

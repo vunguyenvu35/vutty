@@ -5,45 +5,29 @@ import {useConfirm} from '../ui/Confirm'
 import {errMsg} from '../util'
 import {IconClose, IconDownload, IconFolder, IconPlus} from '../ui/Icons'
 import {OsIcon} from '../ui/OsIcon'
-import {formatBytes} from './format'
 import {DragPayload, FilePane, Item, PaneFs, PaneState} from './FilePane'
 import {RemoteHost, RemotePane} from './RemotePane'
-import type {Host, TransferProgress, TransferResult} from '../types'
+import {LOCAL_HOST_ID, localPaneFs} from './localFs'
+import {QueuePanel} from './QueuePanel'
+import {SyncDialog} from './SyncDialog'
+import {queueTransfer, replaceQuestion, summarize, useQueues, verbOf} from './transfer'
+import type {Host, QueueJob} from '../types'
+
+export {replaceQuestion, summarize}
 
 const NONE: PaneState = {cwd: '', selected: []}
 interface RemoteTab {key: string; host: RemoteHost}
 let tabSeq = 0
 const nextTabKey = () => 'rt' + tabSeq++
-/** how long the progress bar stays after a transfer finished */
-export const TRANSFER_HIDE_MS = 2000
-
-/** "Uploaded 12 files and 3 folders (1.2 MB), 2 left as they were" */
-export function summarize(verb: string, r: TransferResult): string {
-  const parts = [
-    r.files ? `${r.files} ${r.files === 1 ? 'file' : 'files'}` : '',
-    r.dirs ? `${r.dirs} ${r.dirs === 1 ? 'folder' : 'folders'}` : '',
-  ].filter(Boolean)
-  let text = parts.length ? `${verb} ${parts.join(' and ')} (${formatBytes(r.bytes)})` : 'Nothing to transfer'
-  if (r.skipped.length) text += `, ${r.skipped.length} left as they were`
-  if (r.ignored.length) text += `, ${r.ignored.length} ${r.ignored.length === 1 ? 'link' : 'links'} ignored`
-  return text
-}
-
-/** The one question asked when files already exist where they are going. */
-export function replaceQuestion(r: TransferResult, where: string): string {
-  if (r.skipped.length === 1) return `${r.skipped[0]} already exists in ${where}. Replace it?`
-  const first = r.skipped.slice(0, 3).join(', ') + (r.skipped.length > 3 ? ', …' : '')
-  return `${r.skipped.length} files already exist in ${where} (${first}). Replace them?`
-}
-
 /**
- * The SFTP screen, like Termius: this computer on the left, a saved host on the right. Select one or more
+ * The SFTP screen: this computer on the left, a saved host on the right. Select one or more
  * files and folders (Cmd/Ctrl-click, Shift-click), then drag them across or use Upload (in the Actions menu) / Download
  * buttons. Folders go with everything inside. Nothing is replaced without asking, and the question comes
- * once for the whole batch.
+ * once for the whole batch. Transfers run in a queue in the background: they can be paused, resumed, cancelled and
+ * retried, and a broken one continues where it stopped.
  */
 /** sent by the app when the Close tab shortcut is used on an SFTP screen: close the host tab that is showing */
-export const CLOSE_HOST_TAB = 'vvterm:sftp-close-host'
+export const CLOSE_HOST_TAB = 'vutty:sftp-close-host'
 
 export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: given, visible = true}: {hostId?: string; hostLabel?: string; nonce?: number; /** this screen is the one showing (only that one answers the Close tab shortcut) */ visible?: boolean; /** the app's current hosts (kept up to date by the app); without it they are loaded once */ hosts?: Host[]}) {
   const be = useBackend()
@@ -64,8 +48,9 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
   const sid = sids[activeKey] ?? ''
   const [localKey, setLocalKey] = useState(0)
   const [remoteKey, setRemoteKey] = useState(0)
-  const [transfer, setTransfer] = useState<TransferProgress | null>(null)
   const [error, setError] = useState('')
+  const [queueOpen, setQueueOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // the callbacks of a pane must keep one identity (the pane reports into them from effects), so one pair per tab
   const callbacks = useRef(new Map<string, {onState(s: PaneState): void; onSession(id: string): void}>())
@@ -81,7 +66,6 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
     const key = nextTabKey()
     setTabs(ts => [...ts, {key, host: h}])
     setActiveKey(key)
-    setTransfer(null)
   }
   const closeTab = (key: string) => {
     const at = tabs.findIndex(t => t.key === key)
@@ -91,7 +75,6 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
     callbacks.current.delete(key)
     setRemotes(m => { const n = {...m}; delete n[key]; return n })
     setSids(m => { const n = {...m}; delete n[key]; return n })
-    setTransfer(null)
   }
 
   const activeRef = useRef(activeKey)
@@ -116,62 +99,64 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
     if (!given) void be.hosts.listHosts({}).then(h => setLoaded(h ?? [])).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [be])
-  // a finished transfer shows "done" for a moment and then goes away by itself
-  useEffect(() => {
-    if (!transfer || transfer.total <= 0 || transfer.done < transfer.total) return
-    const t = window.setTimeout(() => setTransfer(null), TRANSFER_HIDE_MS)
-    return () => window.clearTimeout(t)
-  }, [transfer])
-  useEffect(() => (sid ? be.on(`sftp:progress:${sid}`, (t: TransferProgress) => setTransfer(t)) : undefined), [be, sid])
+  // a finished job refreshes the side it wrote to and says what it did
+  const finished = useCallback((_sid: string, j: QueueJob) => {
+    const toRemote = j.direction === 'upload' || j.direction === 'sync-up'
+    if (j.state === 'done') toast.info(summarize(verbOf(j.direction), j))
+    else if (j.state === 'failed') toast.error(`${j.name}: ${j.error || 'the transfer failed'}`)
+    if (j.state === 'canceled' || j.state === 'done' || j.state === 'failed') { if (toRemote) setRemoteKey(k => k + 1); else setLocalKey(k => k + 1) }
+  }, [toast])
+  const queues = useQueues(Object.values(sids), finished)
+  const jobs = queues[sid] ?? []
+  const queueActions = {
+    pause: (id: string) => void be.sftp.pause(sid, id).catch(e => setError(errMsg(e))),
+    resume: (id: string) => void be.sftp.resume(sid, id).catch(e => setError(errMsg(e))),
+    cancel: (id: string) => void be.sftp.cancel(sid, id).catch(e => setError(errMsg(e))),
+    retry: (id: string) => void be.sftp.retry(sid, id).catch(e => setError(errMsg(e))),
+    clearFinished: () => void be.sftp.clearFinished(sid).then(() => be.sftp.queue(sid)).catch(e => setError(errMsg(e))),
+  }
 
   // keep one identity across renders so the pane does not reload every time
-  const [fs] = useState<PaneFs>(() => ({
-    list: d => be.local.list(d),
-    mkdir: p => be.local.mkdir(p),
-    rename: (a, b) => be.local.rename(a, b),
-    remove: (p, isDir) => be.local.remove(p, isDir),
-    chmod: (p, m) => be.local.chmod(p, m),
-    open: e => be.system.openPath(e.path),
-    openWith: async e => {
-      const app = await be.system.pickFile('Open with…')
-      if (app) await be.system.openPathWith(e.path, app)
-    },
-  }))
+  const [fs] = useState<PaneFs>(() => localPaneFs(be))
+  // "This computer" picked on the right: no connection, so a transfer is a plain copy between two folders of this computer
+  const viaLocal = host?.id === LOCAL_HOST_ID
 
-  /** Moves everything given: existing files are skipped first, and one question offers to replace them. */
+  /** Queues everything given; files that already exist are asked about once. */
   const move = async (direction: 'upload' | 'download', items: Item[]) => {
-    if (!sid) return setError('Connect to a host first')
+    if (!sid && !viaLocal) return setError('Connect to a host first')
     const toRemote = direction === 'upload'
     const destDir = toRemote ? remote.cwd : local.cwd
     if (!destDir) return setError('Open a folder on the receiving side first')
     if (items.length === 0) return
     setError('')
-    const paths = items.map(i => i.path)
-    const go = (overwrite: boolean) => (toRemote ? be.sftp.uploadAll(sid, paths, destDir, overwrite) : be.sftp.downloadAll(sid, paths, destDir, overwrite))
     try {
-      let res = await go(false)
-      if (res.skipped.length && (await confirm(replaceQuestion(res, destDir), {confirmLabel: 'Replace', danger: true}))) res = await go(true)
-      toast.info(summarize(toRemote ? 'Uploaded' : 'Saved', res))
+      if (viaLocal) {
+        const sources = items.map(i => i.path)
+        const clash = await be.local.conflicts(sources, destDir)
+        const overwrite = clash.length > 0 && (await confirm(replaceQuestion({skipped: clash}, destDir), {confirmLabel: 'Replace', danger: true}))
+        const r = await be.local.copy(sources, destDir, overwrite)
+        toast.info(summarize('Copied', r))
+        if (toRemote) setRemoteKey(k => k + 1); else setLocalKey(k => k + 1)
+        return
+      }
+      await queueTransfer(be, confirm, sid, direction, items.map(i => i.path), destDir)
+      setQueueOpen(true)
     } catch (err) {
       setError(errMsg(err))
-    } finally {
-      if (toRemote) setRemoteKey(k => k + 1)
-      else setLocalKey(k => k + 1)
     }
   }
 
-  const onDropToRemote = useCallback((p: DragPayload) => { void move('upload', p.items) }, [sid, remote.cwd]) // eslint-disable-line react-hooks/exhaustive-deps
-  const onDropToLocal = useCallback((p: DragPayload) => { void move('download', p.items) }, [sid, local.cwd]) // eslint-disable-line react-hooks/exhaustive-deps
+  const onDropToRemote = useCallback((p: DragPayload) => { void move('upload', p.items) }, [sid, remote.cwd, viaLocal]) // eslint-disable-line react-hooks/exhaustive-deps
+  const onDropToLocal = useCallback((p: DragPayload) => { void move('download', p.items) }, [sid, local.cwd, viaLocal]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pct = transfer && transfer.total > 0 ? Math.min(100, Math.round((transfer.done / transfer.total) * 100)) : 0
-  const canDown = !!sid && remote.selected.length > 0
+  const canDown = (!!sid || viaLocal) && remote.selected.length > 0
   const count = (n: number) => (n > 1 ? ` ${n}` : '')
 
   return (
     <div className="sftp" data-testid="sftp" aria-label={host ? `SFTP ${host.label}` : 'SFTP'}>
       <div className="sftp-panes">
         <FilePane side="local" title="Local" icon={<IconFolder size={16} />} fs={localHome ? fs : null} startDir={localHome} reloadKey={localKey} showHiddenDefault={false}
-          onState={setLocal} onDropEntry={onDropToLocal} onCopyOut={sid ? items => void move('upload', items) : undefined} copyLabel="Upload" />
+          onState={setLocal} onDropEntry={onDropToLocal} onCopyOut={sid || viaLocal ? items => void move('upload', items) : undefined} copyLabel={viaLocal ? 'Copy to right' : 'Upload'} />
         <div className="rpanes">
           {tabs.map(t => {
             const cb = cbFor(t.key)
@@ -182,7 +167,7 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
                   <div className="rtabs" role="tablist" aria-label="Remote hosts">
                     {tabs.map(x => (
                       <div key={x.key} role="tab" aria-selected={x.key === activeKey} className={'rtab' + (x.key === activeKey ? ' on' : '')} onClick={() => setActiveKey(x.key)}>
-                        <OsIcon os={hosts.find(h => h.id === x.host.id)?.os} size={15} />
+                        {x.host.id === LOCAL_HOST_ID ? <IconFolder size={15} /> : <OsIcon os={hosts.find(h => h.id === x.host.id)?.os} size={15} />}
                         <span className="rtab-name">{x.host.label}</span>
                         <button className="icon ghost fpane-x" aria-label={tabs.length === 1 ? 'Change host' : `Close ${x.host.label}`} title={tabs.length === 1 ? 'Disconnect and pick another host' : 'Close this host'}
                           onClick={e => { e.stopPropagation(); closeTab(x.key) }}><IconClose size={13} /></button>
@@ -200,16 +185,12 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
         </div>
       </div>
       <div className="sftp-foot">
-        <button disabled={!canDown} onClick={() => void move('download', remote.selected)} aria-label="Download selected"><IconDownload size={15} /> Download{count(remote.selected.length)} to local folder</button>
-        {transfer && (
-          <div className="sftp-transfer" role="status" aria-label="Transfer progress">
-            <span>{transfer.direction === 'upload' ? 'Uploading' : 'Downloading'} {transfer.name}</span>
-            <div className="bar"><i style={{width: pct + '%'}} /></div>
-            <span className="muted">{pct >= 100 ? 'done' : `${pct}% · ${formatBytes(transfer.done)} of ${formatBytes(transfer.total)}`}</span>
-          </div>
-        )}
+        <button disabled={!canDown} onClick={() => void move('download', remote.selected)} aria-label={viaLocal ? 'Copy selected to left' : 'Download selected'}><IconDownload size={15} /> {viaLocal ? 'Copy' : 'Download'}{count(remote.selected.length)} to {viaLocal ? 'the left folder' : 'local folder'}</button>
+        <button disabled={!sid || !local.cwd || !remote.cwd} onClick={() => setSyncing(true)} aria-label="Sync folders">Sync folders…</button>
         {error && <div className="error" role="alert">{error}</div>}
       </div>
+      <QueuePanel jobs={jobs} actions={queueActions} open={queueOpen} onToggle={() => setQueueOpen(o => !o)} />
+      {syncing && <SyncDialog sid={sid} localDir={local.cwd} remoteDir={remote.cwd} onClose={() => setSyncing(false)} onQueued={() => setQueueOpen(true)} />}
     </div>
   )
 }

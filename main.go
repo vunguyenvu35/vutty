@@ -5,13 +5,14 @@ import (
 	"embed"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
-	"vvterm/app"
+	"vutty/app"
 )
 
 //go:embed all:frontend/dist
@@ -39,9 +40,14 @@ func main() {
 		log.Fatalf("open data: %v", err)
 	}
 
+	for _, arg := range os.Args[1:] { // Windows and Linux hand a clicked ssh:// link over as an argument
+		if strings.HasPrefix(strings.ToLower(arg), "ssh://") {
+			a.System.OpenSSHLink(arg)
+		}
+	}
 	slimFullScreenBar() // a low bar with the app's name when macOS slides it over the page in full screen
 	err = wails.Run(&options.App{
-		Title:     "VVTerm",
+		Title:     "Vutty",
 		Width:     1280,
 		Height:    800,
 		MinWidth:  900,
@@ -54,11 +60,12 @@ func main() {
 		OnShutdown:       a.Shutdown,
 		Menu:             a.Menu(),
 		Mac: &mac.Options{
-			TitleBar: mac.TitleBarHiddenInset(),
-			About:    &mac.AboutInfo{Title: "VVTerm", Message: "SSH client with an encrypted vault.\nVersion " + app.Version, Icon: appIcon},
+			TitleBar:  mac.TitleBarHiddenInset(),
+			About:     &mac.AboutInfo{Title: "Vutty", Message: "SSH client with an encrypted vault.\nVersion " + app.Version, Icon: appIcon},
+			OnUrlOpen: a.System.OpenSSHLink, // an ssh:// link: the window asks before it opens anything
 		},
 		Bind: []interface{}{
-			a.Host, a.Vault, a.Session, a.Forward, a.Sync, a.ImportExp, a.Settings, a.Snippet, a.Sftp, a.Local, a.Serial, a.Log, a.KnownHost, a.Assistant, a.System,
+			a.Host, a.Vault, a.Session, a.Forward, a.Sync, a.ImportExp, a.Settings, a.Snippet, a.Sftp, a.Local, a.Serial, a.Log, a.KnownHost, a.Assistant, a.Exec, a.System,
 		},
 	})
 	if err != nil {
@@ -75,13 +82,15 @@ func runSettings(dir string) {
 	}
 	hideFromDockOnLaunch() // no Dock icon flashing up while the window opens
 	err = wails.Run(&options.App{
-		Title:            "Settings",
-		Width:            1040,
-		Height:           720,
-		MinWidth:         720,
-		MinHeight:        480,
-		AssetServer:      &assetserver.Options{Assets: assets},
-		BackgroundColour: &options.RGBA{R: 17, G: 19, B: 24, A: 1},
+		Title:       "Settings",
+		Width:       1040,
+		Height:      720,
+		MinWidth:    720,
+		MinHeight:   480,
+		AssetServer: &assetserver.Options{Assets: assets},
+		// Opaque (A is 0 to 255, not a fraction): the webview below is transparent so it does not flash white, which
+		// makes this colour the whole window until the page has painted. With A: 1 the window was see-through then.
+		BackgroundColour: &options.RGBA{R: 17, G: 19, B: 24, A: 255},
 		OnStartup:        func(ctx context.Context) { w.Startup(ctx); hideFromDock() },
 		Menu:             w.Menu(),
 		Mac:              &mac.Options{TitleBar: mac.TitleBarHiddenInset(), WebviewIsTransparent: true},
@@ -102,7 +111,7 @@ func runTerminalWindow(dir, hostID, title string) {
 	}
 	slimFullScreenBar()
 	err = wails.Run(&options.App{
-		Title:            "VVTerm",
+		Title:            "Vutty",
 		Width:            1280,
 		Height:           800,
 		MinWidth:         900,

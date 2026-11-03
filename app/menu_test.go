@@ -74,7 +74,7 @@ func TestMenuBarHasTheUsualMenus(t *testing.T) {
 	if len(m.Items) != 6 {
 		t.Fatalf("App, File, Edit, View, Window, Help: %v", top)
 	}
-	for _, name := range []string{"File", "View", "Help"} {
+	for _, name := range []string{"File", "View"} {
 		if submenu(m, name) == nil {
 			t.Errorf("no %s menu", name)
 		}
@@ -118,7 +118,7 @@ func TestViewMenuZoomsSplitsAndShowsPages(t *testing.T) {
 	view := submenu(BuildMenu(p.hooks()), "View")
 	for _, c := range []struct{ label, action string }{
 		{"Zoom In", ActZoomIn}, {"Zoom Out", ActZoomOut}, {"Actual Size", ActZoomReset}, {"Split Pane Right", ActSplitRight},
-		{"Split Pane Down", ActSplitDown}, {"Broadcast Input", ActBroadcast}, {"Hosts", "page:hosts"}, {"Keychain", "page:keychain"},
+		{"Split Pane Down", ActSplitDown}, {"Broadcast Input", ActBroadcast}, {"Command Suggestions", ActToggleSuggest}, {"Show Suggestions", ActSuggestPopup}, {"Hosts", "page:hosts"}, {"Keychain", "page:keychain"},
 		{"Port Forwarding", "page:forwards"}, {"Snippets", "page:snippets"}, {"SFTP", "page:sftp"}, {"Known Hosts", "page:knownhosts"}, {"Logs", "page:logs"},
 	} {
 		p.actions = nil
@@ -140,13 +140,31 @@ func TestViewMenuZoomsSplitsAndShowsPages(t *testing.T) {
 func TestHelpMenuOpensOnlyTheProjectPages(t *testing.T) {
 	p := &menuProbe{}
 	help := submenu(BuildMenu(p.hooks()), "Help")
-	if len(help.SubMenu.Items) != len(HelpLinks) || len(HelpLinks) != 5 {
+	// About, Check for Updates and a separator come first, then one item per project link, a separator and Support
+	const lead = 3
+	if len(help.SubMenu.Items) != lead+len(HelpLinks)+2 || len(HelpLinks) != 4 {
 		t.Fatalf("%v", labels(help))
 	}
 	for i, l := range HelpLinks {
-		click(t, help.SubMenu.Items[i])
+		click(t, help.SubMenu.Items[lead+i])
 		if p.urls[i] != l.URL || !urlAllowed(l.URL) {
 			t.Errorf("%s: %q must be one of the allowed project links", l.Label, l.URL)
+		}
+	}
+}
+
+func TestHelpMenuHasAboutAndCheckForUpdates(t *testing.T) {
+	p := &menuProbe{}
+	help := submenu(BuildMenu(p.hooks()), "Help")
+	for label, want := range map[string]string{"About Vutty": ActAbout, "Check for Updates…": ActCheckUpdate, "Support Vutty…": ActSupport} {
+		it := find(help, label)
+		if it == nil {
+			t.Fatalf("Help has no %q: %v", label, labels(help))
+		}
+		p.actions = nil
+		click(t, it)
+		if len(p.actions) != 1 || p.actions[0] != want {
+			t.Errorf("%s → %v, want %s", label, p.actions, want)
 		}
 	}
 }

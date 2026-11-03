@@ -11,21 +11,21 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"vvterm/internal/agentx"
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/localtty"
-	"vvterm/internal/mcpgw"
-	"vvterm/internal/serialx"
-	"vvterm/internal/sftpx"
-	"vvterm/internal/sqlitedb"
-	"vvterm/internal/sshx"
-	"vvterm/internal/store"
-	"vvterm/internal/telnetx"
-	"vvterm/internal/usecase"
-	"vvterm/internal/vault"
+	"vutty/internal/agentx"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/localtty"
+	"vutty/internal/mcpgw"
+	"vutty/internal/serialx"
+	"vutty/internal/sftpx"
+	"vutty/internal/sqlitedb"
+	"vutty/internal/sshx"
+	"vutty/internal/store"
+	"vutty/internal/telnetx"
+	"vutty/internal/usecase"
+	"vutty/internal/vault"
 )
 
-// Version is injected at build time with -ldflags "-X vvterm/app.Version=...".
+// Version is injected at build time with -ldflags "-X vutty/app.Version=...".
 var Version = "dev"
 
 // App bundles the use cases (bound to the frontend) and the Wails-only system service.
@@ -41,17 +41,65 @@ type App struct {
 	ctx      context.Context
 }
 
-// DataDir resolves where user data lives: $VVTERM_DATA_DIR, else the OS config dir
-// (macOS: ~/Library/Application Support/vvterm).
+// DataDir resolves where user data lives: $VUTTY_DATA_DIR, else the OS config dir
+// (macOS: ~/Library/Application Support/vutty). The app was called VuTerm and, before that, VVTerm: their
+// $VUTERM_DATA_DIR / $VVTERM_DATA_DIR and old folders are still honoured, and an old folder is renamed on first start.
 func DataDir() (string, error) {
-	if d := os.Getenv("VVTERM_DATA_DIR"); d != "" {
-		return d, nil
+	for _, name := range []string{"VUTTY_DATA_DIR", "VUTERM_DATA_DIR", "VVTERM_DATA_DIR"} {
+		if d := os.Getenv(name); d != "" {
+			return d, nil
+		}
 	}
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, "vvterm"), nil
+	return adoptLegacyDir(filepath.Join(base, "vutty"), filepath.Join(base, "vuterm"), filepath.Join(base, "vvterm")), nil
+}
+
+// adoptLegacyDir returns the folder to use: dir, after moving a pre-rename folder to it when only an old one
+// exists (legacies are listed newest name first). If the move fails the old folder is used as it is, so
+// nothing is ever left behind.
+func adoptLegacyDir(dir string, legacies ...string) string {
+	if _, err := os.Stat(dir); err == nil {
+		return dir
+	}
+	for _, legacy := range legacies {
+		if _, err := os.Stat(legacy); err != nil {
+			continue
+		}
+		if err := os.Rename(legacy, dir); err != nil {
+			return legacy
+		}
+		return dir
+	}
+	return dir
+}
+
+// adoptLegacyDB renames the pre-rename database files (vuterm.db or vvterm.db, and their journal files) next to path.
+func adoptLegacyDB(path string) {
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+	for _, name := range []string{"vuterm.db", "vvterm.db"} {
+		legacy := filepath.Join(filepath.Dir(path), name)
+		if _, err := os.Stat(legacy); err != nil {
+			continue
+		}
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			_ = os.Rename(legacy+suffix, path+suffix)
+		}
+		return
+	}
+}
+
+// keychainAccount is the key of this vault's entry in the OS keychain. It is the data folder's path as it was
+// before the first rename (".../vvterm/data"), so Quick unlock keeps working for people who used VVTerm or VuTerm.
+func keychainAccount(dir, data string) string {
+	if b := filepath.Base(dir); b == "vutty" || b == "vuterm" {
+		return filepath.Join(filepath.Dir(dir), "vvterm", "data")
+	}
+	return data
 }
 
 // Build is the composition root: it creates the concrete adapters and wires the use cases.
@@ -60,7 +108,9 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 	if err := os.MkdirAll(data, 0o700); err != nil {
 		return nil, err
 	}
-	db, err := sqlitedb.Open(filepath.Join(data, "vvterm.db"))
+	dbPath := filepath.Join(data, "vutty.db")
+	adoptLegacyDB(dbPath)
+	db, err := sqlitedb.Open(dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +123,7 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 	if realKeychain {
 		kc = vault.OSKeychain{}
 	}
-	v, err := vault.NewWith(db.VaultPersister(), data, kc)
+	v, err := vault.NewWith(db.VaultPersister(), keychainAccount(dir, data), kc)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -84,7 +134,7 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 	if kdf != nil {
 		v.SetKDF(*kdf)
 	}
-	core, err := usecase.NewCore(dir, usecase.Options{Store: st, Vault: v, OpenRemoteFS: func(c *sshx.Client) (usecase.RemoteFS, error) { return sftpx.Open(c.Client) },
+	core, err := usecase.NewCore(dir, usecase.Options{CacheDir: cacheDir(), Store: st, Vault: v, OpenRemoteFS: func(c *sshx.Client) (usecase.RemoteFS, error) { return sftpx.Open(c.Client) },
 		OpenLocalShell: func(cols, rows int, onData func([]byte)) (usecase.Shell, error) {
 			return localtty.Open(cols, rows, onData)
 		},
@@ -120,7 +170,11 @@ func (a *App) Startup(ctx context.Context) {
 		}
 		a.closeSettingsWhenLocked(event)
 	})
-	go a.Assistant.Warm() // look for the AI tools now, so the assistant page does not have to wait for it
+	a.startSleepLock(ctx) // the vault locks when the computer sleeps
+	a.System.updateDir = filepath.Join(a.dir, "updates")
+	CleanUpAfterUpdate(a.System.updateDir) // what the last update left behind
+	// The AI tools are looked for when something first asks for them (the assistant panel, Settings → AI assistant): starting
+	// each CLI takes seconds of CPU, which would compete with a Settings window opened right after the app started.
 
 	// The Settings window is a second process that talks to this one. Without the bridge the frontend
 	// falls back to its in-app Settings window.
@@ -192,4 +246,13 @@ func (a *App) closeSettingsWhenLocked(event string) {
 	if event == "vault:locked" && a.launcher != nil {
 		a.launcher.Close()
 	}
+}
+
+// cacheDir is where the app keeps files it can make again (the Settings helper on macOS); empty when the OS has none.
+func cacheDir() string {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(base, "vutty")
 }

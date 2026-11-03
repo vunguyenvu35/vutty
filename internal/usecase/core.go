@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"vvterm/internal/domain"
-	"vvterm/internal/fsutil"
+	"vutty/internal/domain"
+	"vutty/internal/fsutil"
 
-	"vvterm/internal/sshx"
+	"vutty/internal/sshx"
 )
 
 // Settings is persisted in settings.json and never synced.
@@ -25,22 +25,38 @@ type Settings struct {
 	FontFamily    string `json:"font_family"`
 	CursorStyle   string `json:"cursor_style"` // block | bar | underline
 	CursorBlink   bool   `json:"cursor_blink"`
-	// CopyOnSelect copies the selection to the clipboard as soon as it is made, like Termius.
+	// CopyOnSelect copies the selection to the clipboard as soon as it is made.
 	CopyOnSelect bool `json:"copy_on_select"`
 	// RightClick is what a right click in a terminal does: paste | menu | none.
 	RightClick      string `json:"right_click"`
 	Scrollback      int    `json:"scrollback"`
 	AutoLockMinutes int    `json:"auto_lock_minutes"`
 	SyncURL         string `json:"sync_url"`
+	SyncFolder      string `json:"sync_folder"` // synced-folder mode (Drive / iCloud / Dropbox); replaces SyncURL
 
 	// General
 	Zoom            int  `json:"zoom"`              // interface scale in percent (80..160)
 	AskProtocol     bool `json:"ask_protocol"`      // a host opens on a "Choose protocol" screen first (off by default)
 	ConfirmTabClose bool `json:"confirm_tab_close"` // ask before closing a terminal tab or pane (off by default)
-	Highlight       bool `json:"highlight"`         // colour URLs, IPs, paths and error/warning/success words in terminal output
-	ReduceMotion    bool `json:"reduce_motion"`     // turn animations off
+	// ConfirmProd asks before text with a line break is pasted, or a snippet or a history command is run, in the terminal of
+	// a host marked prod: a pasted newline runs the line at once (on by default).
+	ConfirmProd bool `json:"confirm_prod"`
+	// SessionLog writes what a terminal session printed to a text file: off (the default), prod (only hosts marked prod) or all.
+	// SessionLogDir is the folder for them; empty means <data>/session-logs.
+	SessionLog    string `json:"session_log"`
+	SessionLogDir string `json:"session_log_dir"`
+	// LockOnSleep locks the vault when the computer goes to sleep, and on a Mac when the screen is locked (on by default).
+	LockOnSleep  bool `json:"lock_on_sleep"`
+	Highlight    bool `json:"highlight"`     // colour URLs, IPs, paths and error/warning/success words in terminal output
+	ReduceMotion bool `json:"reduce_motion"` // turn animations off
+	// AutoUpdateCheck: look for a newer release on GitHub when the app opens, at most once a day (on by default)
+	AutoUpdateCheck bool `json:"auto_update_check"`
 	// BiometricOnOpen: the lock screen asks for Touch ID / Windows Hello by itself (on by default)
 	BiometricOnOpen bool `json:"biometric_on_open"`
+	// Suggest shows a command suggestion while typing in a terminal (on by default); SuggestHost also reads the
+	// shell history of an SSH host for it (off by default: it opens a file on the server).
+	Suggest     bool `json:"suggest"`
+	SuggestHost bool `json:"suggest_host"`
 
 	// Account: a local profile today, the hook for sign-in and team features later
 	AccountName  string `json:"account_name"`
@@ -54,17 +70,18 @@ type Settings struct {
 func defaultSettings() Settings {
 	return Settings{Theme: "dark", TerminalTheme: "auto", FontSize: 13, FontFamily: "Menlo, Monaco, 'Courier New', monospace",
 		CursorStyle: "block", CursorBlink: true, CopyOnSelect: true, RightClick: "paste", Scrollback: 10000, AutoLockMinutes: 15,
-		Zoom: 100, Highlight: true, AskProtocol: true, BiometricOnOpen: true, Shortcuts: map[string]string{}}
+		Zoom: 100, ConfirmProd: true, LockOnSleep: true, SessionLog: SessionLogOff, Highlight: true, AskProtocol: true, BiometricOnOpen: true, AutoUpdateCheck: true, Suggest: true, Shortcuts: map[string]string{}}
 }
 
 // Core wires the packages together; the services below share one instance.
 type Core struct {
-	Dir     string // root of user data (contains data/ and sync/)
-	DataDir string
-	SyncDir string
-	Store   Repository
-	Vault   SecretVault
-	Dialer  *sshx.Dialer
+	CacheDir string // files that can be made again; see SettingsService.ClearCache
+	Dir      string // root of user data (contains data/ and sync/)
+	DataDir  string
+	SyncDir  string
+	Store    Repository
+	Vault    SecretVault
+	Dialer   *sshx.Dialer
 	// OpenRemoteFS starts SFTP on an SSH connection; nil disables the SFTP feature.
 	OpenRemoteFS RemoteFSOpener
 	// OpenLocalShell, OpenSerial and ListSerial back the Terminal and Serial features; nil disables them.
@@ -83,15 +100,18 @@ type Core struct {
 	setMu          sync.Mutex
 	settings       Settings
 
-	prompts *prompter
+	prompts     *prompter
+	authPrompts *authPrompter
 }
 
 // Options carries the adapters and settings NewCore needs. The composition root builds the
 // concrete Repository and SecretVault (see app.NewCore); tests inject their own.
 type Options struct {
 	Store Repository
-	Vault SecretVault
-	Emit  Emitter
+	// CacheDir is where the app keeps files it can make again (optional: without it Clear cache only drops what is in memory).
+	CacheDir string
+	Vault    SecretVault
+	Emit     Emitter
 	// OpenRemoteFS is the SFTP adapter (optional).
 	OpenRemoteFS RemoteFSOpener
 	// Local terminal and serial adapters (optional).
@@ -113,8 +133,8 @@ func NewCore(dir string, opt Options) (*Core, error) {
 	if opt.Store == nil || opt.Vault == nil {
 		return nil, errors.New("store and vault ports are required")
 	}
-	c := &Core{Dir: dir, DataDir: filepath.Join(dir, "data"), SyncDir: filepath.Join(dir, "sync"), emit: opt.Emit,
-		Store: opt.Store, Vault: opt.Vault, prompts: newPrompter(), OpenRemoteFS: opt.OpenRemoteFS,
+	c := &Core{CacheDir: opt.CacheDir, Dir: dir, DataDir: filepath.Join(dir, "data"), SyncDir: filepath.Join(dir, "sync"), emit: opt.Emit,
+		Store: opt.Store, Vault: opt.Vault, prompts: newPrompter(), authPrompts: newAuthPrompter(), OpenRemoteFS: opt.OpenRemoteFS,
 		OpenLocalShell: opt.OpenLocalShell, OpenSerial: opt.OpenSerial, OpenTelnet: opt.OpenTelnet, ListSerial: opt.ListSerial, Activity: opt.Activity,
 		Agents: opt.Agents, NewCustomAgent: opt.NewCustomAgent, ToolGateway: opt.ToolGateway, MCP: opt.MCP}
 	if c.emit == nil {
@@ -208,6 +228,63 @@ func (p *prompter) answer(key, fingerprint string, trust bool) error {
 	return nil
 }
 
+// authAnswer is what the user gave to a keyboard-interactive round: one answer per question, or ok false when they
+// cancelled.
+type authAnswer struct {
+	answers []string
+	ok      bool
+}
+
+// authPrompter pairs a pending keyboard-interactive round (a verification code…) with its answer, like prompter does for
+// a host key.
+type authPrompter struct {
+	mu      sync.Mutex
+	pending map[string]chan authAnswer
+	pay     map[string]any
+}
+
+func newAuthPrompter() *authPrompter {
+	return &authPrompter{pending: map[string]chan authAnswer{}, pay: map[string]any{}}
+}
+
+func (p *authPrompter) ask(key string, payload any) chan authAnswer {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ch := make(chan authAnswer, 1)
+	p.pending[key], p.pay[key] = ch, payload
+	return ch
+}
+
+// payload returns the pending round's event payload, for replay on Attach.
+func (p *authPrompter) payload(key string) (any, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	v, ok := p.pay[key]
+	return v, ok
+}
+
+func (p *authPrompter) clear(key string) {
+	p.mu.Lock()
+	delete(p.pending, key)
+	delete(p.pay, key)
+	p.mu.Unlock()
+}
+
+// answer delivers the user's answers; nil answers mean they cancelled.
+func (p *authPrompter) answer(key string, answers []string) error {
+	p.mu.Lock()
+	ch, ok := p.pending[key]
+	p.mu.Unlock()
+	if !ok {
+		return errors.New("no question is waiting for an answer")
+	}
+	select {
+	case ch <- authAnswer{answers: answers, ok: answers != nil}:
+	default:
+	}
+	return nil
+}
+
 // learnOS works out the server type on the first connection to a host and stores it, so the UI can show
 // the right icon. It runs in the background, asks for nothing the user typed, and gives up quietly when
 // the server refuses commands (the SSH version string alone may still tell). It never runs again once
@@ -218,8 +295,8 @@ func (c *Core) learnOS(host domain.Host, cl *sshx.Client) {
 	}
 	go func() {
 		version := string(cl.Client.ServerVersion())
-		out, _ := cl.Exec("uname -s; echo ---VVTERM---; cat /etc/os-release 2>/dev/null", 5*time.Second) // a non-zero exit still carries the output
-		uname, release, _ := strings.Cut(out, "---VVTERM---")
+		out, _ := cl.Exec("uname -s; echo ---VUTTY---; cat /etc/os-release 2>/dev/null", 5*time.Second) // a non-zero exit still carries the output
+		uname, release, _ := strings.Cut(out, "---VUTTY---")
 		name := domain.ParseOS(version, uname, release)
 		if name == "" {
 			return

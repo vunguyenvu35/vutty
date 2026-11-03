@@ -13,45 +13,49 @@ const MenuEvent = "menu:action"
 
 // Actions the menu can ask for. The frontend (App.tsx) handles exactly these.
 const (
-	ActNewHost      = "new_host"
-	ActNewGroup     = "new_group"
-	ActNewTerminal  = "new_terminal"
-	ActSerial       = "serial"
-	ActImport       = "import"
-	ActSettings     = "open_settings"
-	ActCloseTab     = "close_tab"
-	ActClosePane    = "close_pane"
-	ActLock         = "lock_vault"
-	ActZoomIn       = "zoom_in"
-	ActZoomOut      = "zoom_out"
-	ActZoomReset    = "zoom_reset"
-	ActPagePrefix   = "page:"
-	ActBroadcast    = "broadcast_input"
-	ActSplitRight   = "split_right"
-	ActSplitDown    = "split_down"
-	ActDuplicateTab = "duplicate_tab"
-	ActNewTab       = "new_connection"
-	ActNextTab      = "next_tab"
-	ActPrevTab      = "prev_tab"
-	ActVaults       = "go_vaults"
+	ActNewHost       = "new_host"
+	ActNewGroup      = "new_group"
+	ActNewTerminal   = "new_terminal"
+	ActSerial        = "serial"
+	ActImport        = "import"
+	ActSettings      = "open_settings"
+	ActCloseTab      = "close_tab"
+	ActClosePane     = "close_pane"
+	ActLock          = "lock_vault"
+	ActZoomIn        = "zoom_in"
+	ActZoomOut       = "zoom_out"
+	ActZoomReset     = "zoom_reset"
+	ActPagePrefix    = "page:"
+	ActBroadcast     = "broadcast_input"
+	ActToggleSuggest = "toggle_suggest"
+	ActSuggestPopup  = "suggest_popup"
+	ActSplitRight    = "split_right"
+	ActSplitDown     = "split_down"
+	ActDuplicateTab  = "duplicate_tab"
+	ActNewTab        = "new_connection"
+	ActNextTab       = "next_tab"
+	ActPrevTab       = "prev_tab"
+	ActVaults        = "go_vaults"
+	ActAbout         = "about"
+	ActCheckUpdate   = "check_update"
+	ActSupport       = "support"
 )
 
 // MenuActions lists every action name, for tests and for the frontend to stay in step.
 var MenuActions = []string{
 	ActNewHost, ActNewGroup, ActNewTerminal, ActSerial, ActImport, ActSettings, ActCloseTab, ActClosePane, ActLock,
-	ActZoomIn, ActZoomOut, ActZoomReset, ActBroadcast, ActSplitRight, ActSplitDown, ActDuplicateTab,
-	ActNewTab, ActNextTab, ActPrevTab, ActVaults,
+	ActZoomIn, ActZoomOut, ActZoomReset, ActBroadcast, ActToggleSuggest, ActSuggestPopup, ActSplitRight, ActSplitDown, ActDuplicateTab,
+	ActNewTab, ActNextTab, ActPrevTab, ActVaults, ActAbout, ActCheckUpdate, ActSupport,
 	ActPagePrefix + "hosts", ActPagePrefix + "keychain", ActPagePrefix + "forwards", ActPagePrefix + "snippets",
 	ActPagePrefix + "sftp", ActPagePrefix + "knownhosts", ActPagePrefix + "logs",
 }
 
 // HelpLinks are the Help menu entries: the project's own pages only (see urlAllowed).
 var HelpLinks = []struct{ Label, URL string }{
-	{"Documentation", "https://github.com/vunguyenvu35/vvterm#readme"},
-	{"Request a Feature", "https://github.com/vunguyenvu35/vvterm/issues/new"},
-	{"Report a Bug", "https://github.com/vunguyenvu35/vvterm/issues/new"},
-	{"Release Notes", "https://github.com/vunguyenvu35/vvterm/blob/main/RELEASE_NOTES.md"},
-	{"Support on Ko-fi", "https://ko-fi.com/vunguyenvu"},
+	{"Documentation", "https://github.com/vunguyenvu35/vutty#readme"},
+	{"Request a Feature", "https://github.com/vunguyenvu35/vutty/issues/new"},
+	{"Report a Bug", "https://github.com/vunguyenvu35/vutty/issues/new"},
+	{"Release Notes", "https://github.com/vunguyenvu35/vutty/blob/main/RELEASE_NOTES.md"},
 }
 
 // menuShortcut is the shortcut (the id used in Settings → Shortcuts) that does the same as a menu action, so the
@@ -60,6 +64,7 @@ var menuShortcut = map[string]string{
 	ActNewTerminal: "new_local_terminal", ActNewHost: "new_host", ActSettings: "open_settings", ActNewTab: "new_connection",
 	ActCloseTab: "close_tab", ActClosePane: "close_pane", ActLock: "lock_vault", ActNextTab: "next_tab", ActPrevTab: "prev_tab",
 	ActZoomIn: "zoom_in", ActZoomOut: "zoom_out", ActZoomReset: "zoom_reset", ActSplitRight: "split_right", ActSplitDown: "split_down",
+	ActToggleSuggest: "toggle_suggest", ActSuggestPopup: "suggest_popup",
 	ActBroadcast: "broadcast_input", ActDuplicateTab: "duplicate_tab", ActVaults: "go_vaults",
 	ActPagePrefix + "hosts": "go_hosts", ActPagePrefix + "keychain": "go_keychain", ActPagePrefix + "forwards": "go_forwards",
 	ActPagePrefix + "snippets": "go_snippets", ActPagePrefix + "sftp": "open_sftp", ActPagePrefix + "knownhosts": "go_knownhosts",
@@ -115,7 +120,7 @@ type MenuHooks struct {
 }
 
 // BuildMenu makes the application menu bar: the system's own App, Edit and Window menus, and File, View and
-// Help with VVTerm's actions. On macOS an item shows its shortcut (the keys are configurable in Settings, so
+// Help with Vutty's actions. On macOS an item shows its shortcut (the keys are configurable in Settings, so
 // the page passes the current ones in h.Shortcuts); the Settings and Full Screen items always have theirs.
 func BuildMenu(h MenuHooks) *menu.Menu {
 	act := func(label, action string, acc *keys.Accelerator) *menu.MenuItem {
@@ -153,6 +158,8 @@ func BuildMenu(h MenuHooks) *menu.Menu {
 	view.Append(act("Split Pane Right", ActSplitRight, nil))
 	view.Append(act("Split Pane Down", ActSplitDown, nil))
 	view.Append(act("Broadcast Input", ActBroadcast, nil))
+	view.Append(act("Command Suggestions", ActToggleSuggest, nil))
+	view.Append(act("Show Suggestions", ActSuggestPopup, nil))
 	view.Append(menu.Separator())
 	view.Append(act("Back to Vaults", ActVaults, nil))
 	for _, p := range []struct{ label, id string }{
@@ -165,10 +172,15 @@ func BuildMenu(h MenuHooks) *menu.Menu {
 	view.Append(menu.Text("Enter Full Screen", keys.Combo("f", keys.ControlKey, keys.CmdOrCtrlKey), func(*menu.CallbackData) { h.ToggleFullScreen() }))
 
 	help := menu.NewMenu()
+	help.Append(act("About Vutty", ActAbout, nil))
+	help.Append(act("Check for Updates…", ActCheckUpdate, nil))
+	help.Append(menu.Separator())
 	for _, l := range HelpLinks {
 		url := l.URL
 		help.Append(menu.Text(l.Label, nil, func(*menu.CallbackData) { h.OpenURL(url) }))
 	}
+	help.Append(menu.Separator())
+	help.Append(act("Support Vutty…", ActSupport, nil))
 
 	return menu.NewMenuFromItems(
 		menu.AppMenu(),

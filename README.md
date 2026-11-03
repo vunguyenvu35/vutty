@@ -1,15 +1,23 @@
-<p align="center"><img src="docs/brand/logo-horizontal-light.png" alt="VVTerm" width="520"></p>
+<p align="center"><img src="docs/brand/logo-horizontal-light.png" alt="Vutty" width="520"></p>
 
 <p align="center">
-  <a href="https://ko-fi.com/vunguyenvu"><img src="https://img.shields.io/badge/Support%20on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white&style=for-the-badge" alt="Support VVTerm on Ko-fi"></a>
+  <b>Vutty is a free, open-source SSH client for macOS, Windows and Linux that keeps your hosts, keys and passwords in an encrypted vault that you own.</b>
 </p>
 
 <p align="center">
-  <b>An SSH client for people who want to own their data.</b><br>
-  Hosts, keys and passwords live in an encrypted vault on your computer, export to standard formats at any time, and sync through a private Git repository you control.
+  <a href="https://github.com/vunguyenvu35/vutty/releases/latest"><img src="https://img.shields.io/github/v/release/vunguyenvu35/vutty?label=Download%20latest&style=for-the-badge&color=2ea44f" alt="Download the latest Vutty release"></a>
 </p>
 
-<p align="center"><img src="docs/screenshots/20-split-panes.png" alt="VVTerm with two terminals side by side" width="900"></p>
+<p align="center"><sub>macOS says the app "can't be opened"? Beta builds are not notarized yet: <a href="docs/InstallMac.md"><b>how to open it in three clicks</b></a>. · <a href="docs/Comparison.md">Vutty vs Termius, Tabby and WindTerm</a></sub></p>
+
+<p align="center"><img src="docs/screenshots/20-split-panes.png" alt="Vutty with two terminals side by side" width="900"></p>
+
+## Why Vutty
+
+- **Your data stays yours.** Hosts, keys and passwords live in one encrypted vault on your computer (AES-256-GCM, a key from your master password). Export to standard formats at any time, and sync between your computers through a private Git repository or a cloud folder you control. Nothing goes to a server of ours, and there is no account.
+- **Everything an SSH client needs, in one app.** Tabs and split panes, jump hosts, port forwards, serial and Telnet, and SFTP with a transfer queue that resumes, syncs folders and saves your edits back.
+- **Careful with secrets.** Private keys and passwords never reach the interface. A changed server key blocks the connection with no override. The optional AI assistant only ever sees the screen with secrets replaced, and only suggests commands: you decide what runs.
+- **Free and open source.** No licence tiers, nothing to sign up for.
 
 ## What you can do
 
@@ -18,13 +26,13 @@
 - **Keep secrets safe.** Private keys and passwords are encrypted with your master password. The interface never sees them.
 - **Work in tabs and split panes**, through one or more jump hosts, with keep-alive and one-key reconnect. Drag tabs to order them, drag a tab onto a pane to split it (sessions keep running), open a host in a **new window**, and see at a glance which tabs are connected.
 - **A sidebar beside every terminal**: hosts, snippets (run or paste), command history, and terminal themes and font.
-- **More than SSH**: a shell on this computer, serial ports and Telnet (with its own login), a Termius-style *Choose protocol* and connecting screen, Known Hosts and Logs pages.
-- **Browse and transfer files with SFTP** in a tab of its own: two panes, several files and folders at once, drag and drop, right-click menu with permissions, with confirmation before anything is replaced.
-- **Ask an AI about your terminal** with the tool you already use (Claude Code, Codex CLI, Gemini CLI): the screen is sent with every secret replaced by `*******`, the assistant only suggests commands, and you decide what runs. Add MCP servers for extra tools. See the [user guide](docs/UserGuide.md#22-ai-assistant) and the [design](docs/AIAssistant.md).
+- **More than SSH**: a shell on this computer, serial ports and Telnet (with its own login), a *Choose protocol* and connecting screen, Known Hosts and Logs pages.
+- **Browse and transfer files with SFTP** in a tab of its own (and in the terminal sidebar): two panes, several files and folders at once, drag and drop, and a **transfer queue** with pause, resume (a copy is continued from the bytes already sent, also after a lost connection), cancel and retry. Compare and **sync folders** (nothing is ever deleted), **edit a remote file** and have it saved back when you save, and a right-click menu with permissions. Nothing is replaced without asking.
+- **Ask an AI about your terminal** with the official CLI you already use (Claude Code, Codex CLI, Gemini CLI; Antigravity CLI is experimental): the screen is sent with every secret replaced by `*******`, the assistant only suggests commands, and you decide what runs. Add MCP servers for extra tools. See the [user guide](docs/UserGuide.md#22-ai-assistant) and the [design](docs/AIAssistant.md).
 - **Save snippets** of commands you run often and type them into any terminal with a click.
 - **Make it yours**: 26 terminal colour themes, light / dark / auto appearance, font, cursor and scrollback, interface zoom, your own keyboard shortcuts, all in a Settings window of its own.
 - **Forward ports**: local, remote and SOCKS5 proxy.
-- **Stay in control.** Import and export your `~/.ssh/config`, share a host list without secrets, make encrypted backups, or sync between your machines through a private Git repository.
+- **Stay in control.** Import and export your `~/.ssh/config`, share a host list without secrets, make encrypted backups, or sync between your Macs through a private Git repository.
 
 <table>
   <tr>
@@ -39,40 +47,27 @@
 
 ## Try it
 
-### On macOS
+**Requirements:** macOS, Windows (64-bit) or Linux (64-bit). Vutty is currently a beta; macOS is the most tested, Windows and Linux builds are new.
 
-- **From a release (recommended):** download `VVTerm-<version>-macos-<arch>.zip` from the [Releases](../../releases) page, unzip it and drag **VVTerm.app** to *Applications*.
+### 1. Install
+
+- **From a release (recommended):** download the file for your system from the [Releases](../../releases) page:
+
+  | System | File | How to install |
+  | --- | --- | --- |
+  | macOS | `vutty-<version>-macos.dmg` (or `.zip`) | open the DMG and drag **vutty.app** to *Applications* |
+  | Windows | `vutty-<version>-windows-amd64.exe` | run it, no installer needed |
+  | Linux | `vutty-<version>-linux-amd64.tar.gz` | `tar xzf` it and run `./vutty` (needs GTK 3 and WebKitGTK 4.0, for example `libgtk-3-0` and `libwebkit2gtk-4.0-37` on Ubuntu 22.04) |
+
+  Each release also lists `SHA256SUMS` so you can check your download.
+- **macOS with Homebrew:** `brew install --cask vunguyenvu35/vutty/vutty` (the first run adds the tap `vunguyenvu35/vutty`; update later with `brew upgrade --cask vutty`). The cask clears the quarantine flag for you, so the first-launch warning below does not apply.
 - **From source:** see the [Development guide](docs/Development.md) (three commands).
 
-> **First launch.** Beta builds are not notarized by Apple yet, so macOS may say the app *"can't be opened"*. Right-click **VVTerm.app → Open → Open** once. This is only needed the first time.
+> **First launch.** Beta builds are not signed with a developer certificate yet. On macOS, open the app, then **System Settings → Privacy & Security → Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/vutty.app`); step by step in [Installing on macOS](docs/InstallMac.md). On Windows, SmartScreen may warn: choose **More info → Run anyway**.
 
-### On Windows
+**Updates:** **Settings → Check for updates** tells you when a newer release is out and opens its page; replace the old app with the new one and your data is kept. Once a day, when the app opens, Vutty asks GitHub for the latest release (a plain request that sends nothing about you or your data); switch it off in **Settings → General → Check for updates automatically**.
 
-**Prerequisites:** Windows 10/11 (Microsoft Edge WebView2 is included by default), Go 1.22+, Node.js 18+.
-
-1. **Install Wails CLI** (if not already installed):
-   ```powershell
-   go install github.com/wailsapp/wails/v2/cmd/wails@latest
-   ```
-
-2. **Build and run**:
-   - **Quick build with script:**
-     ```powershell
-     .\scripts\build-windows.ps1
-     .\build\bin\vvterm.exe
-     ```
-   - **Development mode (hot reload):**
-     ```powershell
-     wails dev
-     ```
-   - **Manual build:**
-     ```powershell
-     cd frontend && npm install && npm run build && cd ..
-     wails build
-     .\build\bin\vvterm.exe
-     ```
-
-### First five minutes
+### 2. First five minutes
 
 1. **Create your vault.** Choose a master password (12+ characters). It cannot be recovered, so keep it safe.
 2. **Add a credential** in **Keychain**: generate a new key (copy the public key to your server's `~/.ssh/authorized_keys`), import an existing key, or save a password.
@@ -84,7 +79,7 @@ The [User guide](docs/UserGuide.md) walks through every screen with screenshots.
 
 ### No server to test with?
 
-Start two throw-away demo SSH servers (needs Docker):
+Start two throw-away demo SSH servers on your Mac (needs Docker):
 
 ```bash
 docker compose --profile dev up -d
@@ -96,9 +91,9 @@ Add hosts `127.0.0.1` port `2201` (bastion) and `2202`, username `demo`, passwor
 
 | | |
 | --- | --- |
-| **Where it lives** | `~/Library/Application Support/vvterm/` on macOS, or `%APPDATA%\vvterm\` on Windows |
+| **Where it lives** | `~/Library/Application Support/vutty/` (one SQLite database plus a `known_hosts` file) |
 | **What is encrypted** | Keys and passwords: AES-256-GCM, with a key derived from your master password (Argon2id) |
-| **What leaves your computer** | Nothing, unless you turn on Git sync, which only uploads encrypted data to *your* repository |
+| **What leaves your Mac** | No telemetry, no analytics, no account. Only what you turn on: Git or cloud-folder sync (encrypted data, to *your* repository or folder) and the AI assistant (redacted terminal text goes to the provider of the CLI you enabled). The one automatic request is the update check below |
 | **Unknown servers** | You confirm the fingerprint once. If a known server's key ever changes, the connection is **blocked with no override** |
 | **Forwards** | Listen on `127.0.0.1` only, unless you explicitly allow more |
 | **Auto-lock** | The vault locks after 15 idle minutes (configurable) |
@@ -109,11 +104,11 @@ Back up regularly with **Import / Export → Encrypted backup**.
 
 ## Known limitations of this beta
 
-- On Windows, the local shell tab (pty) is currently Unix-based and not supported yet; SSH, SFTP, serial ports, Telnet, forwards, and vault work normally.
-- "Keychain unlock" stores the vault key in the macOS Keychain / Windows Credential Manager; it does **not** require Touch ID yet.
-- The vault does not lock when the computer sleeps (only on idle).
-- Settings opens as a second window of the app (a second process): it shows a second Dock icon on macOS while open and needs the main app running.
-- SFTP transfers single files only (no folder transfer, queue or resume yet).
+- Windows and Linux builds are new and less tested than macOS. On Windows the **terminal on this computer** is not available yet (SSH, SFTP and the rest work). Touch ID and the macOS-specific window features exist only on a Mac.
+- "Keychain unlock" stores the vault key in the macOS Keychain; it does **not** require Touch ID yet.
+- Locking the vault when the computer sleeps works on a Mac as the system announces it (and when the screen is locked); on Windows and Linux it locks when the computer wakes up, and a sleep of a few seconds is not noticed.
+- Settings opens as a second window of the app (a second process): it shows a second Dock icon while open and needs the main app running.
+- SFTP does not keep the modification time of copied files, and a transfer you abandon leaves a hidden `.vutty-part-…` file next to its target.
 - Git sync was tested with local repositories, not yet with every hosting provider.
 - `ProxyCommand` and `Match` blocks in `~/.ssh/config` are reported as warnings on import and skipped.
 
@@ -124,18 +119,61 @@ The full list is in the [release notes](RELEASE_NOTES.md).
 Your feedback is the point of this beta. Please [open an issue](../../issues/new) and include:
 
 - what you did, what you expected and what happened (a screenshot helps);
-- your VVTerm version and OS version;
+- your Vutty version and macOS version;
 - **never** paste passwords, private keys or your vault file.
 
-## Support VVTerm
-
-VVTerm is free and open source, built and maintained in spare time. If it saves you time, you can help keep it going:
+## Support Vutty
 
 <p align="center">
-  <a href="https://ko-fi.com/vunguyenvu"><img src="https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-ko--fi.com%2Fvunguyenvu-FF5E5B?style=for-the-badge" alt="Buy me a coffee on Ko-fi"></a>
+  Vutty is free and open source, built and maintained in spare time.<br>
+  If it saves you time, you can help keep it going.
 </p>
 
-Stars, bug reports and pull requests help just as much.
+<table align="center">
+  <tr>
+    <td align="center" width="200"><h2>☕</h2><b>$3</b><br><sub>a cup of coffee</sub></td>
+    <td align="center" width="200"><h2>🍜</h2><b>$10</b><br><sub>a lunch</sub></td>
+    <td align="center" width="200"><h2>🚀</h2><b>$25</b><br><sub>fuel new features</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <a href="https://ko-fi.com/vunguyenvu"><img src="https://img.shields.io/badge/Support%20on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white&style=for-the-badge" alt="Support Vutty on Ko-fi"></a>
+</p>
+
+<!-- CRYPTO-DONATE: hidden for now. To show it again, remove this comment line and the matching end line.
+<p align="center"><b>Prefer crypto?</b> Scan a code or copy an address, and check the network before you send.</p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="300">
+      <img src="https://img.shields.io/badge/USDT-Tron%20%C2%B7%20TRC20-EF0027?logo=tron&logoColor=white&style=flat-square" alt="USDT on Tron (TRC20)"><br><br>
+      <img src="docs/donate/usdt-tron.png" width="190" alt="QR code of the USDT Tron address"><br>
+      <sub><code>TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK</code></sub>
+    </td>
+    <td align="center" width="300">
+      <img src="https://img.shields.io/badge/USDT-BSC%20%C2%B7%20BEP20-F0B90B?logo=binance&logoColor=black&style=flat-square" alt="USDT on BSC (BEP20)"><br><br>
+      <img src="docs/donate/usdt-bsc.png" width="190" alt="QR code of the USDT BSC address"><br>
+      <sub><code>0x4bdfd1d6456c28d06e3f8456ddac59e6168e5153</code></sub>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary>Copy an address</summary>
+
+```
+TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK
+```
+
+```
+0x4bdfd1d6456c28d06e3f8456ddac59e6168e5153
+```
+
+</details>
+CRYPTO-DONATE end -->
+
+<p align="center"><sub>Stars, bug reports and pull requests help just as much. Thank you!</sub></p>
 
 ## Documentation
 
@@ -145,8 +183,13 @@ Stars, bug reports and pull requests help just as much.
 | [Release notes](RELEASE_NOTES.md) | what is new, quality results, known issues |
 | [Development guide](docs/Development.md) | build, test, Docker, deploy |
 | [Architecture](docs/CleanArchitecture.md) | layers, decisions, technical debt |
+| [Installing on macOS](docs/InstallMac.md) | opening a beta that is not notarized (Gatekeeper) |
+| [Release signing](docs/ReleaseSigning.md) | how updates are signed, and how the app installs them itself |
+| [Comparison](docs/Comparison.md) | short table against Termius, Tabby and WindTerm |
 | [Assessment](docs/Assessment.md) | honest comparison with the original design |
 
 ## License
 
-See [LICENSE](LICENSE).
+See [LICENSE](LICENSE). The open-source libraries Vutty is built on, with their licences, are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); every download carries a copy.
+
+Vutty is not affiliated with or endorsed by Anthropic, OpenAI or Google. Claude Code, Codex, Gemini and Antigravity are trademarks of their owners; Vutty only runs the CLI you installed, and its use is governed by that provider's terms. The open-source libraries Vutty is built on, with their licences, are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); every download carries a copy.

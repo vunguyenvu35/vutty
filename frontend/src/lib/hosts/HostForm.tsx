@@ -6,14 +6,18 @@ import {useAppearance} from '../settings/appearance'
 import {Select} from '../ui/Select'
 import {useBackend} from '../backend'
 import {errMsg, parseTags} from '../util'
-import {IconCheckCircle, IconEye, IconEyeOff, IconPlus, IconServer, IconXCircle} from '../ui/Icons'
-import type {AiPolicy, ConnectionTest, Group, Host, HostKeyPrompt, Identity, Settings} from '../types'
+import {IconCheckCircle, IconEye, IconEyeOff, IconPlus, IconServer, IconWarn, IconXCircle} from '../ui/Icons'
+import {Switch} from '../ui/Switch'
+import {AuthPrompt} from '../ui/AuthPrompt'
+import type {AiPolicy, AuthChallenge, ConnectionTest, Group, Host, HostKeyPrompt, Identity, Settings} from '../types'
 
 interface Props {
   host?: Host
   /** the host is a draft (for example from quick connect), not an existing record */
   isNew?: boolean
   groups: Group[]
+  /** the group open on the hosts page: a new host starts in it */
+  defaultGroupId?: string
   hosts: Host[]
   identities: Identity[]
   onClose(): void
@@ -33,7 +37,7 @@ let testSeq = 0
  * (username + password, or a key identity) → options. Test connection checks the typed values without
  * saving anything; Connect saves and opens a terminal.
  */
-export function HostForm({host, isNew, groups, hosts, identities, onClose, onSaved, onConnect, onDraft}: Props) {
+export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities, onClose, onSaved, onConnect, onDraft}: Props) {
   const be = useBackend()
   const [appSetting, setAppSetting] = useState('auto')
   const [appTheme, setAppTheme] = useState<Settings['theme']>('dark')
@@ -46,7 +50,7 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
     username: host?.username ?? '',
     password: '',
     identity_id: host?.identity_id ?? '',
-    group_id: host?.group_id ?? '',
+    group_id: host?.group_id || (host?.id ? '' : defaultGroupId ?? ''),
     jump_host_id: host?.jump_host_id ?? '',
     env: host?.env ?? '',
     tags: (host?.tags ?? []).join(', '),
@@ -59,12 +63,14 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
     telnet_encoding: host?.telnet_encoding || 'utf-8',
     terminal_theme: host?.terminal_theme ?? '',
     ai_policy: (host?.ai_policy ?? '') as AiPolicy,
+    forward_agent: !!host?.forward_agent,
   })
   const [showPw, setShowPw] = useState(false)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [test, setTest] = useState<Test>({state: 'idle'})
   const [prompt, setPrompt] = useState<{key: string; p: HostKeyPrompt} | null>(null)
+  const [auth, setAuth] = useState<{key: string; c: AuthChallenge} | null>(null)
   const alive = useRef(true)
   useEffect(() => () => { alive.current = false }, [])
   const [showTelnetPw, setShowTelnetPw] = useState(false)
@@ -91,6 +97,7 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
       telnet_encoding: f.telnet_on && f.telnet_encoding !== 'utf-8' ? f.telnet_encoding : '',
       terminal_theme: f.terminal_theme,
       ai_policy: f.ai_policy,
+      forward_agent: f.forward_agent,
       label: f.label.trim(),
       hostname: f.hostname.trim(),
       port,
@@ -139,7 +146,9 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
     if (!h) return
     const key = `test-${Date.now().toString(36)}-${++testSeq}`
     setTest({state: 'running'})
-    const off = be.on(`term:hostkey:${key}`, (p: HostKeyPrompt) => setPrompt({key, p}))
+    const off1 = be.on(`term:hostkey:${key}`, (p: HostKeyPrompt) => setPrompt({key, p}))
+    const off2 = be.on(`term:auth:${key}`, (c: AuthChallenge) => setAuth({key, c}))
+    const off = () => { off1(); off2() }
     try {
       const result = await be.session.testConnection(h, f.identity_id ? '' : f.password, key)
       if (alive.current) setTest({state: 'done', result})
@@ -147,7 +156,7 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
       if (alive.current) setTest({state: 'failed', message: errMsg(e)})
     } finally {
       off()
-      if (alive.current) setPrompt(null)
+      if (alive.current) { setPrompt(null); setAuth(null) }
     }
   }
 
@@ -241,8 +250,20 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
           <Select label="Jump host" value={f.jump_host_id} onChange={v => setF(x => ({...x, jump_host_id: v}))}
             options={[{value: '', label: 'Direct connection'}, ...hosts.filter(h => h.id !== host?.id).map(h => ({value: h.id, label: `Via ${h.label}`, hint: h.hostname}))]} />
         </Field>
+        <div className="setting-row">
+          <div>
+            <b>Forward my keys to this host</b>
+            <div className="muted">Lets this server use your ssh-agent (or, with no agent running, this host's saved key) to sign in to other machines while you are connected, like <code>ssh -A</code>. Nothing is copied to the server, but anyone with root there can use your keys until you disconnect.</div>
+          </div>
+          <Switch label="Forward my keys to this host" checked={f.forward_agent} onChange={v => setF(x => ({...x, forward_agent: v}))} />
+        </div>
+        {f.forward_agent && (
+          <div className="dx-warn" role="note"><IconWarn size={15} /> <span>{f.env === 'prod' ? 'This is a production host. ' : ''}Turn this on only for a server you trust. If it is only a stop on the way to other servers, a jump host does the same without exposing your keys.</span></div>
+        )}
         <div className="inline-field"><span>Keepalive</span><input aria-label="Keepalive" className="port" value={f.keepalive_sec} onChange={set('keepalive_sec')} /><span>seconds</span></div>
       </Section>
+
+      <AuthPrompt inline challenge={auth?.c ?? null} promptKey={auth?.key ?? ''} onDone={() => setAuth(null)} onError={setErr} />
 
       {prompt && (
         <div className="notice" role="alertdialog" aria-label="Host key confirmation">
@@ -268,10 +289,10 @@ export function HostForm({host, isNew, groups, hosts, identities, onClose, onSav
   )
 }
 
-export function GroupForm({group, groups, onClose, onSaved}: {group?: Group; groups: Group[]; onClose(): void; onSaved(): void}) {
+export function GroupForm({group, groups, defaultParentId, onClose, onSaved}: {group?: Group; groups: Group[]; /** the group open on the hosts page: a new group is created inside it */ defaultParentId?: string; onClose(): void; onSaved(): void}) {
   const be = useBackend()
   const [name, setName] = useState(group?.name ?? '')
-  const [parent, setParent] = useState(group?.parent_id ?? '')
+  const [parent, setParent] = useState(group?.parent_id || (group ? '' : defaultParentId ?? ''))
   const [color, setColor] = useState(group?.color ?? '')
   const [err, setErr] = useState('')
   const save = async () => {

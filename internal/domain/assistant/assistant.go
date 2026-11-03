@@ -7,7 +7,7 @@ import (
 	"errors"
 	"strings"
 
-	"vvterm/internal/domain/secretpolicy"
+	"vutty/internal/domain/secretpolicy"
 )
 
 // Errors an agent adapter returns; usecase tells them apart without knowing the adapters.
@@ -70,7 +70,7 @@ type Request struct {
 	Images []ConfirmedImage
 }
 
-// Command is a command the assistant suggests. Risk is set by VVTerm, never taken from the agent.
+// Command is a command the assistant suggests. Risk is set by Vutty, never taken from the agent.
 type Command struct {
 	Cmd  string `json:"cmd"`
 	Why  string `json:"why"`

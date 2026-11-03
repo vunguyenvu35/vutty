@@ -15,7 +15,7 @@ export function PreviewPanel({preview: p, provider, actions, title = 'What will 
     <section className="ai-preview-panel" aria-label={title}>
       <b>{title}</b>
       <p className="muted ai-preview-note">
-        This text goes to <b>{provider || 'the AI provider'}</b> with your question. Secrets are replaced by <code>*******</code> before it leaves VVTerm. Redaction is best-effort: read it first.
+        This text goes to <b>{provider || 'the AI provider'}</b> with your question. Secrets are replaced by <code>*******</code> before it leaves Vutty. Redaction is best-effort: read it first.
       </p>
       <div className="ai-findings" aria-label="Redaction summary">
         {p.redacted === 0 ? <span className="badge">Nothing redacted</span> : (

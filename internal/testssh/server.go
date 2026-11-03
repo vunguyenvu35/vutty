@@ -16,6 +16,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type Config struct {
@@ -26,15 +27,31 @@ type Config struct {
 	Banner   string          // optional text printed after READY (demos)
 	Prompt   string          // optional prompt printed after READY and each echoed line (demos)
 
+	// Code is a second factor: once the password or the key was accepted the server asks "Verification code: "
+	// (keyboard-interactive, no echo) and lets the client in only with this answer.
+	Code string
+	// PAM makes the server offer nothing but keyboard-interactive, the way a PAM stack does: one round with the
+	// question "Password: " and, when Code is set, "Verification code: ".
+	PAM bool
+
 	// Version is the SSH software version announced after "SSH-2.0-" (default: the library's).
 	Version string
 	// ExecReply is written for any `exec` request (the command itself is not run); empty refuses exec.
 	ExecReply string
+	// ExecFunc, when set, answers every `exec` request instead of ExecReply: it gets the command and returns what goes to
+	// standard output and to standard error and the exit status. It may block (a command that takes a while).
+	ExecFunc func(cmd string) (stdout, stderr string, status int)
+
+	// RefuseAgent makes the server answer no to an agent forwarding request.
+	RefuseAgent bool
 
 	// SFTP enables the sftp subsystem on an in-memory filesystem (no real files are exposed).
 	// SFTPSeed pre-creates entries: a path ending in "/" is a directory, otherwise a file with that content.
 	SFTP     bool
 	SFTPSeed map[string]string
+	// SFTPRealFS serves the real file system of the test process instead of the in-memory one, for the few tests
+	// that need what that one lacks (permissions). Tests must keep to their own temporary folders.
+	SFTPRealFS bool
 }
 
 type Server struct {
@@ -50,6 +67,8 @@ type Server struct {
 	window   [2]uint32
 	keepalvs atomic.Int64
 	logins   atomic.Int64
+	agentReq atomic.Int64
+	agentFPs []string
 	wg       sync.WaitGroup
 }
 
@@ -77,21 +96,50 @@ func Start(cfg Config) (*Server, error) {
 			return nil, err
 		}
 	}
+	// the first factor passed: done, or on to the code when there is one
+	passed := func() (*ssh.Permissions, error) {
+		if cfg.Code == "" {
+			return nil, nil
+		}
+		return nil, &ssh.PartialSuccessError{Next: ssh.ServerAuthCallbacks{
+			KeyboardInteractiveCallback: func(c ssh.ConnMetadata, ask ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+				ans, err := ask(c.User(), "", []string{"Verification code: "}, []bool{false})
+				if err != nil || len(ans) != 1 || ans[0] != cfg.Code {
+					return nil, fmt.Errorf("wrong code")
+				}
+				return nil, nil
+			},
+		}}
+	}
 	sc := &ssh.ServerConfig{
 		PasswordCallback: func(c ssh.ConnMetadata, pw []byte) (*ssh.Permissions, error) {
 			if cfg.Password != "" && c.User() == cfg.User && string(pw) == cfg.Password {
-				return nil, nil
+				return passed()
 			}
 			return nil, fmt.Errorf("password rejected")
 		},
 		PublicKeyCallback: func(c ssh.ConnMetadata, k ssh.PublicKey) (*ssh.Permissions, error) {
 			for _, a := range cfg.AuthKeys {
 				if c.User() == cfg.User && string(a.Marshal()) == string(k.Marshal()) {
-					return nil, nil
+					return passed()
 				}
 			}
 			return nil, fmt.Errorf("key rejected")
 		},
+	}
+	if cfg.PAM {
+		sc.PasswordCallback, sc.PublicKeyCallback = nil, nil
+		sc.KeyboardInteractiveCallback = func(c ssh.ConnMetadata, ask ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+			qs, echo := []string{"Password: "}, []bool{false}
+			if cfg.Code != "" {
+				qs, echo = append(qs, "Verification code: "), append(echo, false)
+			}
+			ans, err := ask(c.User(), "", qs, echo)
+			if err != nil || len(ans) != len(qs) || c.User() != cfg.User || ans[0] != cfg.Password || (cfg.Code != "" && ans[1] != cfg.Code) {
+				return nil, fmt.Errorf("rejected")
+			}
+			return nil, nil
+		}
 	}
 	if cfg.Version != "" {
 		sc.ServerVersion = "SSH-2.0-" + cfg.Version
@@ -118,6 +166,35 @@ func (s *Server) LastWindow() (cols, rows uint32) {
 
 // Keepalives is the number of keepalive@openssh.com requests received.
 func (s *Server) Keepalives() int64 { return s.keepalvs.Load() }
+
+// AgentRequests is the number of agent forwarding requests received.
+func (s *Server) AgentRequests() int64 { return s.agentReq.Load() }
+
+// AgentKeys returns the fingerprints of the keys the forwarded agent listed when the server asked it (the client's keys).
+func (s *Server) AgentKeys() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.agentFPs...)
+}
+
+// probeAgent opens the agent channel back to the client and lists the keys it offers.
+func (s *Server) probeAgent(conn *ssh.ServerConn) {
+	ch, reqs, err := conn.OpenChannel("auth-agent@openssh.com", nil)
+	if err != nil {
+		return
+	}
+	go ssh.DiscardRequests(reqs)
+	defer ch.Close()
+	keys, err := agent.NewClient(ch).List()
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	for _, k := range keys {
+		s.agentFPs = append(s.agentFPs, ssh.FingerprintSHA256(k))
+	}
+	s.mu.Unlock()
+}
 
 // Logins is the number of successful SSH handshakes.
 func (s *Server) Logins() int64 { return s.logins.Load() }
@@ -214,7 +291,7 @@ func (s *Server) serve(nc net.Conn) {
 		case "session":
 			ch, creqs, err := nch.Accept()
 			if err == nil {
-				go s.session(ch, creqs)
+				go s.session(conn, ch, creqs)
 			}
 		case "direct-tcpip":
 			var p struct {
@@ -280,7 +357,7 @@ func pipe(ch ssh.Channel, c net.Conn) {
 
 // session implements the demo shell: it prints READY, echoes each completed
 // line as "ECHO:<line>" and exits on the line "exit".
-func (s *Server) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
+func (s *Server) session(conn *ssh.ServerConn, ch ssh.Channel, reqs <-chan *ssh.Request) {
 	defer ch.Close()
 	started := make(chan struct{})
 	done := make(chan struct{})
@@ -298,8 +375,13 @@ func (s *Server) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
 				}
 				r.Reply(true, nil)
 				go func() {
-					srv := sftp.NewRequestServer(ch, s.handlers)
-					srv.Serve()
+					if s.cfg.SFTPRealFS {
+						if srv, err := sftp.NewServer(ch); err == nil {
+							_ = srv.Serve()
+						}
+					} else {
+						sftp.NewRequestServer(ch, s.handlers).Serve()
+					}
 					ch.Close()
 				}()
 			case "pty-req":
@@ -321,7 +403,29 @@ func (s *Server) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
 				s.window = [2]uint32{p.Cols, p.Rows}
 				s.mu.Unlock()
 				r.Reply(true, nil)
+			case "auth-agent-req@openssh.com":
+				s.agentReq.Add(1)
+				if s.cfg.RefuseAgent {
+					r.Reply(false, nil)
+					continue
+				}
+				r.Reply(true, nil)
+				go s.probeAgent(conn)
 			case "exec":
+				if f := s.cfg.ExecFunc; f != nil {
+					var p struct{ Command string }
+					ssh.Unmarshal(r.Payload, &p)
+					r.Reply(true, nil)
+					go func() {
+						out, errOut, st := f(p.Command)
+						io.WriteString(ch, out)
+						io.WriteString(ch.Stderr(), errOut)
+						ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{uint32(st)}))
+						ch.CloseWrite()
+						ch.Close()
+					}()
+					continue
+				}
 				if s.cfg.ExecReply == "" {
 					r.Reply(false, nil)
 					continue

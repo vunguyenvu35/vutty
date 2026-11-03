@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/vault"
+	"vutty/internal/domain"
+	"vutty/internal/vault"
 )
 
 // VaultService exposes vault operations. No method returns a secret to the frontend.
@@ -77,6 +77,16 @@ func (s *VaultService) Lock() {
 	s.c.record(domain.ActVault, "", "", "Vault locked", true)
 }
 
+// LockBecause locks an open vault and says why in the Logs (the computer went to sleep, the screen was locked). A vault that is
+// already locked is left alone, with no line in the Logs.
+func (s *VaultService) LockBecause(reason string) {
+	if !s.c.Vault.Status().Unlocked {
+		return
+	}
+	s.c.Vault.Lock()
+	s.c.record(domain.ActVault, "", "", "Vault locked: "+reason, true)
+}
+
 // ResetConfirmation is the text the user must type to reset the vault.
 const ResetConfirmation = "RESET"
 
@@ -131,6 +141,59 @@ func (s *VaultService) SetAutoLock(minutes int) error {
 
 func (s *VaultService) ListIdentities() []domain.Identity { return s.c.Store.ListIdentities() }
 
+// UnreadableItem is a saved secret that the vault's key cannot open: it was sealed with another key. Its owner has to
+// enter it again.
+type UnreadableItem struct {
+	SecretID   string `json:"secret_id"`
+	Name       string `json:"name"`
+	IdentityID string `json:"identity_id,omitempty"`
+	Kind       string `json:"kind"` // key, password, telnet or other
+}
+
+// VaultHealth is what a check of the saved secrets found.
+type VaultHealth struct {
+	Checked    int              `json:"checked"`
+	Unreadable []UnreadableItem `json:"unreadable"`
+}
+
+// Health opens every saved secret (and forgets what it opened) to find the ones this vault's key cannot read: a key or a
+// password that was sealed with a key that is not the vault's own. They show up as "message authentication failed" when a
+// host is opened, and a sync would carry them to the other machines.
+func (s *VaultService) Health() (VaultHealth, error) {
+	bad, err := s.c.Vault.Unreadable()
+	if err != nil {
+		return VaultHealth{}, vaultErr(err)
+	}
+	h := VaultHealth{Unreadable: []UnreadableItem{}}
+	for _, x := range s.c.Vault.Secrets() {
+		if !x.Deleted() {
+			h.Checked++
+		}
+	}
+	byRef := map[string]domain.Identity{}
+	for _, i := range s.c.Store.ListIdentities() {
+		if i.SecretRef != "" {
+			byRef[i.SecretRef] = i
+		}
+	}
+	hosts := s.c.Store.ListHosts(domain.HostFilter{})
+	for _, id := range bad {
+		it := UnreadableItem{SecretID: id, Name: "A saved item", Kind: "other"}
+		if i, ok := byRef[id]; ok {
+			it.Name, it.IdentityID, it.Kind = i.Name, i.ID, string(i.AuthType)
+		} else if hostID, ok := strings.CutPrefix(id, "telnet:"); ok {
+			it.Kind = "telnet"
+			for _, host := range hosts {
+				if host.ID == hostID {
+					it.Name = "Telnet password of " + host.Label
+				}
+			}
+		}
+		h.Unreadable = append(h.Unreadable, it)
+	}
+	return h, nil
+}
+
 // AddKey imports a private key file. An encrypted key needs its passphrase; the key is
 // stored decrypted inside the (encrypted) vault so no passphrase prompt is needed later.
 func (s *VaultService) AddKey(name, path, passphrase string) (domain.Identity, error) {
@@ -156,6 +219,33 @@ func (c *Core) importKey(name string, pemBytes, passphrase []byte) (domain.Ident
 	return c.importKeyPair(name, pemBytes, passphrase, "", "")
 }
 
+// prepareKey checks a private key (with its passphrase) and, when given, the public key and the certificate that go with it.
+// It returns what to keep in the vault (an encrypted key is stored decrypted, so no passphrase is asked later), the public
+// key line and the certificate as one normalised line (or "").
+func prepareKey(name string, pemBytes, passphrase []byte, publicKey, certificate string) (store []byte, pubLine, certLine string, err error) {
+	signer, err := vault.ParsePrivateKey(pemBytes, passphrase)
+	if err != nil {
+		return nil, "", "", err
+	}
+	certLine, err = checkPublicAndCertificate(signer, publicKey, certificate)
+	if err != nil {
+		return nil, "", "", err
+	}
+	store = pemBytes
+	if len(passphrase) > 0 {
+		raw, err := ssh.ParseRawPrivateKeyWithPassphrase(pemBytes, passphrase)
+		if err != nil {
+			return nil, "", "", err
+		}
+		blk, err := ssh.MarshalPrivateKey(normalizeKey(raw), name)
+		if err != nil {
+			return nil, "", "", err
+		}
+		store = pem.EncodeToMemory(blk)
+	}
+	return store, vault.PublicLine(signer), certLine, nil
+}
+
 // importKeyPair stores a private key and, when given, checks that the public key and the certificate
 // belong to it. Both are optional: the public key is always worked out from the private one.
 func (c *Core) importKeyPair(name string, pemBytes, passphrase []byte, publicKey, certificate string) (domain.Identity, error) {
@@ -165,31 +255,15 @@ func (c *Core) importKeyPair(name string, pemBytes, passphrase []byte, publicKey
 	if strings.TrimSpace(name) == "" {
 		return domain.Identity{}, errors.New("identity name is required")
 	}
-	signer, err := vault.ParsePrivateKey(pemBytes, passphrase)
+	store, pubLine, certLine, err := prepareKey(name, pemBytes, passphrase, publicKey, certificate)
 	if err != nil {
 		return domain.Identity{}, err
-	}
-	certLine, err := checkPublicAndCertificate(signer, publicKey, certificate)
-	if err != nil {
-		return domain.Identity{}, err
-	}
-	store := pemBytes
-	if len(passphrase) > 0 {
-		raw, err := ssh.ParseRawPrivateKeyWithPassphrase(pemBytes, passphrase)
-		if err != nil {
-			return domain.Identity{}, err
-		}
-		blk, err := ssh.MarshalPrivateKey(normalizeKey(raw), name)
-		if err != nil {
-			return domain.Identity{}, err
-		}
-		store = pem.EncodeToMemory(blk)
 	}
 	ref, err := c.Vault.AddSecret(domain.SecretPrivateKey, store)
 	if err != nil {
 		return domain.Identity{}, err
 	}
-	id, err := c.Store.SaveIdentity(domain.Identity{Name: name, AuthType: domain.AuthKey, SecretRef: ref, PublicKey: vault.PublicLine(signer), Certificate: certLine})
+	id, err := c.Store.SaveIdentity(domain.Identity{Name: name, AuthType: domain.AuthKey, SecretRef: ref, PublicKey: pubLine, Certificate: certLine})
 	if err != nil {
 		_ = c.Vault.DeleteSecret(ref)
 		return id, err
@@ -223,6 +297,42 @@ func (s *VaultService) AddPassword(name, user, pw string) (domain.Identity, erro
 		_ = s.c.Vault.DeleteSecret(ref)
 	}
 	return id, err
+}
+
+// UpdateIdentity changes an identity where it is, so the hosts that use it keep using it. The name and the user name are
+// always set. A non-empty secret replaces the stored one: the new private key of a key (with its passphrase and, when
+// given, its public key and certificate, checked like on import) or the new password. An empty secret keeps what is
+// stored, and an ssh-agent identity has none.
+func (s *VaultService) UpdateIdentity(id, name, user, secret, passphrase, publicKey, certificate string) (domain.Identity, error) {
+	x, err := s.c.Store.GetIdentity(id)
+	if err != nil {
+		return domain.Identity{}, err
+	}
+	if strings.TrimSpace(name) == "" {
+		return domain.Identity{}, errors.New("identity name is required")
+	}
+	x.Name, x.Username = strings.TrimSpace(name), user
+	if secret != "" && x.AuthType != domain.AuthAgent {
+		if !s.c.Vault.Status().Unlocked {
+			return domain.Identity{}, errNotUnlocked
+		}
+		kind, plain := domain.SecretPassword, []byte(secret)
+		if x.AuthType == domain.AuthKey {
+			store, pubLine, certLine, err := prepareKey(x.Name, []byte(secret), []byte(passphrase), publicKey, certificate)
+			if err != nil {
+				return domain.Identity{}, err
+			}
+			kind, plain, x.PublicKey, x.Certificate = domain.SecretPrivateKey, store, pubLine, certLine
+		}
+		if x.SecretRef == "" {
+			if x.SecretRef, err = s.c.Vault.AddSecret(kind, plain); err != nil {
+				return domain.Identity{}, err
+			}
+		} else if err = s.c.Vault.PutSecret(x.SecretRef, kind, plain); err != nil {
+			return domain.Identity{}, err
+		}
+	}
+	return s.c.Store.SaveIdentity(x)
 }
 
 // AddAgent registers an identity that authenticates through the running ssh-agent.

@@ -55,7 +55,7 @@ func (i ConfirmedImage) Ext() string {
 	return ".png"
 }
 
-// ImageMIME names the picture type from the first bytes of the file ("" when it is not one VVTerm sends). The
+// ImageMIME names the picture type from the first bytes of the file ("" when it is not one Vutty sends). The
 // declared type is not trusted.
 func ImageMIME(b []byte) string {
 	switch {

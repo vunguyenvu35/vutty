@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/sshx"
+	"vutty/internal/domain"
+	"vutty/internal/sshx"
 )
 
 const (
@@ -42,6 +42,7 @@ type session struct {
 	state     string // connecting | ready | closed
 	closedEv  any
 	ready     any
+	log       *sessionLog // the file this connection's output goes to (nil when logging is off)
 }
 
 const maxPending = 1 << 20
@@ -149,6 +150,9 @@ func (s *SessionService) run(sess *session) {
 	cols, rows := sess.cols, sess.rows
 	sess.mu.Unlock()
 
+	if host.ForwardAgent {
+		s.c.enableAgentForwarding(cl, host)
+	}
 	batch := s.batcher(sess)
 	sh, err := cl.OpenShell(cols, rows, batch.Write)
 	if err != nil {
@@ -209,6 +213,9 @@ func (s *SessionService) Attach(sid string) error {
 	}
 	if p, ok := s.c.prompts.payload(sid); ok {
 		s.c.emit("term:hostkey:"+sid, p)
+	}
+	if p, ok := s.c.authPrompts.payload(sid); ok {
+		s.c.emit("term:auth:"+sid, p)
 	}
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
@@ -311,7 +318,11 @@ func (s *SessionService) Close(sid string) error {
 		close(sess.abort)
 	}
 	sh := sess.shell
+	lg := sess.log
 	sess.mu.Unlock()
+	if lg != nil {
+		defer lg.Close("closed by you")
+	}
 	s.f.stopOwned(sid)
 	s.c.prompts.clear(sid)
 	if sh != nil {
@@ -324,6 +335,12 @@ func (s *SessionService) Close(sid string) error {
 // Passing an empty fingerprint rejects the key.
 func (s *SessionService) TrustHostKey(sid, fingerprint string) error {
 	return s.c.prompts.answer(sid, fingerprint, fingerprint != "")
+}
+
+// AnswerAuth answers a term:auth:<key> event: one answer for each question it asked, in the same order. Passing nil
+// cancels the sign-in.
+func (s *SessionService) AnswerAuth(key string, answers []string) error {
+	return s.c.authPrompts.answer(key, answers)
 }
 
 // activeClient returns a connected client for hostID, if a terminal session is open on it.
@@ -357,7 +374,18 @@ func (s *SessionService) CloseAll() {
 // batcher collects terminal output for a short while and sends it to the frontend in few events; until the
 // frontend attached, it is kept (up to maxPending) and replayed by Attach.
 func (s *SessionService) batcher(sess *session) *sshx.Batcher {
+	lg := s.c.sessionLogFor(sess)
+	sess.mu.Lock()
+	old := sess.log
+	sess.log = lg
+	sess.mu.Unlock()
+	if old != nil {
+		old.Close("reconnected")
+	}
 	return sshx.NewBatcher(outputBatchInterval, outputBatchMax, func(p []byte) {
+		if lg != nil {
+			lg.Write(p)
+		}
 		s.touchVault()
 		sess.mu.Lock()
 		defer sess.mu.Unlock()

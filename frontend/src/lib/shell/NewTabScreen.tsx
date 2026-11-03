@@ -22,7 +22,7 @@ interface Props {
 type Row = {key: string; label: string; os?: string; where: string; pick(): void; tab?: boolean; local?: boolean}
 
 /**
- * What a new tab shows (like Termius): a search box for hosts and open tabs, and the connections used
+ * What a new tab shows: a search box for hosts and open tabs, and the connections used
  * most recently. Enter opens the highlighted row.
  */
 export function NewTabScreen({hosts, groups, tabs, onOpen, onSelectTab, onLocal}: Props) {

@@ -18,4 +18,4 @@ Pop-Location
 Write-Host "==> 3. Building Desktop App with Wails..." -ForegroundColor Cyan
 wails build
 
-Write-Host "`n==> SUCCESS! Executable built at: build\bin\vvterm.exe" -ForegroundColor Green
+Write-Host "`n==> SUCCESS! Executable built at: build\bin\vutty.exe" -ForegroundColor Green

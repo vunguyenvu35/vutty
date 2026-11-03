@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 // gatewayConfig is where Claude Code sends its requests when it is pointed at a gateway such as a LiteLLM

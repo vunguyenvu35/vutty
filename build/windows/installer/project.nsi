@@ -87,6 +87,8 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+    File "..\..\..\THIRD_PARTY_NOTICES.md" # licences of the open-source parts, asked for by MIT/BSD/Apache
+    File "..\..\..\LICENSE"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

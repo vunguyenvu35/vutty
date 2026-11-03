@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
-import type {
-  ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
-  ActivityEntry, KnownHost, RemoteEntry, SftpInfo, Snippet, SyncStatus, TransferResult, VaultStatus,
+import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
+  CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
+  ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
   McpImportItem, McpServer, McpServerInput, McpTool,
 } from './types'
@@ -10,6 +10,12 @@ import type {
  * Everything the UI needs from the Go backend. The real implementation talks to the
  * Wails bindings; tests provide a fake. No method ever returns a secret.
  */
+export interface UpdateInfo {current: string; latest: string; available: boolean; url: string; notes: string}
+/** whether this copy of the app can replace itself with a newer release, and if not, why */
+export interface SelfUpdateStatus {supported: boolean; reason?: string}
+/** what an update that installs itself is doing (the `update:progress` event) */
+export interface UpdateProgress {stage: 'checking' | 'downloading' | 'verifying' | 'installing' | 'restarting'; done?: number; total?: number}
+
 export interface Backend {
   vault: {
     status(): Promise<VaultStatus>
@@ -24,10 +30,14 @@ export interface Backend {
     enableBiometric(): Promise<void>
     disableBiometric(): Promise<void>
     listIdentities(): Promise<Identity[]>
+    /** opens every saved secret to find the ones the vault's key cannot read (they have to be entered again) */
+    health(): Promise<VaultHealth>
     addKey(name: string, path: string, passphrase: string): Promise<Identity>
     addKeyPair(name: string, pem: string, passphrase: string, publicKey: string, certificate: string): Promise<Identity>
     addKeyPEM(name: string, pem: string, passphrase: string): Promise<Identity>
     addPassword(name: string, user: string, pw: string): Promise<Identity>
+    /** changes an identity where it is (the hosts that use it keep using it); a non-empty secret replaces the private key or the password */
+    updateIdentity(id: string, name: string, user: string, secret: string, passphrase: string, publicKey: string, certificate: string): Promise<Identity>
     addAgent(name: string, user: string): Promise<Identity>
     generateKey(name: string): Promise<Identity>
     deleteIdentity(id: string): Promise<void>
@@ -49,7 +59,11 @@ export interface Backend {
     resize(sid: string, cols: number, rows: number): Promise<void>
     reconnect(sid: string, cols: number, rows: number): Promise<void>
     close(sid: string): Promise<void>
+    /** commands in the shell history of the server, newest first (only when Suggest from host history is on) */
+    hostHistory(sid: string): Promise<string[]>
     trustHostKey(sid: string, fingerprint: string): Promise<void>
+    /** answers a `term:auth:<key>` question (a verification code…): one answer per prompt, or null to cancel the sign-in */
+    answerAuth(key: string, answers: string[] | null): Promise<void>
     testConnection(host: Partial<Host>, password: string, promptKey: string): Promise<ConnectionTest>
   }
   forwards: {
@@ -61,12 +75,19 @@ export interface Backend {
   }
   sync: {
     configure(url: string): Promise<void>
+    configureFolder(dir: string): Promise<void>
     syncNow(): Promise<void>
     join(masterPassword: string): Promise<void>
+    /** this machine has its own vault and the repository belongs to another: take that vault's key and merge into it */
+    joinRemoteVault(masterPassword: string): Promise<void>
+    /** the repository cannot be opened by anyone: make it hold this vault's data (the old files are kept in backups) */
+    replaceRemote(): Promise<void>
     status(): Promise<SyncStatus>
   }
   data: {
     importSSHConfig(path: string, conflict: string): Promise<ImportReport>
+    /** adds the hosts of a listing you made with your own tools (aws ec2 describe-instances, gcloud compute instances list, ansible-inventory --list, an Ansible INI file or a CSV) */
+    importInventory(path: string, conflict: string, opts: InventoryOptions): Promise<ImportReport>
     exportSSHConfig(dir: string, withKeys: boolean): Promise<ExportReport>
     exportPlainJSON(path: string): Promise<void>
     exportBackup(path: string, pw: string): Promise<void>
@@ -75,6 +96,12 @@ export interface Backend {
   settings: {
     get(): Promise<Settings>
     save(s: Settings): Promise<Settings>
+    /** every preference back to its default (the account profile and the sync target stay) */
+    reset(): Promise<Settings>
+    /** removes what the app can make again; nothing the user created */
+    clearCache(): Promise<CacheReport>
+    /** the folder session logs are written to now (the chosen one, else the default) */
+    sessionLogFolder(): Promise<string>
   }
   sftp: {
     open(hostId: string, promptKey: string): Promise<SftpInfo>
@@ -90,6 +117,26 @@ export interface Backend {
     uploadAll(sid: string, locals: string[], remoteDir: string, overwrite: boolean): Promise<TransferResult>
     /** Remote files and folders into a local folder. Existing files are skipped unless overwrite. */
     downloadAll(sid: string, remotes: string[], localDir: string, overwrite: boolean): Promise<TransferResult>
+    /** Names that already exist at the destination (relative to it), so the UI can ask once before replacing. */
+    conflicts(sid: string, direction: 'upload' | 'download', sources: string[], destDir: string): Promise<string[]>
+    /** Adds a transfer to the queue and returns its id at once; it runs in the background, two at a time. */
+    enqueue(sid: string, spec: QueueSpec): Promise<string>
+    /** What syncing srcDir into dstDir would copy. Nothing is ever deleted. */
+    syncPlan(sid: string, direction: 'sync-up' | 'sync-down', srcDir: string, dstDir: string): Promise<SyncDiff>
+    queue(sid: string): Promise<QueueJob[]>
+    pause(sid: string, jobId: string): Promise<void>
+    /** Continues a paused job from the bytes already sent. */
+    resume(sid: string, jobId: string): Promise<void>
+    cancel(sid: string, jobId: string): Promise<void>
+    /** Starts a failed or canceled job again, continuing a partial file. */
+    retry(sid: string, jobId: string): Promise<void>
+    /** Drops the done, failed and canceled jobs from the list. */
+    clearFinished(sid: string): Promise<void>
+    /** The file at localPath was fetched from remotePath and opened: save it back to the server each time it changes. */
+    editStart(sid: string, remotePath: string, localPath: string): Promise<void>
+    /** Saves the edited file now; force replaces a file that changed on the server meanwhile. */
+    editPush(sid: string, remotePath: string, force: boolean): Promise<void>
+    editStop(sid: string, remotePath: string): Promise<void>
   }
   serial: {
     ports(): Promise<string[]>
@@ -146,6 +193,15 @@ export interface Backend {
       import(ref: string): Promise<McpServer>
     }
   }
+  /** One command on several hosts at once, each on its own connection and without a terminal. */
+  exec: {
+    /** starts the run and returns its id; progress arrives as `exec:update:<id>` events that carry the whole run */
+    run(spec: ExecSpec): Promise<string>
+    cancel(id: string): Promise<void>
+    get(id: string): Promise<ExecRun>
+    /** drops the run and what it printed */
+    forget(id: string): Promise<void>
+  }
   /** This computer's files (the Local pane of the SFTP screen). */
   local: {
     home(): Promise<string>
@@ -156,6 +212,10 @@ export interface Backend {
     chmod(path: string, mode: number): Promise<void>
     /** a new private folder for files that are only looked at */
     tempDir(): Promise<string>
+    /** the files that copying sources into destDir would replace (asked about once) */
+    conflicts(sources: string[], destDir: string): Promise<string[]>
+    /** copies files and folders into a folder of this computer; existing files stay unless overwrite */
+    copy(sources: string[], destDir: string, overwrite: boolean): Promise<TransferResult>
   }
   snippets: {
     list(): Promise<Snippet[]>
@@ -168,6 +228,11 @@ export interface Backend {
     saveFile(title: string, name: string): Promise<string>
     openUrl(url: string): Promise<void>
     info(): Promise<{version: string}>
+    /** Asks GitHub for the latest release and compares it with this build. */
+    checkUpdate(): Promise<UpdateInfo>
+    selfUpdateStatus(): Promise<SelfUpdateStatus>
+    /** downloads the latest release, checks its signature and checksum, replaces this app with it and restarts: returns only when that failed (with the reason) */
+    installUpdate(): Promise<void>
     /** Opens the Settings window (a second native window). Rejects where none exists: the UI then shows its in-app window. */
     openSettings(): Promise<void>
     /** the window is in full screen (the macOS window buttons are gone then) */
@@ -185,6 +250,8 @@ export interface Backend {
     /** The system clipboard: through the native runtime (a webview often refuses to read it), else the browser. */
     readClipboard(): Promise<string>
     writeClipboard(text: string): Promise<void>
+    /** the ssh:// link the system handed to the app that has not been looked at yet (null when none); also announced as `app:open-ssh` */
+    takePendingSSHLink(): Promise<SSHLink | null>
   }
   /** Subscribe to a backend event; returns an unsubscribe function. */
   on(event: string, cb: (data: any) => void): () => void
@@ -203,7 +270,7 @@ function svc(pkg: string, name: string): Bound {
   const s = window.go?.[pkg]?.[name]
   if (!s) {
     console.warn(`backend service ${pkg}.${name} is not available`)
-    throw new Error('VVTerm cannot reach its backend from this window. Close the window and open it again; if it keeps happening, restart VVTerm.')
+    throw new Error('Vutty cannot reach its backend from this window. Close the window and open it again; if it keeps happening, restart Vutty.')
   }
   return s
 }
@@ -228,10 +295,12 @@ export function wailsBackend(): Backend {
       enableBiometric: () => u('VaultService', 'EnableBiometric'),
       disableBiometric: () => u('VaultService', 'DisableBiometric'),
       listIdentities: () => u('VaultService', 'ListIdentities'),
+      health: async () => { const h = await u<VaultHealth>('VaultService', 'Health'); return {...h, unreadable: h.unreadable ?? []} },
       addKey: (n, p, pp) => u('VaultService', 'AddKey', n, p, pp),
       addKeyPEM: (n, p, pp) => u('VaultService', 'AddKeyPEM', n, p, pp),
       addKeyPair: (n, p, pp, pub, cert) => u('VaultService', 'AddKeyPair', n, p, pp, pub, cert),
       addPassword: (n, user, pw) => u('VaultService', 'AddPassword', n, user, pw),
+      updateIdentity: (id, n, user, s, pp, pub, cert) => u('VaultService', 'UpdateIdentity', id, n, user, s, pp, pub, cert),
       addAgent: (n, user) => u('VaultService', 'AddAgent', n, user),
       generateKey: n => u('VaultService', 'GenerateKey', n, 'ed25519'),
       deleteIdentity: id => u('VaultService', 'DeleteIdentity', id),
@@ -252,7 +321,9 @@ export function wailsBackend(): Backend {
       resize: (s, c, r) => u('SessionService', 'Resize', s, c, r),
       reconnect: (s, c, r) => u('SessionService', 'Reconnect', s, c, r),
       close: s => u('SessionService', 'Close', s),
+      hostHistory: async s => (await u<string[]>('SessionService', 'HostHistory', s)) ?? [],
       trustHostKey: (s, f) => u('SessionService', 'TrustHostKey', s, f),
+      answerAuth: (k, a) => u('SessionService', 'AnswerAuth', k, a),
       testConnection: (h, p, k) => u('SessionService', 'TestConnection', h, p, k),
     },
     forwards: {
@@ -264,12 +335,16 @@ export function wailsBackend(): Backend {
     },
     sync: {
       configure: url => u('SyncService', 'Configure', url),
+      configureFolder: dir => u('SyncService', 'ConfigureFolder', dir),
       syncNow: () => u('SyncService', 'SyncNow'),
       join: pw => u('SyncService', 'JoinExisting', pw),
+      joinRemoteVault: pw => u('SyncService', 'JoinRemoteVault', pw),
+      replaceRemote: () => u('SyncService', 'ReplaceRemote'),
       status: () => u('SyncService', 'Status'),
     },
     data: {
       importSSHConfig: async (p, c) => normalizeImport(await u<ImportReport>('ImportExportService', 'ImportSSHConfig', p, c)),
+      importInventory: async (p, c, o) => normalizeImport(await u<ImportReport>('ImportExportService', 'ImportInventory', p, c, o)),
       exportSSHConfig: async (d, k) => normalizeExport(await u<ExportReport>('ImportExportService', 'ExportSSHConfig', d, k)),
       exportPlainJSON: p => u('ImportExportService', 'ExportPlainJSON', p),
       exportBackup: (p, pw) => u('ImportExportService', 'ExportBackup', p, pw),
@@ -278,6 +353,9 @@ export function wailsBackend(): Backend {
     settings: {
       get: () => u('SettingsService', 'Get'),
       save: s => u('SettingsService', 'Save', s),
+      reset: () => u('SettingsService', 'ResetSettings'),
+      clearCache: () => u('SettingsService', 'ClearCache'),
+      sessionLogFolder: () => u('SettingsService', 'SessionLogFolder'),
     },
     sftp: {
       open: (h, k) => u('SftpService', 'Open', h, k),
@@ -291,6 +369,21 @@ export function wailsBackend(): Backend {
       close: s => u('SftpService', 'Close', s),
       uploadAll: (s, l, d, o) => u('SftpService', 'UploadAll', s, l, d, o),
       downloadAll: (s, r, d, o) => u('SftpService', 'DownloadAll', s, r, d, o),
+      conflicts: async (s, dir, src, d) => (await u<string[]>('SftpService', 'Conflicts', s, dir, src, d)) ?? [],
+      enqueue: (s, spec) => u('SftpService', 'Enqueue', s, spec),
+      syncPlan: async (s, dir, a, b) => {
+        const r = await u<SyncDiff>('SftpService', 'SyncPlan', s, dir, a, b)
+        return {copy: r?.copy ?? [], same: r?.same ?? 0, extra: r?.extra ?? []}
+      },
+      queue: async s => (await u<QueueJob[]>('SftpService', 'Queue', s)) ?? [],
+      pause: (s, j) => u('SftpService', 'Pause', s, j),
+      resume: (s, j) => u('SftpService', 'Resume', s, j),
+      cancel: (s, j) => u('SftpService', 'Cancel', s, j),
+      retry: (s, j) => u('SftpService', 'Retry', s, j),
+      clearFinished: s => u('SftpService', 'ClearFinished', s),
+      editStart: (s, r, l) => u('SftpService', 'EditStart', s, r, l),
+      editPush: (s, r, f) => u('SftpService', 'EditPush', s, r, f),
+      editStop: (s, r) => u('SftpService', 'EditStop', s, r),
     },
     knownHosts: {
       list: async () => (await call<KnownHost[]>('usecase', 'KnownHostsService', 'List')) ?? [],
@@ -337,6 +430,12 @@ export function wailsBackend(): Backend {
     serial: {
       ports: async () => (await call<string[]>('usecase', 'SerialService', 'Ports')) ?? [],
     },
+    exec: {
+      run: spec => u('ExecService', 'Run', spec),
+      cancel: id => u('ExecService', 'Cancel', id),
+      get: async id => { const r = await u<ExecRun>('ExecService', 'Get', id); return {...r, results: r.results ?? []} },
+      forget: id => u('ExecService', 'Forget', id),
+    },
     local: {
       home: () => call('usecase', 'LocalService', 'Home'),
       list: async d => (await call<RemoteEntry[]>('usecase', 'LocalService', 'List', d)) ?? [],
@@ -345,6 +444,8 @@ export function wailsBackend(): Backend {
       remove: (p, r) => call('usecase', 'LocalService', 'Delete', p, r),
       chmod: (p, m) => call('usecase', 'LocalService', 'Chmod', p, m),
       tempDir: () => call('usecase', 'LocalService', 'TempDir'),
+      conflicts: async (s, d) => (await call<string[]>('usecase', 'LocalService', 'Conflicts', s, d)) ?? [],
+      copy: (s, d, o) => call('usecase', 'LocalService', 'Copy', s, d, o),
     },
     snippets: {
       list: async () => (await u<Snippet[]>('SnippetService', 'List')) ?? [],
@@ -364,6 +465,9 @@ export function wailsBackend(): Backend {
         }
       },
       info: () => call('app', 'SystemService', 'Info'),
+      checkUpdate: () => call('app', 'SystemService', 'CheckUpdate'),
+      selfUpdateStatus: async () => { try { return await call<SelfUpdateStatus>('app', 'SystemService', 'SelfUpdateStatus') } catch { return {supported: false} } },
+      installUpdate: () => call('app', 'SystemService', 'InstallUpdate'),
       openSettings: () => call('app', 'SystemService', 'OpenSettings'),
       openWindow: (h, t) => call('app', 'SystemService', 'OpenWindow', h, t),
       openPath: p => call('app', 'SystemService', 'OpenPath', p),
@@ -375,6 +479,12 @@ export function wailsBackend(): Backend {
       },
       writeClipboard: async text => {
         try { await call('app', 'SystemService', 'SetClipboardText', text) } catch { await navigator.clipboard.writeText(text) }
+      },
+      takePendingSSHLink: async () => {
+        try {
+          const l = await call<SSHLink>('app', 'SystemService', 'TakePendingSSHLink')
+          return l?.hostname ? l : null
+        } catch { return null } // a browser has no system to hand it a link
       },
     },
     on: (event, cb) => {
@@ -414,13 +524,19 @@ export function bridgeBackend(): Backend {
     settings: {
       get: () => rpc('SettingsService', 'Get'),
       save: s => rpc('SettingsService', 'Save', s),
+      reset: () => rpc('SettingsService', 'ResetSettings'),
+      clearCache: () => rpc('SettingsService', 'ClearCache'),
+      sessionLogFolder: () => rpc('SettingsService', 'SessionLogFolder'),
     },
     // the host list (for choosing where an MCP server is offered) is read from the main process
     hosts: {...base.hosts, listHosts: async f => (await rpc<Host[]>('HostService', 'ListHosts', {query: '', group_id: '', env: '', tag: '', ...f})) ?? []},
     sync: {
       configure: url => rpc('SyncService', 'Configure', url),
+      configureFolder: dir => rpc('SyncService', 'ConfigureFolder', dir),
       syncNow: () => rpc('SyncService', 'SyncNow'),
       join: pw => rpc('SyncService', 'JoinExisting', pw),
+      joinRemoteVault: pw => rpc('SyncService', 'JoinRemoteVault', pw),
+      replaceRemote: () => rpc('SyncService', 'ReplaceRemote'),
       status: () => rpc('SyncService', 'Status'),
     },
     // the AI page of Settings: providers, models, options and MCP servers; never a terminal

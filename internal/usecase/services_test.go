@@ -13,9 +13,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/testssh"
-	"vvterm/internal/vault"
+	"vutty/internal/domain"
+	"vutty/internal/testssh"
+	"vutty/internal/vault"
 )
 
 func echoLn(t *testing.T) int {
@@ -452,7 +452,7 @@ func TestBackupExportImportIntoFreshInstall(t *testing.T) {
 	a := newHarness(t).unlocked(t)
 	srv := startServer(t)
 	host := a.sshHost(t, "web", srv, "")
-	backup := filepath.Join(t.TempDir(), "backup.vvbak")
+	backup := filepath.Join(t.TempDir(), "backup.vubak")
 	if err := a.app.ImportExp.ExportBackup(backup, "short"); err == nil {
 		t.Fatal("short backup password accepted")
 	}
@@ -577,6 +577,143 @@ func TestSyncTwoMachinesEndToEnd(t *testing.T) {
 	}
 	if err := b.app.Sync.JoinExisting(masterPW); err == nil {
 		t.Fatal("join on a machine that already has a vault")
+	}
+}
+
+// A machine that already has its own vault can join the vault a repository belongs to: it takes that vault's
+// key and master password, keeps its own hosts and saved passwords, and a copy of what it had is saved first.
+func TestJoinRemoteVaultKeepsLocalHostsAndSecrets(t *testing.T) {
+	remote := bareRepo(t)
+	a := newHarness(t).unlocked(t)
+	aHost, err := a.app.Host.SaveHost(domain.Host{Label: "from-a", Hostname: "a.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.app.Sync.Configure(remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+
+	// B has a vault of its own, with a host that has a saved password
+	const bPW = "another master password 42"
+	b := newHarness(t)
+	if err := b.app.Vault.Create(bPW); err != nil {
+		t.Fatal(err)
+	}
+	srv := startServer(t)
+	bHost := b.sshHost(t, "from-b", srv, "")
+	if err := b.app.Sync.Configure(remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.app.Sync.SyncNow(); err == nil || !strings.Contains(err.Error(), "different vault key") {
+		t.Fatalf("a plain sync must stop on different keys: %v", err)
+	}
+
+	// a wrong password changes nothing
+	if err := b.app.Sync.JoinRemoteVault("not the password at all"); err == nil {
+		t.Fatal("joined with a wrong password")
+	}
+	b.app.Vault.Lock()
+	if err := b.app.Vault.Unlock(bPW); err != nil {
+		t.Fatalf("after a refused join the old password must still work: %v", err)
+	}
+
+	if err := b.app.Sync.JoinRemoteVault(masterPW); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.app.Host.GetHost(aHost.ID); err != nil {
+		t.Fatalf("B did not receive A's host: %v", err)
+	}
+	if got, err := b.app.Host.GetHost(bHost.ID); err != nil || got.Label != "from-b" {
+		t.Fatalf("B lost its own host: %v %+v", err, got)
+	}
+	sid, _ := b.open(bHost.ID, 80, 24)
+	b.trust(t, sid)
+	b.rec.waitOutput(t, sid, "READY") // B's saved password was sealed again and still decrypts
+
+	// the master password is now the synced vault's
+	b.app.Vault.Lock()
+	if err := b.app.Vault.Unlock(bPW); err == nil {
+		t.Fatal("the old password still opens the vault")
+	}
+	if err := b.app.Vault.Unlock(masterPW); err != nil {
+		t.Fatal(err)
+	}
+	// a copy of what B had was saved before the change
+	matches, _ := filepath.Glob(filepath.Join(b.core.Dir, "backups", "before-joining-*", "vault-before-joining.json"))
+	if len(matches) != 1 {
+		t.Fatalf("no backup of the vault before joining: %v", matches)
+	}
+
+	// and from now on both machines simply sync
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.app.Host.GetHost(bHost.ID); err != nil {
+		t.Fatalf("A did not receive B's host: %v", err)
+	}
+	if err := b.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A repository that nobody can open any more is replaced with this vault's data; what was there is kept in backups.
+func TestReplaceRemoteOverwritesAnUnreadableRepositoryAndKeepsACopy(t *testing.T) {
+	remote := bareRepo(t)
+	a := newHarness(t).unlocked(t)
+	a.app.Host.SaveHost(domain.Host{Label: "old-data", Hostname: "old.example"})
+	a.app.Sync.Configure(remote)
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+
+	b := newHarness(t)
+	if err := b.app.Vault.Create("another master password 42"); err != nil {
+		t.Fatal(err)
+	}
+	mine, _ := b.app.Host.SaveHost(domain.Host{Label: "mine", Hostname: "mine.example"})
+	b.app.Sync.Configure(remote)
+	if err := b.app.Sync.SyncNow(); err == nil || !strings.Contains(err.Error(), "different vault key") {
+		t.Fatalf("expected a key mismatch: %v", err)
+	}
+	if err := b.app.Sync.ReplaceRemote(); err != nil {
+		t.Fatal(err)
+	}
+	if matches, _ := filepath.Glob(filepath.Join(b.core.Dir, "backups", "replaced-remote-*", "bundle.enc")); len(matches) != 1 {
+		t.Fatalf("the files that were replaced must be kept: %v", matches)
+	}
+	if err := b.app.Sync.SyncNow(); err != nil {
+		t.Fatalf("after replacing, B syncs normally: %v", err)
+	}
+
+	// a third machine restores from it with B's password and gets B's data, not the old one
+	c := newHarness(t)
+	c.app.Sync.Configure(remote)
+	if err := c.app.Sync.JoinExisting("another master password 42"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.app.Host.GetHost(mine.ID); err != nil {
+		t.Fatalf("C did not get B's host: %v", err)
+	}
+
+	// it refuses when this vault can read the repository
+	if err := b.app.Sync.ReplaceRemote(); err == nil || !strings.Contains(err.Error(), "can read the repository") {
+		t.Fatalf("a readable repository must not be replaced: %v", err)
+	}
+}
+
+func TestJoinRemoteVaultNeedsAnUnlockedVaultAndABundle(t *testing.T) {
+	remote := bareRepo(t)
+	h := newHarness(t).unlocked(t)
+	h.app.Sync.Configure(remote)
+	if err := h.app.Sync.JoinRemoteVault(masterPW); err == nil || !strings.Contains(err.Error(), "nothing to join") {
+		t.Fatalf("an empty repository: %v", err)
+	}
+	h.app.Vault.Lock()
+	if err := h.app.Sync.JoinRemoteVault(masterPW); err == nil {
+		t.Fatal("joined with a locked vault")
 	}
 }
 
@@ -755,7 +892,7 @@ func TestSnippetsSurviveRestartBackupSyncAndPlainExport(t *testing.T) {
 	}
 
 	// encrypted backup restore into a fresh install
-	bk := filepath.Join(t.TempDir(), "b.vvbak")
+	bk := filepath.Join(t.TempDir(), "b.vubak")
 	if err := a.app.ImportExp.ExportBackup(bk, "backup-password"); err != nil {
 		t.Fatal(err)
 	}
@@ -900,7 +1037,7 @@ func TestSettingsGeneralAccountAndShortcuts(t *testing.T) {
 	h := newHarness(t)
 	s := h.app.Settings
 	d := s.Get()
-	if d.Zoom != 100 || d.ConfirmTabClose || d.ReduceMotion || !d.AskProtocol || !d.BiometricOnOpen || d.Shortcuts == nil || len(d.Shortcuts) != 0 || d.AccountName != "" {
+	if d.Zoom != 100 || d.ConfirmTabClose || d.ReduceMotion || !d.AskProtocol || !d.BiometricOnOpen || !d.AutoUpdateCheck || d.Shortcuts == nil || len(d.Shortcuts) != 0 || d.AccountName != "" {
 		t.Fatalf("defaults: %+v", d)
 	}
 	bad := map[string]func(*Settings){
@@ -966,7 +1103,7 @@ func TestOldSettingsWithoutShortcutsGetsNonNilMap(t *testing.T) {
 // and not asked again.
 func TestFirstConnectionLearnsTheServerType(t *testing.T) {
 	h := newHarness(t).unlocked(t)
-	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw", ExecReply: "Linux\n---VVTERM---\nPRETTY_NAME=\"Ubuntu 24.04\"\nID=ubuntu\nID_LIKE=debian\n"})
+	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw", ExecReply: "Linux\n---VUTTY---\nPRETTY_NAME=\"Ubuntu 24.04\"\nID=ubuntu\nID_LIKE=debian\n"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1034,7 +1171,7 @@ func TestUnknownServerTypeStaysEmpty(t *testing.T) {
 
 func TestSFTPConnectionAlsoLearnsTheServerType(t *testing.T) {
 	h := newHarness(t).unlocked(t)
-	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw", SFTP: true, ExecReply: "FreeBSD\n---VVTERM---\n"})
+	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw", SFTP: true, ExecReply: "FreeBSD\n---VUTTY---\n"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1114,5 +1251,125 @@ func TestTerminalMouseSettingsDefaultsAndValidation(t *testing.T) {
 	c2, _ := testCore(t, dir, nil)
 	if g := New(c2).Settings.Get(); g.RightClick != "none" || g.CopyOnSelect {
 		t.Fatalf("persisted: %+v", g)
+	}
+}
+
+func TestSyncThroughAFolderEndToEnd(t *testing.T) {
+	dir := t.TempDir()
+	a := newHarness(t).unlocked(t)
+	srv := startServer(t)
+	host := a.sshHost(t, "drive-host", srv, "")
+	if err := a.app.Sync.ConfigureFolder("relative/dir"); err == nil {
+		t.Fatal("a relative folder was accepted")
+	}
+	if err := a.app.Sync.ConfigureFolder(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	if st := a.app.Sync.Status(); st.Folder != dir || st.RepoURL != "" || st.LastSync.IsZero() {
+		t.Fatalf("%+v", st)
+	}
+	b := newHarness(t)
+	if err := b.app.Sync.ConfigureFolder(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.app.Sync.JoinExisting(masterPW); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := b.app.Host.GetHost(host.ID); err != nil || got.Label != "drive-host" {
+		t.Fatalf("%v %+v", err, got)
+	}
+}
+
+// ---- editing an identity ----
+
+func TestUpdateIdentityRenamesAndReplacesAPasswordWhereItIs(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	id, err := h.app.Vault.AddPassword("old name", "root", "first-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := h.app.Host.SaveHost(modelHost("pw-host", 22, id.ID))
+
+	// the name and the user change, the password stays when none is given
+	up, err := h.app.Vault.UpdateIdentity(id.ID, "  new name ", "admin", "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.ID != id.ID || up.Name != "new name" || up.Username != "admin" || up.SecretRef != id.SecretRef {
+		t.Fatalf("%+v", up)
+	}
+	if got, _ := h.core.Vault.GetSecret(up.SecretRef); string(got) != "first-secret" {
+		t.Fatalf("the password changed by itself: %q", got)
+	}
+	// a new password replaces the old one in the same record
+	if _, err := h.app.Vault.UpdateIdentity(id.ID, "new name", "admin", "second-secret", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := h.core.Vault.GetSecret(id.SecretRef); string(got) != "second-secret" {
+		t.Fatalf("not replaced: %q", got)
+	}
+	// the host that used it still does
+	if x, _ := h.app.Host.GetHost(host.ID); x.IdentityID != id.ID {
+		t.Fatalf("the host lost its identity: %+v", x)
+	}
+	if len(h.app.Vault.ListIdentities()) != 1 {
+		t.Fatal("editing made a second identity")
+	}
+	if _, err := h.app.Vault.UpdateIdentity(id.ID, "  ", "admin", "", "", "", ""); err == nil {
+		t.Fatal("an empty name was accepted")
+	}
+	if _, err := h.app.Vault.UpdateIdentity("missing", "x", "", "", "", "", ""); err == nil {
+		t.Fatal("an unknown identity was accepted")
+	}
+}
+
+func TestUpdateIdentityReplacesAKeyAndTheHostConnectsWithTheNewOne(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	oldPriv, _, _ := vault.GenerateEd25519("old")
+	id, err := h.app.Vault.AddKeyPEM("srv", string(oldPriv), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPriv, newPub, _ := vault.GenerateEd25519("new")
+	pk, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(newPub))
+	srv, _ := startKeyServer(t, pk) // trusts only the new key
+	host, _ := h.app.Host.SaveHost(modelHost("keyed", srv.Port(), id.ID))
+
+	// a bad key changes nothing
+	if _, err := h.app.Vault.UpdateIdentity(id.ID, "srv", "", "not a key", "", "", ""); err == nil {
+		t.Fatal("a bad key was accepted")
+	}
+	if x, _ := h.app.Vault.PublicKey(id.ID); x != id.PublicKey {
+		t.Fatal("a refused key changed the identity")
+	}
+	up, err := h.app.Vault.UpdateIdentity(id.ID, "srv", "", string(newPriv), "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.ID != id.ID || up.SecretRef != id.SecretRef || up.PublicKey == id.PublicKey {
+		t.Fatalf("%+v", up)
+	}
+	sid, _ := h.open(host.ID, 80, 24)
+	h.trust(t, sid)
+	h.rec.waitOutput(t, sid, "READY") // the host, untouched, now logs in with the new key
+}
+
+func TestUpdateIdentityOfAnAgentIdentityAndOfALockedVault(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	ag, _ := h.app.Vault.AddAgent("agent", "me")
+	up, err := h.app.Vault.UpdateIdentity(ag.ID, "agent 2", "you", "ignored", "", "", "")
+	if err != nil || up.Name != "agent 2" || up.Username != "you" || up.SecretRef != "" {
+		t.Fatalf("%+v %v", up, err)
+	}
+	pw, _ := h.app.Vault.AddPassword("p", "u", "x")
+	h.app.Vault.Lock()
+	if _, err := h.app.Vault.UpdateIdentity(pw.ID, "p", "u", "new", "", "", ""); err == nil {
+		t.Fatal("a secret was replaced in a locked vault")
+	}
+	if _, err := h.app.Vault.UpdateIdentity(pw.ID, "renamed", "u", "", "", "", ""); err != nil {
+		t.Fatalf("renaming needs no vault key: %v", err) // only the secret is sealed
 	}
 }

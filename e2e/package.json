@@ -1,5 +1,5 @@
 {
-  "name": "vvterm-e2e",
+  "name": "vutty-e2e",
   "private": true,
   "type": "module",
   "scripts": {

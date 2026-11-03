@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# VVTerm is a desktop (Wails) application, so these images are for CI and development, not for
+# Vutty is a desktop (Wails) application, so these images are for CI and development, not for
 # running the GUI:
 #   go-test / web-test  run the test suites in a clean, reproducible environment
 #   demoserver          the demo SSH server used by the E2E walkthrough and manual testing
@@ -60,5 +60,5 @@ RUN adduser -D -u 1000 git && mkdir -p /srv/git && chown git:git /srv/git
 USER git
 EXPOSE 9418
 VOLUME /srv/git
-HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD git ls-remote git://127.0.0.1/vvterm-sync.git >/dev/null 2>&1 || exit 1
+HEALTHCHECK --interval=5s --timeout=3s --retries=10 CMD git ls-remote git://127.0.0.1/vutty-sync.git >/dev/null 2>&1 || exit 1
 ENTRYPOINT ["/usr/local/bin/git-remote.sh"]

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // Shell is an interactive PTY session on a Client.
@@ -25,6 +26,10 @@ func (c *Client) OpenShell(cols, rows int, onData func([]byte)) (*Shell, error) 
 	sess, err := c.NewSession()
 	if err != nil {
 		return nil, err
+	}
+	if c.agentFwd {
+		// a server that does not allow agent forwarding says no: the shell still opens, just without it
+		_ = agent.RequestAgentForwarding(sess)
 	}
 	modes := ssh.TerminalModes{ssh.ECHO: 1, ssh.TTY_OP_ISPEED: 14400, ssh.TTY_OP_OSPEED: 14400}
 	if err := sess.RequestPty("xterm-256color", rows, cols, modes); err != nil {

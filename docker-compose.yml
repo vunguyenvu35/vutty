@@ -1,4 +1,4 @@
-# Development fixtures and CI runners for VVTerm. The desktop app itself runs on the host.
+# Development fixtures and CI runners for Vutty. The desktop app itself runs on the host.
 #
 #   docker compose --profile dev up -d      demo SSH servers + Git remote for sync
 #   docker compose --profile ci run --rm go-test
@@ -6,7 +6,7 @@
 #   docker compose --profile dev down       (add -v to forget the demo host keys)
 #
 # Everything is bound to 127.0.0.1: these fixtures have fixed demo credentials / no authentication.
-name: vvterm
+name: vutty
 
 services:
   demo-bastion:

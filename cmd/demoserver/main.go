@@ -10,8 +10,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"vvterm/internal/testssh"
-	"vvterm/internal/vault"
+	"vutty/internal/testssh"
+	"vutty/internal/vault"
 )
 
 // loadOrCreateHostKey returns a persistent host key so restarts do not trigger "HOST KEY CHANGED".
@@ -21,7 +21,7 @@ func loadOrCreateHostKey(path string) (ssh.Signer, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	pemBytes, _, err := vault.GenerateEd25519("vvterm-demoserver")
+	pemBytes, _, err := vault.GenerateEd25519("vutty-demoserver")
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func main() {
 
 	cfg := testssh.Config{
 		User: *user, Password: *pass,
-		Banner: "Welcome to " + *name + " (VVTerm demo server: lines are echoed back)",
+		Banner: "Welcome to " + *name + " (Vutty demo server: lines are echoed back)",
 		Prompt: *user + "@" + *name + ":~$ ",
 	}
 	if *withSFTP {
@@ -50,7 +50,7 @@ func main() {
 		cfg.SFTP = true
 		cfg.SFTPSeed = map[string]string{
 			"/projects/":          "",
-			"/notes.txt":          "VVTerm demo notes\n",
+			"/notes.txt":          "Vutty demo notes\n",
 			"/projects/README.md": "# Demo project\n",
 			"/projects/deploy.sh": "#!/bin/sh\necho deploy\n",
 		}

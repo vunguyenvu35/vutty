@@ -10,14 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
-// VVTERM_LIVE=1 go test ./internal/agentx -run LiveImages -v
+// VUTTY_LIVE=1 go test ./internal/agentx -run LiveImages -v
 // A solid red picture is sent to the real CLIs, which must say what colour it is.
 func TestLiveImages(t *testing.T) {
-	if os.Getenv("VVTERM_LIVE") != "1" {
-		t.Skip("set VVTERM_LIVE=1")
+	if os.Getenv("VUTTY_LIVE") != "1" {
+		t.Skip("set VUTTY_LIVE=1")
 	}
 	img := image.NewRGBA(image.Rect(0, 0, 96, 96))
 	for x := 0; x < 96; x++ {

@@ -182,7 +182,7 @@ describe('AssistantTab', () => {
     await ask('q')
     await waitFor(() => expect(asks(be)).toHaveLength(1))
     expect((asks(be)[0][3] as {model: string}).model).toBe('opus')
-    expect(localStorage.getItem('vvterm.ai.model.claude')).toBe('opus')
+    expect(localStorage.getItem('vutty.ai.model.claude')).toBe('opus')
   })
 
   it('the menu opens upward inside the window and closes with Escape or a click outside', async () => {
@@ -204,7 +204,7 @@ describe('AssistantTab', () => {
     const {be} = setup()
     await userEvent.click(await picker())
     await userEvent.keyboard('{ArrowDown}{Enter}')
-    await waitFor(() => expect(localStorage.getItem('vvterm.ai.model.claude')).toBe('opus'))
+    await waitFor(() => expect(localStorage.getItem('vutty.ai.model.claude')).toBe('opus'))
     expect(be.state.calls.length).toBeGreaterThan(0)
   })
 

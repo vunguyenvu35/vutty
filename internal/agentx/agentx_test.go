@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/domain/secretpolicy"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/domain/secretpolicy"
 )
 
 // fakeCLI writes an executable shell script. The script appends what it saw to rec.
@@ -36,7 +36,7 @@ const claudeHelp = `--tools --strict-mcp-config --disable-slash-commands --no-se
 func TestClaudeAskIsRunIsolatedAndStreams(t *testing.T) {
 	rec := filepath.Join(t.TempDir(), "rec")
 	t.Setenv("SSH_AUTH_SOCK", "/tmp/agent.sock")
-	t.Setenv("VVTERM_TOKEN", "abc")
+	t.Setenv("VUTTY_TOKEN", "abc")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "zzz")
 	t.Setenv("ANTHROPIC_API_KEY", "sk-should-not-pass")
 	bin := fakeCLI(t, "claude", `
@@ -54,13 +54,13 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"hello"}'
 	b, _ := os.ReadFile(rec)
 	r := string(b)
 	cwd := strings.SplitN(r, "\n", 2)[0]
-	if !strings.Contains(filepath.Base(cwd), "vvterm-agent-") || !strings.Contains(r, "files:0") {
+	if !strings.Contains(filepath.Base(cwd), "vutty-agent-") || !strings.Contains(r, "files:0") {
 		t.Fatalf("agent must run in a fresh empty directory, got %q", cwd)
 	}
 	if _, err := os.Stat(cwd); err == nil {
 		t.Fatal("the temporary directory must be removed afterwards")
 	}
-	for _, leak := range []string{"SSH_AUTH_SOCK", "VVTERM_TOKEN", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_API_KEY", "sk-should-not-pass"} {
+	for _, leak := range []string{"SSH_AUTH_SOCK", "VUTTY_TOKEN", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_API_KEY", "sk-should-not-pass"} {
 		if strings.Contains(r, leak) {
 			t.Errorf("environment leaked %s", leak)
 		}
@@ -92,7 +92,8 @@ func TestClaudeGatewayIsTheOnlyToolChannel(t *testing.T) {
 	bin := fakeCLI(t, "claude", `
 case "$1" in --help) echo "`+claudeHelp+`"; exit 0;; esac
 printf 'ARG:%s\n' "$@" > `+rec+`; cat >/dev/null
-echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__vvterm__terminal_read"}]}}'
+prev=""; for a in "$@"; do if [ "$prev" = "--mcp-config" ]; then echo "CONFIG-FILE:$a" >> `+rec+`; cat "$a" >> `+rec+`; ls -l "$a" | cut -c1-10 >> `+rec+`; fi; prev="$a"; done
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__vutty__terminal_read"}]}}'
 echo '{"type":"result","result":"ok"}'
 `)
 	r := req(t, "x")
@@ -101,8 +102,13 @@ echo '{"type":"result","result":"ok"}'
 		t.Fatalf("%q %v", out, err)
 	}
 	b, _ := os.ReadFile(rec)
-	if !strings.Contains(string(b), "--strict-mcp-config") || !strings.Contains(string(b), `"url":"http://127.0.0.1:1/mcp"`) || !strings.Contains(string(b), "ARG:mcp__vvterm") {
+	if !strings.Contains(string(b), "--strict-mcp-config") || !strings.Contains(string(b), `"url":"http://127.0.0.1:1/mcp"`) || !strings.Contains(string(b), "ARG:mcp__vutty") {
 		t.Fatalf("%s", b)
+	}
+	// the token is in a private file, never in an argument another process could read
+	args := string(b)[:strings.Index(string(b), "CONFIG-FILE:")]
+	if strings.Contains(args, "tok") || strings.Contains(args, "Bearer") || !strings.Contains(string(b), "-rw-------") {
+		t.Fatalf("the gateway token must not be on the command line, and its file must be private:\n%s", b)
 	}
 }
 
@@ -110,7 +116,7 @@ func TestClaudeModelsComeFromTheProvider(t *testing.T) {
 	bin := fakeCLI(t, "claude", `
 case "$1" in --help) echo "`+claudeHelp+`"; exit 0;; esac
 cat >/dev/null
-echo '{"type":"control_response","response":{"subtype":"success","request_id":"vvterm-models","response":{"models":[{"value":"default","displayName":"Default","description":"d"},{"value":"opus","displayName":"Opus"}]}}}'
+echo '{"type":"control_response","response":{"subtype":"success","request_id":"vutty-models","response":{"models":[{"value":"default","displayName":"Default","description":"d"},{"value":"opus","displayName":"Opus"}]}}}'
 `)
 	ms, err := (&Claude{Bin: bin, ConfigDir: t.TempDir(), Getenv: func(string) string { return "" }}).Models(context.Background())
 	if err != nil || len(ms) != 2 || ms[1].ID != "opus" || ms[1].Name != "Opus" {
@@ -155,7 +161,7 @@ echo '{"type":"item.completed","item":{"type":"agent_message","text":"x"}}'`)
 		t.Fatalf("got %v", err)
 	}
 	b, _ := os.ReadFile(rec)
-	for _, want := range []string{"ARG:--disable\nARG:shell_tool", "ARG:--ignore-user-config", "ARG:read-only", "ARG:--ephemeral"} {
+	for _, want := range []string{"ARG:--disable\nARG:shell_tool", "ARG:--disable\nARG:apps", `ARG:web_search="disabled"`, "ARG:--ignore-user-config", "ARG:read-only", "ARG:--ephemeral"} {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("missing %q", want)
 		}
@@ -334,5 +340,35 @@ func TestOnlyAdaptersThatCanTakePicturesSayThey_Do(t *testing.T) {
 		if _, ok := a.(imager); ok {
 			t.Errorf("%T must not claim to take pictures", a)
 		}
+	}
+}
+
+func TestVerifyIsolationAlsoProbesTheWeb(t *testing.T) {
+	ctx := context.Background()
+	call := 0
+	webTool := func(c context.Context, r assistant.Request, e func(string)) (string, error) {
+		call++
+		if call == 2 {
+			return "", ErrToolUse // the command probe passed, the web probe ran a tool
+		}
+		return "NO TOOLS", nil
+	}
+	if err := verifyIsolation(ctx, webTool); err == nil || !strings.Contains(err.Error(), "reach the web") {
+		t.Fatalf("a web tool must fail the self-test: %v", err)
+	}
+	call = 0
+	talks := func(c context.Context, r assistant.Request, e func(string)) (string, error) {
+		call++
+		if call == 2 {
+			return "vutty.com - the official site", nil // an agent with no visible tool that answers the web probe
+		}
+		return "NO TOOLS", nil
+	}
+	if err := verifyIsolation(ctx, talks); err == nil || !strings.Contains(err.Error(), "no way to reach the web") {
+		t.Fatalf("an answer to the web probe must fail the self-test: %v", err)
+	}
+	both := func(c context.Context, r assistant.Request, e func(string)) (string, error) { return "", ErrToolDenied }
+	if err := verifyIsolation(ctx, both); err != nil {
+		t.Fatalf("refused attempts prove isolation: %v", err)
 	}
 }

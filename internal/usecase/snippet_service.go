@@ -1,6 +1,6 @@
 package usecase
 
-import "vvterm/internal/domain"
+import "vutty/internal/domain"
 
 // SnippetService manages reusable shell scripts. Running a snippet is a UI concern: the script is
 // typed into the focused terminal through SessionService.Write, so it needs no backend state.

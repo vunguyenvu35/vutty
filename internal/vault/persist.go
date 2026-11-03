@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"vvterm/internal/fsutil"
+	"vutty/internal/fsutil"
 )
 
 // Persister stores the vault snapshot. Load returns nil when no vault exists yet.

@@ -1,4 +1,4 @@
-<p align="center"><img src="brand/logo-mark-256.png" alt="VVTerm" width="88"></p>
+<p align="center"><img src="brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
 # Assessment of v1.0.0 against the design
 
@@ -33,7 +33,7 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 | Project structure and binding API (§8) | Done, adapted | services live in `internal/usecase`, Wails glue in `app/` (ADR-0002). Extra methods added: `Attach`, `Reconnect`, `EnableBiometric`, forward CRUD, settings |
 | CLI `vvt` (§9 open question 1 mentions the name) | Not built | no CLI in scope of the listed requirements |
 | `settings.json` keyboard shortcuts (§4) | **Done** | configurable in Settings → Shortcuts; overrides stored in `settings.json`, validated by `ValidateShortcuts`, conflicts refused |
-| SFTP (not in the original scope) | **Added** | `SftpService` over a dedicated SSH connection (jump chain supported), `sftpx` adapter, atomic transfers, no silent overwrite; files only |
+| SFTP (not in the original scope) | **Added** | `SftpService` over a dedicated SSH connection (jump chain supported), `sftpx` adapter, atomic transfers that resume, no silent overwrite, a background queue, folder sync and edit-and-save-back |
 | Settings: General, Account, zoom, maximise (not in the original scope) | **Added** | interface zoom, reduce motion, confirm close, local profile; sign-in is a disabled placeholder |
 | Decide Svelte vs React (§9) | Decided: React + TypeScript | |
 | Platforms (§1) | macOS only built | Windows/Linux not built or tested, as the design allows |
@@ -44,8 +44,8 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 | --- | --- | --- | --- |
 | G1 | "Touch ID" is not enforced. `go-keyring` stores the key in the login keychain without an access-control flag that demands biometrics. | Anyone able to read the user's keychain can unlock the vault. The UI therefore says "keychain unlock". | Native `SecAccessControl` (`.biometryCurrentSet`) through a small cgo bridge. |
 | G2 | No lock on system sleep. | Vault stays unlocked during sleep until the idle timer fires. | Subscribe to `NSWorkspaceWillSleepNotification` and call `Vault.Lock()`. |
-| G3 | Not launched as a native window in this environment. | The Wails build succeeds (`vvterm.app`), but WKWebView rendering, native dialogs and keychain prompts were not exercised; E2E runs in Chromium against the real backend. | Run the manual checklist in [TestPlan.md](TestPlan.md). |
-| G4 | xterm.js heavy-output performance on WKWebView not measured (design risk §2). | Possible lag on `tail -f` of busy logs. | Measure; consider the WebGL addon. |
+| G3 | Not launched as a native window in this environment. | The Wails build succeeds (`vutty.app`), but WKWebView rendering, native dialogs and keychain prompts were not exercised; E2E runs in Chromium against the real backend. | Run the manual checklist in [TestPlan.md](TestPlan.md). |
+| G4 | xterm.js heavy-output performance on WKWebView: measured (see below). Text is fine at the rate the backend sends; a full-screen redraw with every cell coloured is slow with the DOM renderer, and there is no flow control. | A program that writes faster than the terminal draws makes the page unresponsive for seconds, as the backlog is worked off. | Flow control (acknowledge `term:data` and let the backend wait), and the WebGL renderer for redraw-heavy screens (see the measurements below). |
 | G5 | Sync merge window: edits made between the snapshot and the write-back of a sync run can be overwritten. | Rare data loss for concurrent edits during a sync (seconds). | Re-apply local changes after sync or lock writes during sync. |
 | G6 | Last-write-wins relies on machine clocks (accepted in §7). | Wrong winner when clocks differ by more than the edit gap. | Version vectors (design already notes this). |
 | G7 | Clean-architecture debt: the use cases still import `sshx`, `forward`, `importer`, `exporter`, `syncgit`, `vault` helpers directly. | Those cannot be swapped without touching use cases. | Introduce the ports listed in [CleanArchitecture.md](CleanArchitecture.md); the allow-list test prevents growth. |
@@ -55,9 +55,9 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 | G11 | Passwords for `password` identities are stored in the vault and sent via both `password` and `keyboard-interactive`. | Servers that prompt for 2FA are not supported. | Add interactive prompts. |
 | G12 | The domain package's own coverage is 43 % because the merge tests still live in `syncgit` (they pass through type aliases). | Reporting artefact, not a behaviour gap. | Move those tests into `domain`. |
 | G13 | Settings is a second native window implemented as a second process (Wails v2 has one window per process), connected by a local token-protected bridge. | A second Dock icon while open; a new local attack surface (loopback, token, allow-list). The native window was not exercised visually in this environment. | Wails v3 multi-window would remove the extra process. |
-| G14 | A saved host cannot pick its own terminal theme; the theme is global. | Less flexible than Termius. | Add `terminal_theme` to the host record. |
+| G14 | A saved host cannot pick its own terminal theme; the theme is global. | Less flexible than it could be. | Add `terminal_theme` to the host record. |
 | G15 | Replacing a host's saved password creates a new identity; the old one stays in Keychain. | Orphan identities until deleted by hand. | Offer to update the existing identity's secret. |
-| G17 | SFTP has no transfer queue or resume (several files and folders, drag and drop and a replace question per batch are supported). | A transfer interrupted halfway starts over. | A queue with resume. |
+| G17 | SFTP does not preserve the modification time of copied files, and does not clean up the hidden `.vutty-part-…` files of transfers that were abandoned. Remote change detection while editing uses size and time to the second. | A sync can copy a file again that has the same content; a conflict made within one second of the same size goes unnoticed. | Set the time after a copy; sweep old part files; compare a checksum when the server offers one. |
 | G18 | Account is a local profile; Sign in is a placeholder. | No cloud features yet (by design). | Define the account service before enabling it. |
 | G16 | Sync after a vault reset: the Git repository still holds the old vault. | `Sync now` fails with a different-key error. | Use a new repository (documented). |
 
@@ -103,3 +103,21 @@ Feature complete for the MVP scope in the design, with the security properties t
 | Mosh | Not built | shown on the protocol screen as unsupported |
 | AWS / DigitalOcean / Azure integrations, multiplayer | Not built | out of scope (paid / cloud) |
 | Native macOS pieces (menu bar in the Settings window, hidden Dock icon of the Settings window, Dock icon) | Checked by hand only | no automated check can screenshot another app's window |
+
+## Terminal performance with heavy output (G4)
+
+Measured on 2026-11-03 with `tools/termperf/run.sh`: the app's own terminal set-up (xterm.js 5.5, DOM renderer, 10000 lines of scrollback, the output highlighter, the same base64 → bytes → `term.write` path as a `term:data` event) in a real WKWebView (macOS 26.7, Apple silicon, a window of about 120 × 40 characters). A native Swift app feeds it 24 MB per scenario through `evaluateJavaScript`. *Paced* = a chunk of up to 64 KB every 16 ms (the most the backend's batcher sends on its timer, about 3.7 MB/s); *flood* = the next chunk as soon as the last was delivered, with no flow control. *lag* is how late a 4 ms timer fires; *fps* counts `requestAnimationFrame` calls while the data runs.
+
+| Scenario (DOM renderer, highlighter on) | Paced: 24 MB in | fps | lag p99 | Flood: parse speed | Flood lag p99 |
+| --- | --- | --- | --- | --- | --- |
+| Plain lines | 7.0 s (keeps up) | 60 | 11 ms | 17 MB/s | 15 ms |
+| Log lines (dates, IPs, paths, ERROR) | 7.1 s | 58 | 13 ms | 6 MB/s | 11 ms |
+| Colours on every word (`ls --color`) | 7.4 s | 55 | 32 ms | 5 MB/s | 32 ms |
+| Vietnamese, CJK and box characters | 7.0 s | 59 | 24 ms | 4 MB/s | 33 ms |
+| Full-screen redraw, every cell coloured (synthetic worst case) | 52 s (**does not keep up**) | 21 | 146 ms | 0.9 MB/s | up to 900 ms |
+
+- **At the rate the backend sends, text of every kind keeps up** and the interface stays responsive (about 60 fps). The highlighter has no measurable cost (the runs with it on and off are the same within the noise).
+- **A screen redrawn in place with every cell coloured** (40 rows, each cell with its own colour and reverse video; much heavier than a real htop) is the weak spot of the DOM renderer: about 0.5 MB/s, 20 fps, input delayed by up to 150 ms. With the WebGL renderer the same data ran at 60 fps with a lag of 6 ms, and in the flood runs it parsed colours and Vietnamese/CJK 3–5 times faster (16 and 24 MB/s), plain text 1.6 times faster (28 MB/s) and log lines no faster (5 MB/s: there the highlighter and the parser limit it, not the drawing).
+- **There is no flow control.** When data arrives faster than the terminal can parse it (flood), xterm.js queues it, and in 4 of the 15 flood runs the page stopped drawing for 6 to 60 seconds after the last chunk had been delivered. The stalls did not follow one setting (they hit the DOM and WebGL renderers, with the highlighter on and off), so they are a property of the backlog, not of a configuration. Whether bytes were lost (xterm.js discards data when more than 50 MB wait to be parsed) was not measured; no run queued that much.
+- **Limits of the measurement:** the data came from a generator in the same process, not from an SSH session, so the network, the SSH cipher and the Wails event transport are not in it; one machine and one window size; the lag and fps figures are of the page's main thread, not of what the screen showed. The WebGL renderer is not part of the app (it was installed by the script to compare).
+- **What to do about it, in order:** (1) flow control: have the page acknowledge what it has parsed and let the backend stop reading the SSH channel while too much is waiting, so that `yes` or `cat` of a huge file slows down instead of freezing the window; (2) try the WebGL renderer for the pane that has the focus (a browser allows only about 16 WebGL contexts per page, so panes without focus must keep the DOM renderer) and check the look of fonts and of the selection first.

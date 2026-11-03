@@ -118,7 +118,7 @@ export function UnlockScreen({status, onDone, autoBiometric = true}: {status: Va
               <span>Password hint (optional)</span>
               <input aria-label="Password hint" value={hint} maxLength={120} onChange={e => setHint(e.target.value)} autoComplete="off" placeholder="A reminder only you understand" />
             </label>
-            <div className="muted">The hint is shown on the lock screen to anyone who opens VVTerm. Never write the password in it.</div>
+            <div className="muted">The hint is shown on the lock screen to anyone who opens Vutty. Never write the password in it.</div>
             <div className="notice">
               If you forget this password the vault cannot be recovered. Export a backup regularly.
             </div>

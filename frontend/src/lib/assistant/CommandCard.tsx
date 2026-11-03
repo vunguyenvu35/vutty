@@ -13,7 +13,7 @@ const RISK: Record<string, string> = {low: 'Low risk', medium: 'Changes things',
  * A command the assistant suggests. Insert puts it on the prompt without pressing Enter, so the user reads it in
  * place. Run presses Enter too: at once for a command that only reads, after a confirmation in the card for one that can
  * change something (and the typed word "run" for a risky one). The risk is
- * judged by VVTerm, never by the assistant, and a command with a hidden value cannot be run from here.
+ * judged by Vutty, never by the assistant, and a command with a hidden value cannot be run from here.
  */
 export function CommandCard({sid, cmd, autoKey}: {sid: string; cmd: AiCommand; /** identifies this card, for the command that runs by itself */ autoKey?: string}) {
   const be = useBackend()

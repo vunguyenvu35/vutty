@@ -139,3 +139,86 @@ func TestLocalChmodChangesTheBitsAndRefusesNonsense(t *testing.T) {
 		t.Fatalf("%v %v", info, err)
 	}
 }
+
+func TestLocalCopyCopiesFoldersWithContentAndKeepsModes(t *testing.T) {
+	s, dir := localFixture(t)
+	if err := os.WriteFile(filepath.Join(dir, "alpha", "in.sh"), []byte("echo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dst := t.TempDir()
+	res, err := s.Copy([]string{filepath.Join(dir, "alpha"), filepath.Join(dir, "b.txt")}, dst, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Files != 2 || res.Dirs != 1 || res.Bytes != 9 {
+		t.Fatalf("result %+v", res)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "alpha", "in.sh")); string(b) != "echo" {
+		t.Fatalf("content %q", b)
+	}
+	if st, _ := os.Stat(filepath.Join(dst, "alpha", "in.sh")); st.Mode().Perm() != 0o755 {
+		t.Fatalf("mode %v", st.Mode())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "b.txt")); err != nil {
+		t.Fatal("the original is gone") // a copy, not a move
+	}
+	if left, _ := filepath.Glob(filepath.Join(dst, ".vutty-copy-*")); len(left) != 0 {
+		t.Fatalf("temporary files left: %v", left)
+	}
+}
+
+func TestLocalCopyAsksAboutExistingFilesAndReplacesOnlyOnOverwrite(t *testing.T) {
+	s, dir := localFixture(t)
+	dst := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dst, "b.txt"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	clash, err := s.Conflicts([]string{filepath.Join(dir, "b.txt")}, dst)
+	if err != nil || len(clash) != 1 || clash[0] != filepath.Join(dst, "b.txt") {
+		t.Fatalf("conflicts %v %v", clash, err)
+	}
+	res, err := s.Copy([]string{filepath.Join(dir, "b.txt")}, dst, false)
+	if err != nil || res.Files != 0 || len(res.Skipped) != 1 {
+		t.Fatalf("kept: %+v %v", res, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "b.txt")); string(b) != "old" {
+		t.Fatalf("replaced without being asked: %q", b)
+	}
+	if res, err = s.Copy([]string{filepath.Join(dir, "b.txt")}, dst, true); err != nil || res.Files != 1 {
+		t.Fatalf("overwrite: %+v %v", res, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dst, "b.txt")); string(b) != "12345" {
+		t.Fatalf("not replaced: %q", b)
+	}
+}
+
+func TestLocalCopyRefusesIntoItselfIgnoresLinksAndNeverCopiesOntoItself(t *testing.T) {
+	s, dir := localFixture(t)
+	if _, err := s.Copy([]string{filepath.Join(dir, "alpha")}, filepath.Join(dir, "alpha"), false); err == nil {
+		t.Fatal("a folder was copied into itself")
+	}
+	sub := filepath.Join(dir, "alpha", "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Copy([]string{filepath.Join(dir, "alpha")}, sub, false); err == nil {
+		t.Fatal("a folder was copied into its own subfolder")
+	}
+	res, err := s.Copy([]string{filepath.Join(dir, "link-to-alpha")}, t.TempDir(), false)
+	if err != nil || res.Files != 0 || len(res.Ignored) != 1 {
+		t.Fatalf("link: %+v %v", res, err)
+	}
+	res, err = s.Copy([]string{filepath.Join(dir, "b.txt")}, dir, true) // same folder: the file would replace itself
+	if err != nil || res.Files != 0 || len(res.Skipped) != 1 {
+		t.Fatalf("onto itself: %+v %v", res, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "b.txt")); string(b) != "12345" {
+		t.Fatalf("the file was damaged: %q", b)
+	}
+	if _, err := s.Copy([]string{"relative"}, dir, false); err == nil {
+		t.Fatal("a relative path was accepted")
+	}
+	if _, err := s.Copy([]string{filepath.Join(dir, "b.txt")}, filepath.Join(dir, "b.txt"), false); err == nil {
+		t.Fatal("a file was used as the destination folder")
+	}
+}

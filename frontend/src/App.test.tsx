@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import {createEvent, act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {host, makeFake, Providers} from './test/fakeBackend'
 import {DEFAULT_SETTINGS} from './lib/settings/defaults'
@@ -16,6 +16,7 @@ vi.mock('./lib/terminal/TerminalPane', async () => {
 })
 
 import App from './App'
+import {SHOW_CRYPTO_DONATE} from './lib/donate'
 
 function setup(extra: Parameters<typeof makeFake>[0] = {}) {
   const be = makeFake({hosts: [host({id: 'h1', label: 'web-1'}), host({id: 'h2', label: 'db-1'})], ...extra})
@@ -191,7 +192,7 @@ describe('App navigation and quick connect', () => {
   })
 
   it('the + opens a New Tab with a search box and the recent connections; picking a host turns it into that connection', async () => {
-    localStorage.removeItem('vvterm.recent')
+    localStorage.removeItem('vutty.recent')
     const be = setup()
     await unlock(be)
     await userEvent.dblClick(hostCard('web-1'))
@@ -280,6 +281,94 @@ describe('App snippets', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Snippets'}))
     await userEvent.click(await screen.findByLabelText('Paste Disk'))
     expect(typed.text).toEqual(['df -h\ruptime'])
+  })
+
+  it('a snippet with blanks asks for them first and types the answers in (a default fills an empty box)', async () => {
+    const be = setup({snippets: [{id: 's9', label: 'Tail', script: 'tail -n {{lines|50}} {{file}}'} as never]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('tab', {name: 'Vaults'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Snippets'}))
+    await userEvent.click(await screen.findByLabelText('Run Tail'))
+    const dlg = await screen.findByRole('dialog', {name: 'Run “Tail”'})
+    expect(typed.text).toEqual([]) // nothing is typed before the blanks are filled
+    expect(within(dlg).getByText('lines (default: 50)')).toBeInTheDocument()
+    await userEvent.type(within(dlg).getByLabelText('file'), '/var/log/syslog')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Run'}))
+    expect(typed.text).toEqual(['tail -n 50 /var/log/syslog\r'])
+    expect(screen.queryByRole('dialog', {name: 'Run “Tail”'})).toBeNull()
+  })
+
+  it('Paste with blanks fills them without pressing Enter, and Use as written keeps the braces', async () => {
+    const be = setup({snippets: [{id: 's9', label: 'Tpl', script: 'echo {{name}}'} as never]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('tab', {name: 'Vaults'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Snippets'}))
+    await userEvent.click(await screen.findByLabelText('Paste Tpl'))
+    let dlg = await screen.findByRole('dialog', {name: 'Paste “Tpl”'})
+    await userEvent.type(within(dlg).getByLabelText('name'), 'world')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Paste'}))
+    expect(typed.text).toEqual(['echo world'])
+    await userEvent.click(screen.getByRole('tab', {name: 'Vaults'}))
+    await userEvent.click(await screen.findByLabelText('Run Tpl'))
+    dlg = await screen.findByRole('dialog', {name: 'Run “Tpl”'})
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Use as written'}))
+    expect(typed.text).toEqual(['echo world', 'echo {{name}}\r'])
+  })
+
+  it('cancelling the blanks types nothing', async () => {
+    const be = setup({snippets: [{id: 's9', label: 'Tpl', script: 'echo {{name}}'} as never]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('tab', {name: 'Vaults'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Snippets'}))
+    await userEvent.click(await screen.findByLabelText('Run Tpl'))
+    const dlg = await screen.findByRole('dialog', {name: 'Run “Tpl”'})
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Cancel'}))
+    expect(typed.text).toEqual([])
+    expect(screen.queryByRole('dialog', {name: 'Run “Tpl”'})).toBeNull()
+  })
+
+  describe('on a production host', () => {
+    const prod = () => host({id: 'h1', label: 'web-1', env: 'prod'})
+    async function openProd(settings?: object) {
+      const be = setup({hosts: [prod()], snippets: [snip], ...(settings ? {settings: {...DEFAULT_SETTINGS, ...settings}} : {})})
+      await unlock(be)
+      await userEvent.dblClick(hostCard('web-1'))
+      await userEvent.click(screen.getByRole('tab', {name: 'Vaults'}))
+      await userEvent.click(screen.getByRole('button', {name: 'Snippets'}))
+      return be
+    }
+
+    it('asks before a snippet runs, and types nothing when the answer is no', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      await openProd()
+      await userEvent.click(await screen.findByLabelText('Run Disk'))
+      await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+      expect(confirm.mock.calls[0][0]).toMatch(/Run “Disk” on the PRODUCTION host web-1\? It runs at once\./)
+      expect(typed.text).toEqual([])
+      confirm.mockReturnValue(true)
+      await userEvent.click(await screen.findByLabelText('Run Disk'))
+      await waitFor(() => expect(typed.text).toEqual(['df -h\ruptime\r']))
+    })
+
+    it('asks about a multi-line Paste too, since its lines run as they are typed', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      await openProd()
+      await userEvent.click(await screen.findByLabelText('Paste Disk'))
+      await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+      expect(confirm.mock.calls[0][0]).toMatch(/Paste “Disk” on the PRODUCTION host web-1\? Its lines run as soon as they are typed/)
+      await waitFor(() => expect(typed.text).toEqual(['df -h\ruptime']))
+    })
+
+    it('does not ask when the setting is off', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      await openProd({confirm_prod: false})
+      await userEvent.click(await screen.findByLabelText('Run Disk'))
+      expect(typed.text).toEqual(['df -h\ruptime\r'])
+      expect(confirm).not.toHaveBeenCalled()
+    })
   })
 
   it('refuses to run without an open terminal', async () => {
@@ -651,6 +740,18 @@ describe('App: keyboard shortcuts', () => {
     await waitFor(() => expect(be.state.settings.zoom).toBe(100))
   })
 
+  it('the suggestion shortcut turns command suggestions off and on and says which', async () => {
+    const be = setup()
+    await unlock(be)
+    expect(be.state.settings.suggest).toBe(true)
+    press({key: 'g', code: 'KeyG', ctrlKey: true, shiftKey: true})
+    await waitFor(() => expect(be.state.settings.suggest).toBe(false))
+    expect(await screen.findByText('Command suggestions off')).toBeInTheDocument()
+    press({key: 'g', code: 'KeyG', ctrlKey: true, shiftKey: true})
+    await waitFor(() => expect(be.state.settings.suggest).toBe(true))
+    expect(await screen.findByText('Command suggestions on')).toBeInTheDocument()
+  })
+
   it('next/previous tab cycle through Vaults and the open tabs; close tab does not ask', async () => {
     const be = setup()
     await unlock(be)
@@ -800,7 +901,7 @@ describe('App: Hosts toolbar order', () => {
     const be = setup()
     await unlock(be)
     const bar = document.querySelector('.toolbar') as HTMLElement
-    expect(Array.from(bar.querySelectorAll('button')).map(b => b.getAttribute('aria-label'))).toEqual(['New host', 'More ways to add hosts', 'Terminal', 'Serial', 'View', 'Filter by tag'])
+    expect(Array.from(bar.querySelectorAll('button')).map(b => b.getAttribute('aria-label'))).toEqual(['New host', 'More ways to add hosts', 'Terminal', 'Serial', 'Sort', 'View', 'Filter by tag'])
   })
 })
 
@@ -1007,8 +1108,8 @@ describe('App: tab menu, broadcast and maximise', () => {
 
 describe('App: the application menu bar', () => {
   // the actions of app/menu.go (MenuActions): the Go test keeps that list in step with the menu itself
-  const GO_ACTIONS = ['new_host', 'new_group', 'new_terminal', 'serial', 'import', 'open_settings', 'close_tab', 'close_pane', 'lock_vault', 'zoom_in', 'zoom_out', 'zoom_reset',
-    'broadcast_input', 'split_right', 'split_down', 'duplicate_tab', 'page:hosts', 'page:keychain', 'page:forwards', 'page:snippets', 'page:sftp', 'page:knownhosts', 'page:logs']
+  const GO_ACTIONS = ['new_host', 'new_group', 'new_terminal', 'serial', 'import', 'about', 'check_update', 'support', 'open_settings', 'close_tab', 'close_pane', 'lock_vault', 'zoom_in', 'zoom_out', 'zoom_reset',
+    'broadcast_input', 'toggle_suggest', 'suggest_popup', 'split_right', 'split_down', 'duplicate_tab', 'page:hosts', 'page:keychain', 'page:forwards', 'page:snippets', 'page:sftp', 'page:knownhosts', 'page:logs']
   const menu = (be: ReturnType<typeof makeFake>, action: string) => act(() => be.emit('menu:action', action))
 
   it('opens the panels the File menu names', async () => {
@@ -1022,6 +1123,82 @@ describe('App: the application menu bar', () => {
     expect(await screen.findByRole('dialog', {name: 'Serial'})).toBeInTheDocument()
     menu(be, 'import')
     expect(await screen.findByRole('dialog', {name: /Import/})).toBeInTheDocument()
+  })
+
+  it('Help → About opens the About dialog, and Check for Updates runs the check', async () => {
+    const be = setup()
+    await unlock(be)
+    menu(be, 'about')
+    expect(await screen.findByRole('dialog', {name: 'About Vutty'})).toBeInTheDocument()
+    expect(await screen.findByTestId('about-version')).toHaveTextContent('1.1.0-test')
+    await userEvent.click(screen.getAllByRole('button', {name: 'Close'})[0])
+    menu(be, 'check_update')
+    expect(await screen.findByText('You are on the latest version.')).toBeInTheDocument()
+    expect(be.state.calls.some(c => c[0] === 'system.checkUpdate')).toBe(true)
+  })
+
+  it('shows an Update chip in the corner when a newer release exists, and opens the About dialog from it', async () => {
+    localStorage.removeItem('vutty.update.checked')
+    const be = setup()
+    be.state.latest = '9.9.9'
+    await unlock(be)
+    const chip = await screen.findByRole('button', {name: /Update available: version 9\.9\.9/})
+    await userEvent.click(chip)
+    expect(await screen.findByRole('dialog', {name: 'About Vutty'})).toBeInTheDocument()
+    expect(await screen.findByText(/is available/)).toBeInTheDocument()
+  })
+
+  it('no Update chip when up to date, when switched off, or when checked within the day', async () => {
+    localStorage.removeItem('vutty.update.checked')
+    let be = setup()
+    await unlock(be)
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'system.checkUpdate')).toBe(true))
+    expect(screen.queryByRole('button', {name: /Update available/})).toBeNull()
+    cleanup()
+
+    localStorage.removeItem('vutty.update.checked')
+    be = setup()
+    be.state.latest = '9.9.9'
+    be.state.settings = {...be.state.settings, auto_update_check: false}
+    await unlock(be)
+    await screen.findByRole('button', {name: 'Open settings'})
+    expect(be.state.calls.some(c => c[0] === 'system.checkUpdate')).toBe(false)
+    cleanup()
+
+    localStorage.setItem('vutty.update.checked', String(Date.now()))
+    be = setup()
+    be.state.latest = '9.9.9'
+    await unlock(be)
+    await screen.findByRole('button', {name: 'Open settings'})
+    expect(be.state.calls.some(c => c[0] === 'system.checkUpdate')).toBe(false)
+    localStorage.removeItem('vutty.update.checked')
+  })
+
+  it('Help → Support Vutty opens the Support dialog (USDT addresses only when enabled), also while the vault is locked', async () => {
+    const be = setup()
+    await screen.findByLabelText('Master password')
+    menu(be, 'support')
+    const dlg = await screen.findByRole('dialog', {name: 'Support Vutty'})
+    if (SHOW_CRYPTO_DONATE) {
+      expect(within(dlg).getByText(/Prefer crypto/)).toBeInTheDocument()
+      expect(within(dlg).getByText('TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK')).toBeInTheDocument()
+    } else {
+      expect(within(dlg).queryByText(/Prefer crypto|USDT/)).toBeNull()
+      expect(within(dlg).getByRole('button', {name: 'Support on Ko-fi'})).toBeInTheDocument()
+    }
+  })
+
+  it('Help → About and Check for Updates still work while the vault is locked', async () => {
+    const be = setup()
+    await screen.findByLabelText('Master password') // the lock screen
+    menu(be, 'about')
+    expect(await screen.findByRole('dialog', {name: 'About Vutty'})).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', {name: 'Close'})[0])
+    expect(screen.queryByRole('dialog', {name: 'About Vutty'})).toBeNull()
+    menu(be, 'check_update')
+    expect(await screen.findByText('You are on the latest version.')).toBeInTheDocument()
+    menu(be, 'new_host') // everything else stays shut
+    expect(screen.queryByRole('dialog', {name: 'New host'})).toBeNull()
   })
 
   it('New Terminal opens a local terminal; Duplicate, Close Tab and Close Pane act on the open tab', async () => {
@@ -1078,7 +1255,7 @@ describe('App: the application menu bar', () => {
     const be = setup()
     await unlock(be)
     for (const a of GO_ACTIONS) menu(be, a) // none of them may throw
-    expect(GO_ACTIONS).toHaveLength(23)
+    expect(GO_ACTIONS).toHaveLength(28)
   })
 })
 
@@ -1091,10 +1268,10 @@ describe('App: terminal sidebar and new windows', () => {
     expect(await screen.findByRole('complementary', {name: 'Terminal sidebar'})).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', {name: 'Toggle sidebar'}))
     expect(screen.queryByRole('complementary', {name: 'Terminal sidebar'})).toBeNull()
-    expect(localStorage.getItem('vvterm.sidebar')).toBe('closed')
+    expect(localStorage.getItem('vutty.sidebar')).toBe('closed')
     await userEvent.click(screen.getByRole('button', {name: 'Toggle sidebar'}))
     expect(screen.getByRole('complementary', {name: 'Terminal sidebar'})).toBeInTheDocument()
-    localStorage.removeItem('vvterm.sidebar')
+    localStorage.removeItem('vutty.sidebar')
   })
 
   it('a theme picked in the sidebar is saved as the terminal theme', async () => {
@@ -1104,6 +1281,18 @@ describe('App: terminal sidebar and new windows', () => {
     await userEvent.click(await screen.findByRole('button', {name: 'Themes and font'}))
     await userEvent.click(screen.getByRole('option', {name: /Dracula/}))
     await waitFor(() => expect(be.state.settings.terminal_theme).toBe('dracula'))
+  })
+
+  it('the Files section browses the host of the focused terminal over its own SFTP connection', async () => {
+    const be = setup()
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(await screen.findByRole('button', {name: 'Files (SFTP)'}))
+    expect(await screen.findByRole('listbox', {name: 'Files'})).toBeInTheDocument()
+    await waitFor(() => expect(be.state.calls.filter(c => c[0] === 'sftp.open').map(c => c[1])).toEqual(['h1']))
+    await userEvent.click(screen.getByRole('button', {name: 'Hosts'})) // another section: the connection is let go
+    await waitFor(() => expect(be.state.calls.filter(c => c[0] === 'sftp.close')).toHaveLength(1))
+    localStorage.removeItem('vutty.sidebar.tab')
   })
 
   it('Duplicate in new window opens a window for the host of the tab', async () => {
@@ -1227,6 +1416,72 @@ describe('App: dragging a tab onto a pane', () => {
     expect(before.every(el => after.includes(el) && document.body.contains(el))).toBe(true)
   })
 
+  describe('a pane dragged by its header', () => {
+    const heads = () => Array.from(document.querySelectorAll('.pane-head')) as HTMLElement[]
+    const panesOf = () => Array.from(document.querySelectorAll('.pane-wrap')) as HTMLElement[]
+    /** a drag event with a pointer position (jsdom has none) */
+    const at = (kind: 'dragOver' | 'drop', el: Element, d: unknown, x: number, y: number) => {
+      const e = createEvent[kind](el, {dataTransfer: d})
+      Object.defineProperty(e, 'clientX', {value: x})
+      Object.defineProperty(e, 'clientY', {value: y})
+      fireEvent(el, e)
+    }
+    const open = async () => {
+      const be = setup()
+      await unlock(be)
+      await userEvent.dblClick(hostCard('web-1'))
+      await userEvent.click(screen.getByLabelText('Split right')) // web-1: two panes
+      await userEvent.dblClick(hostCard('db-1')) // db-1: one pane
+      await userEvent.click(screen.getByRole('tab', {name: /web-1/}))
+      return {be, before: screen.getAllByTestId('terminal')}
+    }
+    const same = (before: HTMLElement[]) => { const after = screen.getAllByTestId('terminal'); return before.length === after.length && before.every(el => after.includes(el) && document.body.contains(el)) }
+
+    it('onto the tab bar: it becomes a tab of its own, selected, without a reconnect', async () => {
+      const {before} = await open()
+      const bar = screen.getByRole('tablist', {name: 'Open tabs'})
+      const t = dt()
+      fireEvent.dragStart(heads()[1], {dataTransfer: t})
+      fireEvent.dragOver(bar, {dataTransfer: t})
+      expect(bar).toHaveClass('pane-drop')
+      fireEvent.drop(bar, {dataTransfer: t})
+      await waitFor(() => expect(screen.getAllByRole('tab', {name: /web-1/})).toHaveLength(2))
+      expect(screen.getAllByRole('tab', {name: /web-1/}).filter(x => x.getAttribute('aria-selected') === 'true')).toHaveLength(1)
+      expect(heads()).toHaveLength(0) // every tab has a single pane now
+      expect(same(before)).toBe(true)
+    })
+
+    it('onto another terminal tab: it joins that tab next to its pane', async () => {
+      const {before} = await open()
+      const t = dt()
+      fireEvent.dragStart(heads()[1], {dataTransfer: t})
+      const db = screen.getByRole('tab', {name: /db-1/})
+      fireEvent.dragOver(db, {dataTransfer: t})
+      expect(db).toHaveClass('drop-into')
+      fireEvent.drop(db, {dataTransfer: t})
+      await waitFor(() => expect(screen.getByRole('tab', {name: /db-1/, selected: true})).toBeInTheDocument())
+      expect(heads()).toHaveLength(2) // db-1 has two panes, web-1 one
+      expect(screen.getAllByRole('tab', {name: /web-1/})).toHaveLength(1)
+      expect(same(before)).toBe(true)
+    })
+
+    it('onto the side of another pane: it moves there', async () => {
+      const {before} = await open()
+      const [left, right] = panesOf().filter(w => w.style.display !== 'none')
+      expect(Number.parseFloat(left.style.left)).toBeLessThan(Number.parseFloat(right.style.left))
+      const rect = {left: 0, top: 0, width: 400, height: 200, right: 400, bottom: 200, x: 0, y: 0, toJSON() {}}
+      Object.defineProperty(left, 'getBoundingClientRect', {value: () => rect})
+      const t = dt()
+      fireEvent.dragStart(right.querySelector('.pane-head')!, {dataTransfer: t}) // the right pane...
+      at('dragOver', left, t, 20, 100)
+      expect(left.querySelector('.drop-hint')).toHaveAttribute('data-side', 'left')
+      at('drop', left, t, 20, 100) // ...onto the left side of the left one
+      await waitFor(() => expect(Number.parseFloat(right.style.left)).toBeLessThan(Number.parseFloat(left.style.left)))
+      expect(document.querySelectorAll('.divider-abs')).toHaveLength(1)
+      expect(same(before)).toBe(true)
+    })
+  })
+
   it('a pane can be taken back out of the split into a tab of its own, again without a reconnect', async () => {
     const be = setup()
     await unlock(be)
@@ -1247,5 +1502,82 @@ describe('App: dragging a tab onto a pane', () => {
     const after = screen.getAllByTestId('terminal')
     expect(before.every(el => after.includes(el) && document.body.contains(el))).toBe(true) // the same panes: no reconnect
     void be
+  })
+})
+
+describe('App: ssh:// links', () => {
+  // the link opens a terminal as soon as the vault is open, so the Hosts list never shows: unlock by hand
+  const unlockOnly = async (be: ReturnType<typeof makeFake>) => {
+    await userEvent.type(await screen.findByLabelText('Master password'), be.state.password)
+    await userEvent.click(screen.getByRole('button', {name: 'Unlock'}))
+  }
+  const link = (over: Partial<{username: string; hostname: string; port: number}> = {}) => ({username: '', hostname: 'web.example.com', port: 22, ...over})
+  const saved = () => host({id: 'h1', label: 'web-1', hostname: 'web.example.com', username: 'root'})
+
+  it('a link that came before the vault was unlocked is asked about once it is, and a yes opens the saved host', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = setup({hosts: [saved()], pendingSSHLink: link({username: 'root'})})
+    await unlockOnly(be)
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toBe('A link wants to open web-1 (root@web.example.com). Connect?')
+    await waitFor(() => expect(screen.getAllByTestId('terminal')).toHaveLength(1))
+    expect(screen.getByTestId('terminal')).toHaveAttribute('data-host', 'h1')
+    expect(be.state.pendingSSHLink).toBeUndefined() // taken: it will not come back
+  })
+
+  it('a no connects to nothing', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const be = setup({hosts: [saved()], pendingSSHLink: link()})
+    await unlock(be)
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    await new Promise(r => setTimeout(r, 30))
+    expect(screen.queryAllByTestId('terminal')).toHaveLength(0)
+  })
+
+  it('an address that is not a saved host only opens the New host form, filled in: it never connects by itself', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = setup({hosts: [saved()], pendingSSHLink: link({username: 'deploy', hostname: 'new.example.org', port: 2200})})
+    await unlock(be)
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toMatch(/new\.example\.org:2200, which is not one of your hosts\. Add it as a new host\? Nothing connects until you press Connect\./)
+    const dlg = await screen.findByRole('dialog', {name: 'New host'})
+    expect(within(dlg).getByLabelText('Hostname')).toHaveValue('new.example.org')
+    expect(within(dlg).getByLabelText('Port')).toHaveValue('2200')
+    expect(within(dlg).getByLabelText('Username')).toHaveValue('deploy')
+    expect(screen.queryAllByTestId('terminal')).toHaveLength(0)
+    expect(be.state.calls.some(c => c[0] === 'session.open')).toBe(false)
+  })
+
+  it('a user name that differs from the saved host is a different host, not a match', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = setup({hosts: [saved()], pendingSSHLink: link({username: 'someone-else'})})
+    await unlock(be)
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toMatch(/not one of your hosts/)
+    expect(screen.queryAllByTestId('terminal')).toHaveLength(0)
+  })
+
+  it('a link that arrives while the app is open is handled at once, and a link that is not a host in this list never matches by name only', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = setup({hosts: [saved()]})
+    await unlock(be)
+    expect(confirm).not.toHaveBeenCalled()
+    be.state.pendingSSHLink = link({port: 2222}) // the same name on another port is another host
+    act(() => be.emit('app:open-ssh', link({port: 2222})))
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][0]).toMatch(/web\.example\.com:2222, which is not one of your hosts/)
+  })
+
+  it('an event while the vault is locked leaves the link for after the unlock', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = setup({hosts: [saved()]})
+    await screen.findByLabelText('Master password')
+    be.state.pendingSSHLink = link({username: 'root'})
+    act(() => be.emit('app:open-ssh', link({username: 'root'})))
+    await new Promise(r => setTimeout(r, 30))
+    expect(confirm).not.toHaveBeenCalled()
+    expect(be.state.pendingSSHLink).toBeDefined() // still waiting
+    await unlockOnly(be)
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
   })
 })

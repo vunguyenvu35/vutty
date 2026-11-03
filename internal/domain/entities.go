@@ -1,4 +1,4 @@
-// Package domain holds the plain data types shared by all VVTerm packages.
+// Package domain holds the plain data types shared by all Vutty packages.
 // None of these types ever contain decrypted secrets.
 package domain
 
@@ -80,6 +80,10 @@ type Host struct {
 	Tags         []string  `json:"tags,omitempty"`
 	KeepaliveSec int       `json:"keepalive_sec"`
 	CreatedAt    time.Time `json:"created_at"`
+	// ForwardAgent lets this host use the keys of the user's ssh-agent (or the key of this host's identity when there is
+	// no agent) to sign in to other machines, for as long as the connection lasts (ssh -A). Anyone with root on the host
+	// can use those keys too: it is off unless the user turns it on for a host they trust.
+	ForwardAgent bool `json:"forward_agent,omitempty"`
 	// OS is the server type learned on the first connection (see ParseOS); it picks the host's icon.
 	OS string `json:"os,omitempty"`
 	// Telnet: the host can also be reached with Telnet on TelnetPort (unencrypted: opt in per host).

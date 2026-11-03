@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 func write(t *testing.T, path, content string) {
@@ -111,10 +111,21 @@ func TestParseMissingFile(t *testing.T) {
 
 func TestParseMetaComment(t *testing.T) {
 	dir := t.TempDir()
-	write(t, filepath.Join(dir, "config"), "# vvterm: env=prod tags=a,b\nHost x\n  HostName x\nHost y\n  HostName y\n")
+	write(t, filepath.Join(dir, "config"), "# vutty: env=prod tags=a,b\nHost x\n  HostName x\nHost y\n  HostName y\n")
 	p, _ := ParseFile(filepath.Join(dir, "config"))
 	if p.Entries[0].Env != "prod" || len(p.Entries[0].Tags) != 2 || p.Entries[1].Env != "" {
 		t.Fatalf("%+v", p.Entries)
+	}
+}
+
+func TestParseMetaCommentFromBeforeTheRenames(t *testing.T) {
+	for _, marker := range []string{"# vvterm:", "# vuterm:"} {
+		dir := t.TempDir()
+		write(t, filepath.Join(dir, "config"), marker+" env=prod tags=a,b\nHost x\n  HostName x\n")
+		p, _ := ParseFile(filepath.Join(dir, "config"))
+		if p.Entries[0].Env != "prod" || len(p.Entries[0].Tags) != 2 {
+			t.Fatalf("%s: %+v", marker, p.Entries)
+		}
 	}
 }
 
@@ -231,5 +242,40 @@ func TestJumpToExistingHostReusesIt(t *testing.T) {
 	plan := Build(p, existing, PolicySkip)
 	if len(plan.Hosts) != 1 || plan.Hosts[0].JumpHostID != "b-id" {
 		t.Fatalf("%+v", plan.Hosts)
+	}
+}
+
+func TestForwardAgentIsImportedWithAWarning(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "config"), `
+Host yes-host
+    ForwardAgent yes
+Host path-host
+    ForwardAgent /run/user/1000/agent.sock
+Host no-host
+    ForwardAgent no
+Host plain
+    HostName 10.0.0.9
+`)
+	parsed, err := ParseFile(filepath.Join(dir, "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := Build(parsed, domain.Data{}, PolicySkip)
+	got := map[string]bool{}
+	for _, h := range plan.Hosts {
+		got[h.Label] = h.ForwardAgent
+	}
+	if !got["yes-host"] || !got["path-host"] || got["no-host"] || got["plain"] {
+		t.Fatalf("%v", got)
+	}
+	warned := 0
+	for _, w := range plan.Warnings {
+		if strings.Contains(w, "ForwardAgent is on") {
+			warned++
+		}
+	}
+	if warned != 2 {
+		t.Fatalf("warnings %v", plan.Warnings)
 	}
 }

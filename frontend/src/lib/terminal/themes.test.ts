@@ -51,7 +51,7 @@ describe('"Match app theme" looks like the app', () => {
     const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
     const dark = css.match(/:root \{[^}]*--bg: (#[0-9a-f]{6});[^}]*--text: (#[0-9a-f]{6});/s)!
     const light = css.match(/:root\[data-theme='light'\] \{[^}]*--bg: (#[0-9a-f]{6});[^}]*--text: (#[0-9a-f]{6});/s)!
-    const d = findTheme('vvterm-dark')!.theme, l = findTheme('vvterm-light')!.theme
+    const d = findTheme('vutty-dark')!.theme, l = findTheme('vutty-light')!.theme
     expect([d.background, d.foreground]).toEqual([dark[1], '#3ecf8e'])
     expect([l.background, l.foreground]).toEqual([light[1], '#1a7f4b'])
   })

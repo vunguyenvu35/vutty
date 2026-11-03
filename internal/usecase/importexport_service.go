@@ -3,15 +3,17 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
-	"vvterm/internal/fsutil"
+	"vutty/internal/fsutil"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/exporter"
-	"vvterm/internal/importer"
-	"vvterm/internal/syncgit"
+	"vutty/internal/domain"
+	"vutty/internal/exporter"
+	"vutty/internal/importer"
+	"vutty/internal/syncgit"
 )
 
 // ImportReport summarises an import for the UI.
@@ -22,6 +24,8 @@ type ImportReport struct {
 	KeysImported  int      `json:"keys_imported"`
 	Skipped       []string `json:"skipped"`
 	Warnings      []string `json:"warnings"`
+	// Format is what an inventory import took the file to be.
+	Format string `json:"format,omitempty"`
 }
 
 // ExportReport summarises an ssh config export.
@@ -31,7 +35,7 @@ type ExportReport struct {
 	Warnings []string `json:"warnings"`
 }
 
-// ImportExportService converts between VVTerm data and standard formats.
+// ImportExportService converts between Vutty data and standard formats.
 type ImportExportService struct{ c *Core }
 
 func NewImportExportService(c *Core) *ImportExportService { return &ImportExportService{c} }
@@ -40,22 +44,80 @@ func NewImportExportService(c *Core) *ImportExportService { return &ImportExport
 // "overwrite" or "duplicate" for hosts whose label already exists.
 func (s *ImportExportService) ImportSSHConfig(path, conflict string) (ImportReport, error) {
 	var rep ImportReport
-	var policy importer.Policy
-	switch conflict {
-	case "", "skip":
-		policy = importer.PolicySkip
-	case "overwrite":
-		policy = importer.PolicyOverwrite
-	case "duplicate":
-		policy = importer.PolicyDuplicate
-	default:
-		return rep, fmt.Errorf("unknown conflict policy %q", conflict)
+	policy, err := conflictPolicy(conflict)
+	if err != nil {
+		return rep, err
 	}
 	parsed, err := importer.ParseFile(path)
 	if err != nil {
 		return rep, err
 	}
-	plan := importer.Build(parsed, s.c.Store.Snapshot(), policy)
+	return s.applyPlan(importer.Build(parsed, s.c.Store.Snapshot(), policy), rep)
+}
+
+// maxInventoryFile bounds a listing that is read: it is a text file somebody exported, not a database.
+const maxInventoryFile = 16 << 20
+
+// InventoryImportOptions are what a listing of servers does not say (see importer.InventoryOptions).
+type InventoryImportOptions struct {
+	User           string `json:"user"`
+	Address        string `json:"address"` // "" or "public", or "private"
+	Group          string `json:"group"`
+	IncludeStopped bool   `json:"include_stopped"`
+}
+
+// ImportInventory reads a listing of servers that you made with your own tools (aws ec2 describe-instances, gcloud compute
+// instances list --format=json, ansible-inventory --list or an Ansible INI file, or a CSV) and adds its hosts. Vutty never
+// contacts a cloud and never sees its credentials. conflict is as for ImportSSHConfig. The report says which format was read.
+func (s *ImportExportService) ImportInventory(path, conflict string, opts InventoryImportOptions) (ImportReport, error) {
+	var rep ImportReport
+	policy, err := conflictPolicy(conflict)
+	if err != nil {
+		return rep, err
+	}
+	switch opts.Address {
+	case "", "public", "private":
+	default:
+		return rep, fmt.Errorf("address must be public or private")
+	}
+	if len(opts.User) > 64 || strings.ContainsAny(opts.User, " \t\r\n\x00") || len(opts.Group) > 80 || strings.ContainsAny(opts.Group, "\r\n\x00") {
+		return rep, errors.New("the user name or the group is not valid")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return rep, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxInventoryFile+1))
+	if err != nil {
+		return rep, err
+	}
+	if len(data) > maxInventoryFile {
+		return rep, fmt.Errorf("the file is larger than %d MB", maxInventoryFile>>20)
+	}
+	parsed, format, err := importer.ParseInventory(data, importer.InventoryOptions{User: opts.User, Address: opts.Address, Group: opts.Group, IncludeStopped: opts.IncludeStopped})
+	if err != nil {
+		return rep, err
+	}
+	rep.Format = format
+	return s.applyPlan(importer.Build(parsed, s.c.Store.Snapshot(), policy), rep)
+}
+
+// conflictPolicy reads the "what to do when a host with the same name exists" choice of the import screens.
+func conflictPolicy(conflict string) (importer.Policy, error) {
+	switch conflict {
+	case "", "skip":
+		return importer.PolicySkip, nil
+	case "overwrite":
+		return importer.PolicyOverwrite, nil
+	case "duplicate":
+		return importer.PolicyDuplicate, nil
+	}
+	return "", fmt.Errorf("unknown conflict policy %q", conflict)
+}
+
+// applyPlan stores what an import planned: the keys first (so hosts can use them), then groups, hosts and forwards.
+func (s *ImportExportService) applyPlan(plan importer.Plan, rep ImportReport) (ImportReport, error) {
 	rep.Skipped = nonNil(plan.Skipped) // JSON must carry [] not null: the UI calls .length
 	rep.Warnings = nonNil(plan.Warnings)
 

@@ -1,4 +1,4 @@
-<p align="center"><img src="brand/logo-mark-256.png" alt="VVTerm" width="88"></p>
+<p align="center"><img src="brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
 # Clean architecture
 
@@ -41,7 +41,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Domain | `internal/domain` | standard library | any project package, Wails, `x/crypto/ssh` |
 | Application | `internal/usecase` | domain, ports it declares, `fsutil`, the infrastructure libraries listed below | Wails, `app`, `store` |
-| Infrastructure | `sqlitedb`, `store`, `vault`, `sshx`, `forward`, `importer`, `exporter`, `syncgit`, `fsutil`, `testssh` | domain, each other | `usecase`, `app`, Wails |
+| Infrastructure | `sqlitedb`, `store`, `vault`, `sshx`, `forward`, `importer`, `exporter`, `syncgit`, `syncfolder`, `fsutil`, `testssh` | domain, each other | `usecase`, `app`, Wails |
 | Delivery / composition root | `app` | everything | — |
 
 ### What lives where
@@ -65,6 +65,7 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 | `forward` | forwarding engine uses the SSH connection | folds into `Connector` |
 | `importer`, `exporter` | ssh config parsing/writing, backup envelope | `ConfigCodec` |
 | `syncgit` | git CLI transport | `SyncTransport` |
+| `syncfolder` | synced-folder (Drive, iCloud, Dropbox) transport | `SyncTransport` |
 | `vault` | key parsing helpers (`ParsePrivateKey`, `GenerateEd25519`), keychain types | move key helpers behind `SecretVault`/`KeyTools` |
 
 `internal/archtest` holds this list as an allow-list: it may shrink but adding a new infrastructure import to `usecase` fails the test.
@@ -77,7 +78,7 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 
 - **Status**: accepted (supersedes "JSON files, no SQLite in the MVP" in `Architecture.md` §2/§4).
 - **Context**: The product requirement is that the app uses SQLite. Data is small, single-user, and must survive crashes.
-- **Decision**: One database file, `data/vvterm.db`, via the pure-Go driver `modernc.org/sqlite` (no extra CGO toolchain). Tables: `groups`, `hosts`, `identities`, `port_forwards`, `secrets`, `vault_header`. Schema versioned with `PRAGMA user_version`; a database newer than the app is refused. WAL mode, one connection, every save is a single transaction.
+- **Decision**: One database file, `data/vutty.db`, via the pure-Go driver `modernc.org/sqlite` (no extra CGO toolchain). Tables: `groups`, `hosts`, `identities`, `port_forwards`, `secrets`, `vault_header`. Schema versioned with `PRAGMA user_version`; a database newer than the app is refused. WAL mode, one connection, every save is a single transaction.
 - **Consequences**: atomicity comes from transactions instead of tmp+rename; records keep `updated_at`/`deleted_at` columns for sync; secrets remain AES-GCM ciphertext in `secrets`, verified by a test that greps the database and WAL for plaintext. Whole-set saves are O(n), which is fine at this scale; if data grows, switch to per-record upserts behind the same `Persister`. `known_hosts` stays an OpenSSH text file and `settings.json` stays JSON on purpose (tools and users edit them).
 
 ## ADR-0002: Clean architecture with ports and an enforced dependency rule
@@ -90,7 +91,7 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 ## ADR-0003: Own `ssh_config` parser
 
 - **Status**: accepted (deviates from `Architecture.md` §2, which suggested `kevinburke/ssh_config`).
-- **Context**: Import must derive the group from the file name of each `Include`d file and keep a `# vvterm:` metadata comment for round-trips; the library does not expose the source file of a block.
+- **Context**: Import must derive the group from the file name of each `Include`d file and keep a `# vutty:` metadata comment for round-trips; the library does not expose the source file of a block.
 - **Decision**: Small purpose-built parser (`internal/importer`) covering `Host`, `HostName`, `Port`, `User`, `IdentityFile`, `ProxyJump`, `Local/Remote/DynamicForward`, `Include` (with loop and depth protection). Unsupported directives such as `ProxyCommand` produce warnings.
 - **Consequences**: fewer directives than OpenSSH supports (no `Match`, no token expansion); round-trip export → import is covered by tests.
 
@@ -111,9 +112,9 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 
 - **Status**: accepted.
 - **Context**: Wails v2 creates one native window per process. Settings should be a real window (own title bar, macOS full screen, movable outside the main window), not a popup layer.
-- **Decision**: `vvterm --settings` starts a second process of the same binary. It opens no database and no vault. The main process runs a `Bridge` (`app/bridge.go`): HTTP on `127.0.0.1` with a random token in a `0600` file (`settings-ipc.json`), exposing an explicit allow-list of use case methods (`SettingsService`, the security methods of `VaultService`, `SyncService`). After a change it emits `bridge:changed` so the main window reloads. The Settings process quits when the main process quits (the launcher kills it on shutdown; a heartbeat covers a crash). Where there is no native window (browser mode, E2E) the frontend falls back to the in-app Settings window.
+- **Decision**: `vutty --settings` starts a second process of the same binary. It opens no database and no vault. The main process runs a `Bridge` (`app/bridge.go`): HTTP on `127.0.0.1` with a random token in a `0600` file (`settings-ipc.json`), exposing an explicit allow-list of use case methods (`SettingsService`, the security methods of `VaultService`, `SyncService`). After a change it emits `bridge:changed` so the main window reloads. The Settings process quits when the main process quits (the launcher kills it on shutdown; a heartbeat covers a crash). Where there is no native window (browser mode, E2E) the frontend falls back to the in-app Settings window.
 - **Consequences**: use cases stay in one process (no second SQLite or vault writer); the bridge is a new local attack surface, kept small by the token, loopback binding and the allow-list; the Settings process shows a second Dock icon while it is open.
 
 ### ADR-0006 addendum: app windows (Duplicate in new window)
 
-The same bridge now carries a second kind of client: an **app window** (`vvterm --window`), the whole UI in another process. The delivery layer stays thin: `Bridge.DispatchApp` reflects over the existing use case services (no new use case, no new port), `/events` hands the main process's emitted events to the window (terminal and SFTP events only for sessions the window opened, found through `Bridge.watch`), and in the window the frontend's `window.go.usecase` is a proxy to `/appcall`. Dependencies still point inward: `internal/domain ← usecase ← adapters`, and only `app/` knows about processes, ports and tokens. `archtest` is unchanged and still green.
+The same bridge now carries a second kind of client: an **app window** (`vutty --window`), the whole UI in another process. The delivery layer stays thin: `Bridge.DispatchApp` reflects over the existing use case services (no new use case, no new port), `/events` hands the main process's emitted events to the window (terminal and SFTP events only for sessions the window opened, found through `Bridge.watch`), and in the window the frontend's `window.go.usecase` is a proxy to `/appcall`. Dependencies still point inward: `internal/domain ← usecase ← adapters`, and only `app/` knows about processes, ports and tokens. `archtest` is unchanged and still green.

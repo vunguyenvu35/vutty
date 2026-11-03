@@ -46,7 +46,7 @@ function TypeSwitch({value, onChange}: {value: ForwardType; onChange(t: ForwardT
 const validPort = (s: string) => /^\d+$/.test(s.trim()) && Number(s) >= 1 && Number(s) <= 65535
 
 /**
- * The docked "New Port Forwarding" panel, a wizard like Termius: type → port and bind address → host →
+ * The docked "New Port Forwarding" panel, a wizard: type → port and bind address → host →
  * destination → label. "Skip wizard" (and editing a rule) shows everything on one page instead.
  */
 export function ForwardPanel({hosts, groups = [], forward, hostId, onClose, onChanged, onDraft}: Props) {

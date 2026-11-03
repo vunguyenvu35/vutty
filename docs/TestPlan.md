@@ -1,4 +1,4 @@
-<p align="center"><img src="brand/logo-mark-256.png" alt="VVTerm" width="88"></p>
+<p align="center"><img src="brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
 # Test plan
 
@@ -45,9 +45,9 @@ The authoritative, always-current list of automated test cases is [TestInventory
 
 ## Manual checklist before a release
 
-- [ ] Settings opens as its own macOS window (⌘ + ,), the green button gives full screen, a second ⌘ + , raises it, changes (zoom, theme, shortcut) show up in the main window at once, and quitting VVTerm closes it.
+- [ ] Settings opens as its own macOS window (⌘ + ,), the green button gives full screen, a second ⌘ + , raises it, changes (zoom, theme, shortcut) show up in the main window at once, and quitting Vutty closes it.
 
-Not covered by automation; run on a real Mac build (`make build`, open `build/bin/vvterm.app`):
+Not covered by automation; run on a real Mac build (`make build`, open `build/bin/vutty.app`):
 
 1. Native file dialogs work for: Import config, Export folder, Save backup, Choose key.
 2. Keychain unlock: enable, quit, relaunch, unlock with the keychain; confirm the macOS prompt behaviour.
@@ -56,12 +56,14 @@ Not covered by automation; run on a real Mac build (`make build`, open `build/bi
 5. Sync against a real private remote (GitHub/GitLab) using ssh-agent and using a credential helper.
 6. Sleep/wake the Mac with the vault unlocked (see the sleep-lock gap in [Assessment](Assessment.md)).
 7. Window resize and split panes with a full-screen program (`vim`, `htop`).
-8. **Duplicate in new window** on a real build: the new window shows the whole app with the host open, shares the unlocked vault, its sessions end when it is closed, and quitting VVTerm closes it.
+8. **Duplicate in new window** on a real build: the new window shows the whole app with the host open, shares the unlocked vault, its sessions end when it is closed, and quitting Vutty closes it.
 9. **Settings window**: Esc closes it, its title is centred, the menu bar stays File / Edit / View / Window / Help, and no second icon appears in the Dock.
-10. **Drag a tab onto a pane** while a command runs in both: neither session reconnects or loses output. Then *Move pane to its own tab*.
+10. **Drag a tab onto a pane** while a command runs in both: neither session reconnects or loses output. Then *Move pane to its own tab*. Also drag a pane by its header: onto a side of another pane, up onto the tab bar (a tab of its own) and onto another tab; the same checks apply (no reconnect, no lost output).
 11. **Connecting screen** against a slow or unreachable host: the line moves slowly, stops and turns red on failure; Retry works; a wrong password shows the reason.
-12. Type Vietnamese with the system's Telex input and with a global input tool (GoTiengViet / OpenKey) in a terminal, and check the log has no *getApplicationProperty* line from VVTerm.
+12. Type Vietnamese with the system's Telex input and with a global input tool (GoTiengViet / OpenKey) in a terminal, and check the log has no *getApplicationProperty* line from Vutty.
 13. **Dock and app switcher icon**, the Caps Lock hint in the unlock field, and right-click anywhere (no *Look Up* / *Inspect Element* menu).
+
+14. **Secure input** (macOS): while a password field has the keyboard, OpenKey / GoTiengViet are off (that is macOS). Click an empty part of the unlock card, unlock, then run `ioreg -l -w 0 | grep kCGSSessionSecureInputPID`: it must print nothing. Do the same after closing a panel with a password field (Settings → Security, New key with a passphrase).
 
 ## Test data and environments
 

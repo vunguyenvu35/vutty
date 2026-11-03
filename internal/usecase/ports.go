@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/sshx"
+	"vutty/internal/domain"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/sshx"
 )
 
 // Emitter delivers an event to the frontend. The delivery layer (Wails) supplies it.
@@ -74,7 +74,13 @@ type SecretVault interface {
 	Header() (domain.VaultHeader, error)
 	Secrets() []domain.Secret
 	ReplaceSecrets([]domain.Secret) error
+	// CheckKey fails when the key in use is not the one of the header: such a vault must not send anything to a repository.
+	CheckKey() error
+	// Unreadable lists the ids of the saved secrets that the key in use cannot open.
+	Unreadable() ([]string, error)
 	Adopt(masterPassword string, h domain.VaultHeader, secrets []domain.Secret) error
+	// AdoptKey switches an unlocked vault to the key (and master password) of the vault a sync repository belongs to.
+	AdoptKey(masterPassword string, h domain.VaultHeader) error
 	SealBlob(plain, aad []byte) ([]byte, error)
 	OpenBlob(blob, aad []byte) ([]byte, error)
 }
@@ -88,8 +94,11 @@ type RemoteFS interface {
 	Rename(from, to string) error
 	Chmod(path string, mode uint32) error
 	Remove(path string, recursive bool) error
-	Upload(local, remote string, overwrite bool, progress func(done, total int64)) error
-	Download(remote, local string, overwrite bool, progress func(done, total int64)) error
+	Stat(path string) (domain.RemoteEntry, error)
+	// Upload and Download stop when ctx is cancelled. A transfer that stops early keeps its partial file and
+	// continues from it next time, unless the cancellation cause is domain.ErrTransferDiscarded.
+	Upload(ctx context.Context, local, remote string, overwrite bool, progress func(done, total int64)) error
+	Download(ctx context.Context, remote, local string, overwrite bool, progress func(done, total int64)) error
 	Close() error
 }
 
@@ -133,7 +142,7 @@ type ActivityLog interface {
 type Agent interface {
 	ID() string
 	Name() string
-	// SupportsMCP is true when the adapter can be limited to the VVTerm gateway as its only tool channel.
+	// SupportsMCP is true when the adapter can be limited to the Vutty gateway as its only tool channel.
 	SupportsMCP() bool
 	Detect(ctx context.Context) assistant.Status
 	// Models loads the models from the provider itself; nil means the provider cannot list them.

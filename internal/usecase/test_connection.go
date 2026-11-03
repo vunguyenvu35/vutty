@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/sshx"
+	"vutty/internal/domain"
+	"vutty/internal/sshx"
 )
 
 // ConnectionTest is the outcome of SessionService.TestConnection. Failures a user can fix (wrong
@@ -53,7 +53,7 @@ func (s *SessionService) TestConnection(h domain.Host, password, promptKey strin
 		if strings.TrimSpace(h.Username) == "" {
 			return ConnectionTest{}, errors.New("a username is required to test a password")
 		}
-		last = sshx.Hop{Label: h.Label, Hostname: h.Hostname, Port: h.Port, Username: h.Username, Auth: sshx.PasswordAuth(password)}
+		last = sshx.Hop{Label: h.Label, Hostname: h.Hostname, Port: h.Port, Username: h.Username, Auth: sshx.SavedPassword(password), Password: password}
 	} else {
 		var err error
 		if last, err = s.c.hopFor(h); err != nil {

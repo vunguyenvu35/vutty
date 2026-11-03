@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/sshx"
+	"vutty/internal/domain"
+	"vutty/internal/sshx"
 )
 
 // record adds a line to the activity log and tells the UI. It never fails the action it describes: a log
@@ -44,6 +44,12 @@ func (c *Core) hostLabel(hostID string) string {
 
 // logEnd records how a terminal session ended: by the user, by the server, or never started.
 func (s *SessionService) logEnd(sess *session, reason string, clean bool) {
+	sess.mu.Lock()
+	lg := sess.log
+	sess.mu.Unlock()
+	if lg != nil {
+		lg.Close(reason)
+	}
 	switch {
 	case clean:
 		s.c.record(domain.ActDisconnect, sess.hostID, "", "Session ended", true)

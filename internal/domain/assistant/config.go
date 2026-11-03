@@ -190,7 +190,7 @@ type ToolServer interface {
 	Close()
 }
 
-// GatewayHooks are where VVTerm enforces its rules on every tool call the agent makes.
+// GatewayHooks are where Vutty enforces its rules on every tool call the agent makes.
 type GatewayHooks struct {
 	// Authorize may block a call (a non-nil error is told to the agent). It may wait for the user.
 	Authorize func(server, tool string, args json.RawMessage) error

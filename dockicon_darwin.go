@@ -19,7 +19,7 @@ static void setDockIcon(const void *bytes, int length) {
 }
 
 // hideFromDock keeps a helper process (the Settings window, a terminal window) out of the Dock and the app
-// switcher: it is a window of VVTerm, not a second app. The window stays and is brought to the front.
+// switcher: it is a window of Vutty, not a second app. The window stays and is brought to the front.
 static void activateSelf(void) {
     if (@available(macOS 14.0, *)) {
         [NSApp activate]; // activateIgnoringOtherApps does nothing since macOS 14

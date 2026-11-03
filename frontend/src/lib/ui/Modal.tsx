@@ -31,7 +31,7 @@ export function Field(props: {label: string; children: ReactNode}) {
 }
 
 /**
- * Right-docked panel (Termius-style) for creating/editing things without leaving the page.
+ * Right-docked panel for creating/editing things without leaving the page.
  * Same contract as Modal: role="dialog", Escape closes.
  */
 export function SidePanel(props: {title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean}) {

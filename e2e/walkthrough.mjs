@@ -1,7 +1,7 @@
-// End-to-end walkthrough of VVTerm against the real Go backend (wails dev -browser) and two
+// End-to-end walkthrough of Vutty against the real Go backend (wails dev -browser) and two
 // demo SSH servers. Every step asserts behaviour, and screenshots are written to docs/screenshots.
 //
-//   VVTERM_URL=http://localhost:34115 DEMOSERVER=/path/to/demoserver SSH_CONFIG_DIR=/path node walkthrough.mjs
+//   VUTTY_URL=http://localhost:34115 DEMOSERVER=/path/to/demoserver SSH_CONFIG_DIR=/path node walkthrough.mjs
 import {chromium} from 'playwright'
 import {spawn} from 'node:child_process'
 import net from 'node:net'
@@ -16,7 +16,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // Screenshots go to SHOT_DIR, outside the repo while the app runs: `wails dev` watches the project
 // and would reload on every new file. run.sh copies them into docs/screenshots afterwards.
 const OUT = process.env.SHOT_DIR ?? path.resolve(here, '..', 'docs', 'screenshots')
-const URL = process.env.VVTERM_URL ?? 'http://localhost:34115'
+const URL = process.env.VUTTY_URL ?? 'http://localhost:34115'
 const DEMO = process.env.DEMOSERVER
 const SSH_CONFIG = path.join(process.env.SSH_CONFIG_DIR ?? '', 'config')
 const MASTER = 'correct horse battery staple'
@@ -53,7 +53,8 @@ const browser = await chromium.launch()
 const page = await (await browser.newContext({viewport: {width: 1360, height: 860}})).newPage()
 page.setDefaultTimeout(15000)
 const pageErrors = []
-page.on('pageerror', e => pageErrors.push(String(e)))
+// the Wails dev-server shim (/wails/ipc.js, only there in `wails dev -browser`) throws on its own now and then: not the app's
+page.on('pageerror', e => { if (!String(e.stack).includes('/wails/ipc.js')) pageErrors.push(String(e)) })
 // Browser mode has no native file dialogs, so the app falls back to prompt(); confirm() is the
 // "replace?" / "delete?" / "close tab?" question. The walkthrough answers both.
 let promptAnswer = ''
@@ -232,9 +233,9 @@ try {
   // the connecting screen's line runs to its end first, then the terminal shows
   await page.getByRole('status', {name: 'Connecting'}).waitFor({state: 'detached'})
   await page.locator('.pane').click()
-  await page.keyboard.type('hello vvterm')
+  await page.keyboard.type('hello vutty')
   await page.keyboard.press('Enter')
-  await waitTerm('ECHO:hello vvterm')
+  await waitTerm('ECHO:hello vutty')
   await shot(page, 'terminal-via-jump-host')
 
   await goHome()
@@ -344,9 +345,9 @@ try {
   await page.getByRole('button', {name: 'Open group legacy-staging'}).waitFor()
 
   step('SFTP: two panes, several files and folders, drag and drop, replace, rename and delete on the real SFTP subsystem')
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vvterm-e2e-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vutty-e2e-'))
   const write = (rel, body) => { const p = path.join(tmp, rel); fs.mkdirSync(path.dirname(p), {recursive: true}); fs.writeFileSync(p, body) }
-  write('upload-me.txt', 'hello from vvterm\n')
+  write('upload-me.txt', 'hello from vutty\n')
   write('extra.txt', 'extra v1\n')
   write('bundle/one.txt', '1')
   write('bundle/two.txt', '22')
@@ -370,6 +371,11 @@ try {
   const remotePane = sftp.getByRole('region', {name: 'Remote'})
   const lrow = name => localPane.getByRole('row', {name: new RegExp('^' + name.replace('.', '\\.'))})
   const rrow = name => remotePane.getByRole('row', {name: new RegExp('^' + name.replace('.', '\\.'))})
+  // every file action lives in the pane's Actions menu (the same one as the right-click menu)
+  const act = async (pane, item) => {
+    await pane.getByRole('button', {name: 'Actions'}).click()
+    await page.getByRole('menu', {name: 'Actions'}).getByRole('menuitem', {name: item}).click()
+  }
   await rrow('notes.txt').waitFor()
   assert.equal(await remotePane.getByLabel('Remote path').inputValue(), '/', 'opens in the remote home folder')
   await localPane.getByLabel('Local path').fill(tmp)
@@ -379,18 +385,21 @@ try {
 
   // one file with the button
   await lrow('upload-me.txt').click()
-  await localPane.getByRole('button', {name: 'Upload selected'}).click()
+  await act(localPane, 'Upload')
   await rrow('upload-me.txt').waitFor()
-  await sftp.getByRole('status', {name: 'Transfer progress'}).waitFor()
+  const queue = sftp.getByRole('region', {name: 'Transfers'}) // transfers run in a queue now
+  await queue.waitFor()
+  await queue.getByRole('listitem', {name: 'upload-me.txt'}).filter({hasText: 'Done'}).waitFor()
   await shot(page, 'sftp-transfer')
-  await sftp.getByRole('status', {name: 'Transfer progress'}).waitFor({state: 'detached'}) // goes away by itself
+  await queue.getByRole('button', {name: 'Clear finished'}).click()
+  await queue.waitFor({state: 'detached'}) // nothing left to show
 
   // a folder and a file together: Cmd/Ctrl-click, then one Upload
   await lrow('bundle').click()
   await lrow('extra.txt').click({modifiers: mod})
   await localPane.getByRole('status').filter({hasText: '2 selected'}).waitFor()
   await shot(page, 'sftp-multi-select')
-  await localPane.getByRole('button', {name: 'Upload selected'}).click()
+  await act(localPane, 'Upload')
   await rrow('bundle').waitFor()
   await rrow('extra.txt').waitFor()
   await rrow('bundle').dblclick()
@@ -404,7 +413,7 @@ try {
   // uploading again asks once before replacing, in the app (a desktop webview has no confirm())
   write('extra.txt', 'extra v2\n')
   await lrow('extra.txt').click()
-  await localPane.getByRole('button', {name: 'Upload selected'}).click()
+  await act(localPane, 'Upload')
   const replace = page.getByRole('alertdialog', {name: 'Confirm'})
   await replace.waitFor()
   assert.match(await replace.textContent(), /extra\.txt already exists/)
@@ -415,7 +424,7 @@ try {
   // drag a remote file onto the local pane
   await rrow('notes.txt').dragTo(localPane.getByRole('table', {name: 'Local files'}))
   for (let i = 0; i < 50 && !fs.existsSync(path.join(tmp, 'notes.txt')); i++) await sleep(100)
-  assert.equal(fs.readFileSync(path.join(tmp, 'notes.txt'), 'utf8'), 'VVTerm demo notes\n', 'a dragged file arrives with its content')
+  assert.equal(fs.readFileSync(path.join(tmp, 'notes.txt'), 'utf8'), 'Vutty demo notes\n', 'a dragged file arrives with its content')
 
   // download a remote folder into the downloads folder, with its subfolders
   await lrow('downloads').dblclick()
@@ -429,7 +438,7 @@ try {
 
   // rename, then delete two items after one confirmation
   await rrow('extra.txt').click()
-  await remotePane.getByRole('button', {name: 'Rename'}).click()
+  await act(remotePane, 'Rename')
   await remotePane.getByLabel('Name').fill('extra-renamed.txt')
   await remotePane.getByLabel('Name').press('Enter')
   await rrow('extra-renamed.txt').waitFor()
@@ -437,7 +446,7 @@ try {
   await rrow('extra-renamed.txt').click({button: 'right'})
   const ctx = page.getByRole('menu', {name: 'File menu'})
   await ctx.waitFor()
-  assert.deepEqual(await ctx.getByRole('menuitem').allTextContents(), ['Open', 'Open with…', 'Copy to target directory', 'Rename', 'Delete', 'Refresh', 'New Folder', 'Edit Permissions'])
+  assert.deepEqual(await ctx.getByRole('menuitem').allTextContents(), ['Open', 'Open with…', 'Edit and save back', 'Download', 'Rename', 'Delete', 'Refresh', 'New Folder', 'Hide Hidden Files', 'Edit Permissions', 'Select All', 'Close'])
   await shot(page, 'sftp-context-menu')
   await ctx.getByRole('menuitem', {name: 'Edit Permissions'}).click()
   await L('Octal permissions').fill('600')
@@ -446,7 +455,7 @@ try {
   await page.getByRole('dialog').waitFor({state: 'detached'})
   await rrow('bundle').click()
   await rrow('extra-renamed.txt').click({modifiers: mod})
-  await remotePane.getByRole('button', {name: 'Delete'}).click()
+  await act(remotePane, 'Delete')
   const del = page.getByRole('alertdialog', {name: 'Confirm'})
   assert.match(await del.textContent(), /these 2 items/)
   await del.getByRole('button', {name: 'Delete'}).click()
@@ -463,13 +472,17 @@ try {
   // wait for the shell's prompt: what is typed before the shell is ready has nowhere to go
   await page.waitForFunction(() => (Array.from(document.querySelectorAll('.xterm-rows')).at(-1)?.textContent ?? '').trim().length > 0, null, {timeout: 30000})
   await page.locator('.pane').last().click()
-  await page.keyboard.type('echo vvterm-local-$((6*7))')
+  // like a person, wait for the shell to echo what was typed before Enter: only echoed lines go to the history
+  await page.keyboard.type('echo vutty-local-$((6*7))')
+  await waitTerm('echo vutty-local-$((6*7))')
   await page.keyboard.press('Enter')
-  await waitTerm('vvterm-local-42')
-  // finished lines get Termius-style colours: the word ERROR is red, an IP address yellow, a path blue
-  await page.keyboard.type('echo ERROR 10.0.0.1 /tmp/vvterm')
+  await waitTerm('vutty-local-42')
+  // finished lines get colours: the word ERROR is red, an IP address yellow, a path blue
+  await page.keyboard.type('echo ERROR 10.0.0.1 /tmp/vutty')
+  await waitTerm('echo ERROR 10.0.0.1 /tmp/vutty')
   await page.keyboard.press('Enter')
   await page.keyboard.type('echo done-line')
+  await waitTerm('echo done-line')
   await page.keyboard.press('Enter')
   await waitTerm('done-line')
   const colourOf = word => page.waitForFunction(w => {
@@ -485,7 +498,7 @@ try {
   await page.getByRole('button', {name: 'History'}).click()
   const history = page.getByRole('list', {name: 'History'})
   await history.getByRole('button', {name: 'echo done-line'}).waitFor()
-  assert.equal(await history.getByText('vvterm-local-$((6*7))').count() > 0, true, 'a typed command is in the history')
+  assert.equal(await history.getByText('vutty-local-$((6*7))').count() > 0, true, 'a typed command is in the history')
   await shot(page, 'sidebar-history')
   await page.getByRole('button', {name: 'Themes and font'}).click()
   await page.getByRole('listbox', {name: 'Themes'}).getByRole('option', {name: /Dracula/}).click()
@@ -580,6 +593,10 @@ try {
   await win.getByRole('button', {name: 'Save profile'}).click()
   await win.locator('.avatar', {hasText: 'V'}).waitFor()
   assert.equal(await win.getByRole('button', {name: 'Sign in'}).isDisabled(), true)
+
+  // the update check asks GitHub for the latest release (a dev build is never told to update)
+  await win.getByRole('button', {name: 'Check for updates'}).click()
+  await page.getByText('You are on the latest version').waitFor()
   await shot(page, 'settings-account')
 
   // the window can be maximised, restored, and rolled up
@@ -603,7 +620,7 @@ try {
   await win.getByRole('tab', {name: 'Security'}).click()
   await shot(page, 'settings-security')
   await win.getByRole('tab', {name: 'Sync'}).click()
-  await page.getByRole('region', {name: 'Sync via Git'}).waitFor()
+  await page.getByRole('region', {name: 'Sync', exact: true}).waitFor()
   await shot(page, 'sync')
   // Shortcuts: record a new combination, see it work, then reset
   await win.getByRole('tab', {name: 'Shortcuts'}).click()
@@ -664,7 +681,7 @@ try {
   await page.getByRole('form', {name: 'Unlock vault'}).waitFor()
   await L('Master password').fill('wrong password here')
   await page.getByRole('button', {name: 'Unlock'}).click()
-  await page.getByRole('alert').filter({hasText: 'wrong master password'}).waitFor()
+  await page.getByRole('alert').filter({hasText: 'Incorrect master password'}).waitFor()
   await shot(page, 'unlock-wrong-password')
   await L('Master password').fill(MASTER)
   await page.getByRole('button', {name: 'Unlock'}).click()

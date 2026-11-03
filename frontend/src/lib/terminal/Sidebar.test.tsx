@@ -1,7 +1,7 @@
 import {fireEvent, render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {TerminalSidebar, FONT_MAX, FONT_MIN, SIDE_DEFAULT, SIDE_MIN} from './Sidebar'
-import {clearHistory, recordCommand} from './history'
+import {clearHistory, getHistory, recordCommand} from './history'
 import {TERMINAL_THEMES} from './themes'
 import {DEFAULT_SETTINGS} from '../settings/defaults'
 import {host} from '../../test/fakeBackend'
@@ -11,10 +11,10 @@ import type {Group, Snippet} from '../types'
 
 const snippets: Snippet[] = [{id: 's1', label: 'Docker Full clean', script: 'docker stop $(docker ps -aq)'}, {id: 's2', label: 'Disk', script: 'df -h'}]
 
-function setup(tab: SidebarTab, over: Partial<typeof DEFAULT_SETTINGS> = {}) {
+function setup(tab: SidebarTab, over: Partial<typeof DEFAULT_SETTINGS> = {}, hostId = 'h1') {
   const cb = {onTab: vi.fn(), onInsert: vi.fn(), onNewSnippet: vi.fn(), onConnect: vi.fn(), onSettings: vi.fn()}
   const hosts = [host({id: 'h1', label: 'web-1', hostname: 'w1.example.com'}), host({id: 'h2', label: 'db-1', hostname: 'db.example.com'})]
-  render(<TerminalSidebar tab={tab} hosts={hosts} snippets={snippets} settings={{...DEFAULT_SETTINGS, ...over}} appearance="dark" {...cb} />)
+  render(<TerminalSidebar tab={tab} hosts={hosts} snippets={snippets} settings={{...DEFAULT_SETTINGS, ...over}} appearance="dark" hostId={hostId} {...cb} />)
   return cb
 }
 
@@ -123,10 +123,10 @@ describe('TerminalSidebar hosts tree', () => {
 })
 
 describe('TerminalSidebar', () => {
-  it('has the five sections and tells which one is open', async () => {
+  it('has the six sections and tells which one is open', async () => {
     const cb = setup('snippets')
     const bar = screen.getByRole('toolbar', {name: 'Sidebar sections'})
-    expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Hosts', 'Snippets', 'History', 'Themes and font', 'AI assistant'])
+    expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Hosts', 'Snippets', 'History', 'Files (SFTP)', 'Themes and font', 'AI assistant'])
     expect(within(bar).getByRole('button', {name: 'Snippets'})).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(within(bar).getByRole('button', {name: 'History'}))
     expect(cb.onTab).toHaveBeenCalledWith('history')
@@ -170,8 +170,8 @@ describe('TerminalSidebar', () => {
   })
 
   it('History: lists typed commands, filters, types and clears them', async () => {
-    recordCommand('ls -la')
-    recordCommand('docker ps')
+    recordCommand('h1', 'ls -la')
+    recordCommand('h1', 'docker ps')
     const cb = setup('history')
     expect(within(screen.getByRole('list', {name: 'History'})).getAllByRole('button').map(i => i.textContent)).toEqual(['docker ps', 'ls -la'])
     await userEvent.type(screen.getByLabelText('Search history'), 'ls')
@@ -180,7 +180,17 @@ describe('TerminalSidebar', () => {
     expect(cb.onInsert).toHaveBeenCalledWith('ls -la', false)
     await userEvent.clear(screen.getByLabelText('Search history'))
     await userEvent.click(screen.getByRole('button', {name: 'Clear history'}))
-    expect(screen.getByText(/Commands you type will show up here/)).toBeInTheDocument()
+    expect(screen.getByText(/Commands you type on this host will show up here/)).toBeInTheDocument()
+  })
+
+  it('History: shows only the commands of the focused host, and clearing keeps the others', async () => {
+    recordCommand('h1', 'systemctl status nginx')
+    recordCommand('local', 'cd Data/projects')
+    setup('history', {}, 'local')
+    expect(within(screen.getByRole('list', {name: 'History'})).getAllByRole('button').map(i => i.textContent)).toEqual(['cd Data/projects'])
+    await userEvent.click(screen.getByRole('button', {name: 'Clear history'}))
+    expect(screen.getByText(/Commands you type on this host/)).toBeInTheDocument()
+    expect(getHistory('h1')).toEqual(['systemctl status nginx'])
   })
 
   it('Themes: lists the themes as pictures, marks the current one and picks another', async () => {

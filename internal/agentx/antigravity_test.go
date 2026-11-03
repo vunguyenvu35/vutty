@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 func TestAntigravityModelsAndSignInComeFromAgyModels(t *testing.T) {
@@ -46,7 +46,7 @@ func TestAntigravityRunsWithDenyRulesAndTreatsARunToolAsAViolation(t *testing.T)
 	}
 	b, _ := os.ReadFile(rec)
 	got := string(b)
-	for _, want := range []string{"ARG:--settings", `"deny":["command(*)","mcp(*)"`, `"allow":[]`, "ARG:--print", "vvterm-agent-"} {
+	for _, want := range []string{"ARG:--settings", `"deny":["command(*)","mcp(*)"`, `"allow":[]`, "ARG:--print", "vutty-agent-"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in\n%s", want, got)
 		}

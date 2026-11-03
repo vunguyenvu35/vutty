@@ -1,6 +1,6 @@
 import {render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {HostList, parseQuickConnect} from './HostList'
+import {connectTarget, HostList, parseQuickConnect} from './HostList'
 import {host} from '../../test/fakeBackend'
 import type {Group} from '../types'
 
@@ -42,6 +42,18 @@ describe('HostList', () => {
     expect(labels()).toEqual(['cdn-1'])
     await userEvent.click(screen.getByRole('button', {name: 'All hosts'}))
     expect(labels().sort()).toEqual(['box', 'cdn-1', 'db-1', 'web-1'])
+  })
+
+  it('tells the page which group is open, so a new host or group can start in it', async () => {
+    const onGroupChange = vi.fn()
+    setup({onGroupChange})
+    expect(onGroupChange).toHaveBeenLastCalledWith('')
+    await userEvent.click(screen.getByRole('button', {name: 'Open group prod-cluster'}))
+    expect(onGroupChange).toHaveBeenLastCalledWith('g1')
+    await userEvent.click(screen.getByRole('button', {name: 'Open group edge'}))
+    expect(onGroupChange).toHaveBeenLastCalledWith('g2')
+    await userEvent.click(screen.getByRole('button', {name: 'All hosts'}))
+    expect(onGroupChange).toHaveBeenLastCalledWith('')
   })
 
   it('searches across all groups by label, hostname, user and tag', async () => {
@@ -116,6 +128,60 @@ describe('quick connect', () => {
     expect(cb.onConnect).not.toHaveBeenCalled()
   })
 
+  it('a half-typed search only filters: Connect stays off and Enter does nothing, even with a single match', async () => {
+    const cb = setup()
+    const box = screen.getByLabelText('Search hosts')
+    await userEvent.type(box, '10.1{Enter}') // one host matches, but this is not its address yet
+    expect(labels()).toEqual(['box'])
+    expect(screen.getByRole('button', {name: 'Connect'})).toBeDisabled()
+    expect(cb.onConnect).not.toHaveBeenCalled()
+    expect(cb.onQuickConnect).not.toHaveBeenCalled()
+    await userEvent.clear(box)
+    await userEvent.type(box, 'web')
+    expect(screen.getByRole('button', {name: 'Connect'})).toBeDisabled()
+  })
+
+  it('Connect turns on when the text is exactly one saved host: its name, its address or user@address', async () => {
+    const cb = setup()
+    const box = screen.getByLabelText('Search hosts')
+    await userEvent.type(box, 'web-1')
+    expect(screen.getByRole('button', {name: 'Connect'})).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', {name: 'Connect'}))
+    expect(cb.onConnect).toHaveBeenLastCalledWith(hosts[0])
+    await userEvent.clear(box)
+    await userEvent.type(box, 'db.internal{Enter}')
+    expect(cb.onConnect).toHaveBeenLastCalledWith(hosts[2])
+  })
+
+  it('an address that is not finished yet does not start a new host; a finished one does', async () => {
+    const cb = setup()
+    const box = screen.getByLabelText('Search hosts')
+    await userEvent.type(box, '192.168.1{Enter}')
+    expect(screen.getByRole('button', {name: 'Connect'})).toBeDisabled()
+    await userEvent.type(box, '.20{Enter}')
+    expect(cb.onQuickConnect).toHaveBeenCalledWith({username: '', hostname: '192.168.1.20', port: 22})
+  })
+
+  it.each([
+    ['54', false], ['web', false], ['10.0', false], ['10.0.0.256', false], ['new.e', false],
+    ['10.0.0.1', true], ['new.example.org', true], ['u@h', true], ['ssh nas', true], ['h:22', true], ['localhost', true],
+  ])('connectTarget on %j with no saved host matching: new host is %s', (text, yes) => {
+    expect(connectTarget(text, [], true) !== null).toBe(yes)
+  })
+
+  it('an ssh:// link typed or pasted in the bar is a complete address, like ssh user@host', async () => {
+    const cb = setup()
+    await userEvent.type(screen.getByLabelText('Search hosts'), 'ssh://deploy@new.example.org:2200/{Enter}')
+    expect(cb.onQuickConnect).toHaveBeenCalledWith({username: 'deploy', hostname: 'new.example.org', port: 2200})
+    expect(connectTarget('ssh://nas', [], true)).toEqual({quick: {username: '', hostname: 'nas', port: 22}}) // the prefix says it is meant
+    expect(connectTarget('ssh://alice@10.1.1.1', [hosts[3]], true)).toEqual({host: hosts[3]}) // a saved host, named in full
+  })
+
+  it('connectTarget never starts a new host while saved hosts still match, or when new hosts are not offered', () => {
+    expect(connectTarget('ssh root@10.0.0.1', [hosts[3]], true)).toBeNull()
+    expect(connectTarget('10.0.0.1', [], false)).toBeNull()
+  })
+
   it('Connect is disabled until something is typed', () => {
     setup()
     expect(screen.getByRole('button', {name: 'Connect'})).toBeDisabled()
@@ -126,6 +192,9 @@ describe('quick connect', () => {
     ['host.example.com', {username: '', hostname: 'host.example.com', port: 22}],
     ['u@h:2222', {username: 'u', hostname: 'h', port: 2222}],
     ['SSH   u@h', {username: 'u', hostname: 'h', port: 22}],
+    ['ssh://deploy@new.example.org:2200', {username: 'deploy', hostname: 'new.example.org', port: 2200}],
+    ['SSH://root@10.0.0.5/', {username: 'root', hostname: '10.0.0.5', port: 22}],
+    ['ssh://host.example', {username: '', hostname: 'host.example', port: 22}],
   ])('parses %s', (text, want) => expect(parseQuickConnect(text)).toEqual(want))
 
   it.each(['', 'a b c', 'h:99999', '@h', 'user@'])('rejects %j', text => expect(parseQuickConnect(text)).toBeNull())
@@ -193,7 +262,7 @@ describe('HostList: Telnet action', () => {
 })
 
 describe('HostList: Grid / List view', () => {
-  beforeEach(() => { try { localStorage.removeItem('vvterm.hostsView') } catch { /* ignore */ } })
+  beforeEach(() => { try { localStorage.removeItem('vutty.hostsView') } catch { /* ignore */ } })
   const hostsEl = () => screen.getByRole('list', {name: 'Hosts'})
 
   it('starts as a grid; the View menu has a check on the current view', async () => {
@@ -216,11 +285,11 @@ describe('HostList: Grid / List view', () => {
     expect(hostsEl()).toHaveClass('as-list')
     expect(labels().sort()).toEqual(['box', 'cdn-1', 'db-1', 'web-1'])
     expect(screen.getByRole('button', {name: 'View'})).toHaveAttribute('title', 'List view')
-    expect(localStorage.getItem('vvterm.hostsView')).toBe('list')
+    expect(localStorage.getItem('vutty.hostsView')).toBe('list')
   })
 
   it('opens in the remembered view', () => {
-    localStorage.setItem('vvterm.hostsView', 'list')
+    localStorage.setItem('vutty.hostsView', 'list')
     setup()
     expect(hostsEl()).toHaveAttribute('data-view', 'list')
   })
@@ -342,5 +411,37 @@ describe('HostList: tag filter', () => {
     expect(screen.getByText(/No tags yet/)).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', {name: 'Filter by tag'})).toBeNull()
+  })
+})
+
+describe('HostList: sort', () => {
+  beforeEach(() => localStorage.clear())
+  const sortBy = async (name: RegExp) => { await userEvent.click(screen.getByRole('button', {name: 'Sort'})); await userEvent.click(screen.getByRole('menuitemradio', {name})) }
+
+  it('is sorted by name to begin with, and Name Z–A reverses it', async () => {
+    setup()
+    expect(labels()).toEqual(['box', 'cdn-1', 'db-1', 'web-1'])
+    await sortBy(/Name Z–A/)
+    expect(labels()).toEqual(['web-1', 'db-1', 'cdn-1', 'box'])
+  })
+
+  it('can put production first, or the hosts connected to most recently', async () => {
+    setup()
+    await sortBy(/Environment/)
+    expect(labels()).toEqual(['cdn-1', 'web-1', 'db-1', 'box']) // prod (by name), staging, dev
+    localStorage.setItem('vutty.recent', JSON.stringify(['b', 'c']))
+    await sortBy(/Recently connected/)
+    expect(labels()).toEqual(['db-1', 'box', 'cdn-1', 'web-1']) // the two opened last, then the rest by name
+  })
+
+  it('sorts the group cards too, and the order is remembered', async () => {
+    const {unmount} = render(<HostList groups={[{id: 'g1', name: 'zeta', sort_order: 0}, {id: 'g2', name: 'alpha', sort_order: 0}]} hosts={[]} onConnect={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onForwards={vi.fn()} onEditGroup={vi.fn()} onDeleteGroup={vi.fn()} onQuickConnect={vi.fn()} />)
+    const groupNames = () => screen.getAllByRole('button', {name: /^Open group /}).map(g => g.getAttribute('aria-label'))
+    expect(groupNames()).toEqual(['Open group alpha', 'Open group zeta'])
+    await sortBy(/Name Z–A/)
+    expect(groupNames()).toEqual(['Open group zeta', 'Open group alpha'])
+    unmount()
+    setup()
+    expect(labels()).toEqual(['web-1', 'db-1', 'cdn-1', 'box'])
   })
 })

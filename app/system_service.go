@@ -21,6 +21,8 @@ type SystemService struct {
 	openWindow   func(hostID, title string) error
 	menuFor      func(shortcuts map[string]string) *menu.Menu
 	menuKeys     map[string]string
+	links        sshLinks
+	updateDir    string // where an update is unpacked (inside the data folder)
 }
 
 func NewSystemService() *SystemService { return &SystemService{} }
@@ -146,10 +148,10 @@ func (s *SystemService) Info() AppInfo { return AppInfo{Version: Version} }
 
 var errNoDialog = errors.New("native dialogs are not available in this environment")
 
-// noDialogs is true without a Wails context, or when VVTERM_NO_NATIVE_DIALOGS is set (the end-to-end
+// noDialogs is true without a Wails context, or when VUTTY_NO_NATIVE_DIALOGS is set (the end-to-end
 // run sets it: the UI then falls back to simple prompts that a browser test can answer).
 func (s *SystemService) noDialogs() bool {
-	return s.ctx == nil || os.Getenv("VVTERM_NO_NATIVE_DIALOGS") != ""
+	return s.ctx == nil || os.Getenv("VUTTY_NO_NATIVE_DIALOGS") != ""
 }
 
 func (s *SystemService) PickFile(title string) (string, error) {
@@ -202,7 +204,7 @@ func (s *SystemService) SetClipboardText(text string) error {
 
 // allowedURLPrefixes are the only links the app opens in the browser (About page).
 var allowedURLPrefixes = []string{
-	"https://github.com/vunguyenvu35/vvterm",
+	"https://github.com/vunguyenvu35/vutty",
 	"https://ko-fi.com/vunguyenvu",
 }
 

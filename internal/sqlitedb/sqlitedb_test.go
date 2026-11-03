@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/store"
-	"vvterm/internal/vault"
+	"vutty/internal/domain"
+	"vutty/internal/store"
+	"vutty/internal/vault"
 )
 
 func open(t *testing.T) (*DB, string) {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "sub", "vvterm.db")
+	p := filepath.Join(t.TempDir(), "sub", "vutty.db")
 	d, err := Open(p)
 	if err != nil {
 		t.Fatal(err)
@@ -346,6 +346,26 @@ func TestHostTelnetAndThemeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestHostForwardAgentRoundTrips(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "f.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	now := time.Now()
+	data := domain.Data{Hosts: []domain.Host{
+		{Meta: domain.Meta{ID: "a", UpdatedAt: now}, Label: "bastion", Hostname: "10.0.0.2", Port: 22, CreatedAt: now, ForwardAgent: true},
+		{Meta: domain.Meta{ID: "b", UpdatedAt: now}, Label: "plain", Hostname: "10.0.0.3", Port: 22, CreatedAt: now},
+	}}
+	if err := d.StorePersister().Save(data); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := d.StorePersister().Load()
+	if err != nil || len(got.Hosts) != 2 || !got.Hosts[0].ForwardAgent || got.Hosts[1].ForwardAgent {
+		t.Fatalf("%v %+v", err, got.Hosts)
+	}
+}
+
 func TestIdentityCertificateRoundTrips(t *testing.T) {
 	d, err := Open(filepath.Join(t.TempDir(), "c.db"))
 	if err != nil {
@@ -446,7 +466,7 @@ func TestADatabaseAtTheNewestVersionStillGetsColumnsAddedLater(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range []string{"telnet_username", "telnet_encoding"} {
+	for _, c := range []string{"telnet_username", "telnet_encoding", "forward_agent"} {
 		if _, err := d.db.Exec(`ALTER TABLE hosts DROP COLUMN ` + c); err != nil {
 			t.Fatal(err)
 		}
@@ -460,7 +480,7 @@ func TestADatabaseAtTheNewestVersionStillGetsColumnsAddedLater(t *testing.T) {
 	if _, _, err := d.StorePersister().Load(); err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if _, err := d.db.Exec(`SELECT telnet_username, telnet_encoding FROM hosts`); err != nil {
+	if _, err := d.db.Exec(`SELECT telnet_username, telnet_encoding, forward_agent FROM hosts`); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -34,8 +34,31 @@ describe('HostForm: AI assistant', () => {
   })
 })
 
+describe('HostForm: group of a new host', () => {
+  it('starts in the group that is open on the hosts page and saves it', async () => {
+    const {be} = setup(undefined, {defaultGroupId: 'g1'})
+    await userEvent.type(screen.getByLabelText('Hostname'), 'a.example.com')
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(savedPayload(be)).toMatchObject({group_id: 'g1'}))
+  })
+
+  it('does not move an existing host into the open group', async () => {
+    const {be} = setup(host({id: 'h1', hostname: 'a.example.com'}), {defaultGroupId: 'g1'})
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(savedPayload(be)).toMatchObject({group_id: ''}))
+  })
+
+  it('a new group is created inside the open group', async () => {
+    const be = makeFake({})
+    render(<Providers be={be}><GroupForm groups={[{id: 'g1', name: 'prod', sort_order: 0}]} defaultParentId="g1" onClose={vi.fn()} onSaved={vi.fn()} /></Providers>)
+    await userEvent.type(screen.getByLabelText('Group name'), 'edge')
+    await userEvent.click(screen.getByRole('button', {name: /^(Save|Create)/}))
+    await waitFor(() => expect(be.state.groups.find(g => g.name === 'edge')).toMatchObject({parent_id: 'g1'}))
+  })
+})
+
 describe('HostForm', () => {
-  it('follows the Termius flow: address, general, port, credentials, options', () => {
+  it('follows the flow: address, general, port, credentials, options', () => {
     setup()
     const order = ['Hostname', 'Label', 'Group', 'Environment', 'Tags', 'Port', 'Username', 'Password', 'Identity', 'Jump host', 'Keepalive']
     const els = order.map(l => screen.getByLabelText(l))
@@ -349,5 +372,35 @@ describe('HostForm: Telnet and terminal theme', () => {
     await userEvent.click(screen.getByRole('option', {name: /Use the app setting/}))
     await userEvent.click(screen.getByRole('button', {name: 'Save'}))
     await waitFor(() => expect(savedPayload(be)).toMatchObject({terminal_theme: ''}))
+  })
+})
+
+describe('HostForm: forwarding the ssh-agent', () => {
+  it('is off for a new host and saved off', async () => {
+    const {be} = setup()
+    await userEvent.type(screen.getByLabelText('Hostname'), 'a.example.com')
+    expect(screen.getByRole('switch', {name: 'Forward my keys to this host'})).not.toBeChecked()
+    expect(screen.queryByRole('note')).toBeNull()
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(savedPayload(be)).toMatchObject({forward_agent: false}))
+  })
+
+  it('turning it on is saved, and warns about trusting the server (and about production)', async () => {
+    const {be} = setup()
+    await userEvent.type(screen.getByLabelText('Hostname'), 'a.example.com')
+    await userEvent.click(screen.getByRole('switch', {name: 'Forward my keys to this host'}))
+    expect(screen.getByRole('note')).toHaveTextContent('Turn this on only for a server you trust')
+    expect(screen.getByRole('note')).not.toHaveTextContent('production host')
+    await userEvent.selectOptions(screen.getByLabelText('Environment'), 'prod')
+    expect(screen.getByRole('note')).toHaveTextContent('This is a production host.')
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(savedPayload(be)).toMatchObject({forward_agent: true, env: 'prod'}))
+  })
+
+  it('shows and keeps the stored choice when a host is edited', async () => {
+    const {be} = setup(host({id: 'h9', hostname: 'a.example.com', forward_agent: true}))
+    expect(screen.getByRole('switch', {name: 'Forward my keys to this host'})).toBeChecked()
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(savedPayload(be)).toMatchObject({forward_agent: true}))
   })
 })

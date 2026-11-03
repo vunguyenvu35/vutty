@@ -62,7 +62,7 @@ func (c *HostKeyChecker) List() ([]KnownHost, error) {
 	return out, sc.Err()
 }
 
-// Remove makes VVTerm forget a host: the next connection asks again. It removes the host's name from every
+// Remove makes Vutty forget a host: the next connection asks again. It removes the host's name from every
 // line that carries that key (the whole line when it was the only name) and keeps everything else, comments
 // included, exactly as it was. It returns how many entries were removed.
 func (c *HostKeyChecker) Remove(host, fingerprint string) (int, error) {

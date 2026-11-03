@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/docs/TestInventory.md"
 cd "$ROOT"
 {
-  echo "<p align=\"center\"><img src=\"brand/logo-mark-256.png\" alt=\"VVTerm\" width=\"88\"></p>"
+  echo "<p align=\"center\"><img src=\"brand/logo-mark-256.png\" alt=\"Vutty\" width=\"88\"></p>"
   echo
   echo "# Test inventory"
   echo
@@ -19,7 +19,7 @@ cd "$ROOT"
     n=$(echo "$names" | wc -l | tr -d ' ')
     total=$((total + n))
     echo
-    echo "### \`${pkg#vvterm/}\` ($n)"
+    echo "### \`${pkg#vutty/}\` ($n)"
     echo
     echo "$names" | sed 's/^/- /'
   done

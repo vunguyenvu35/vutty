@@ -1,5 +1,5 @@
 /**
- * Output highlighting, like Termius: URLs, IP addresses, paths, dates and the words that tell you how a
+ * Output highlighting: URLs, IP addresses, paths, dates and the words that tell you how a
  * command went (error, warning, success) get a colour, so a screen of log lines can be read at a glance.
  *
  * It only paints; it never changes what is in the terminal. A line is looked at once, after it is

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 // fakeShell is an in-memory Shell: what is written comes back as "echo:<text>".

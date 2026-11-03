@@ -2,13 +2,14 @@ import {PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState}
 import {clearHistory, getHistory, subscribeHistory} from './history'
 import {TERMINAL_THEMES, resolveTerminalTheme} from './themes'
 import {AssistantTab} from '../assistant/AssistantTab'
-import {IconBraces, IconChevron, IconChevronDown, IconClock, IconClose, IconMinus, IconPalette, IconPlus, IconRocket, IconSearch, IconServer, IconSparkle, IconTrash} from '../ui/Icons'
+import {FilesTab} from '../sftp/SidebarFiles'
+import {IconBraces, IconChevron, IconChevronDown, IconClock, IconClose, IconFolder, IconMinus, IconPalette, IconPlus, IconRocket, IconSearch, IconServer, IconSparkle, IconTrash} from '../ui/Icons'
 import {buildTree, countHosts, countOpen, filterTree, type GroupNode} from '../hosts/tree'
 import {isTerminalTab, leaves, type Tab} from '../layout'
 import type {Group, Host, Settings, Snippet} from '../types'
 import type {Appearance} from '../settings/appearance'
 
-export type SidebarTab = 'hosts' | 'snippets' | 'history' | 'themes' | 'assistant'
+export type SidebarTab = 'hosts' | 'snippets' | 'history' | 'files' | 'themes' | 'assistant'
 
 /** The sidebar can be dragged wider or narrower; these keep both the sidebar and the terminal usable. */
 export const SIDE_MIN = 260
@@ -36,12 +37,16 @@ interface Props {
   appearance: Appearance
   /** type this into the focused pane; `run` presses Enter after it */
   onInsert(text: string, run: boolean): void
+  /** run or paste a snippet (it may have blanks to fill in first); without it a snippet is typed as it is */
+  onSnippet?(s: Snippet, run: boolean): void
   onNewSnippet?(): void
   onConnect?(h: Host): void
   /** a theme or font was picked: save these settings */
   onSettings?(patch: Partial<Settings>): void
   /** the focused pane: the AI assistant reads and helps this terminal */
   paneId?: string
+  /** the host of the focused pane ('local', 'serial:…' and 'telnet:…' for the others): the Files section browses it over SFTP */
+  hostId?: string
   /** the assistant asks the user to enable a provider */
   onOpenSettings?(): void
   /** the width the user chose (remembered by the caller) */
@@ -54,6 +59,7 @@ const TABS: {id: SidebarTab; label: string; icon: JSX.Element}[] = [
   {id: 'hosts', label: 'Hosts', icon: <IconRocket size={17} />},
   {id: 'snippets', label: 'Snippets', icon: <IconBraces size={17} />},
   {id: 'history', label: 'History', icon: <IconClock size={17} />},
+  {id: 'files', label: 'Files (SFTP)', icon: <IconFolder size={17} />},
   {id: 'themes', label: 'Themes and font', icon: <IconPalette size={17} />},
   {id: 'assistant', label: 'AI assistant', icon: <IconSparkle size={17} />},
 ]
@@ -70,8 +76,8 @@ export function ThemeThumb({colors}: {colors: {bg: string; fg: string; green: st
 }
 
 /**
- * The panel on the right of a terminal, like Termius: hosts to open, snippets to run, the commands typed
- * before, and the colours and font of the terminal.
+ * The panel on the right of a terminal: hosts to open, snippets to run, the commands typed
+ * before, the files on the server, and the colours and font of the terminal.
  */
 export function TerminalSidebar(p: Props) {
   const [width, setWidth] = useState(p.width ?? SIDE_DEFAULT)
@@ -109,8 +115,9 @@ export function TerminalSidebar(p: Props) {
       </div>
       <div className="side-body">
         {p.tab === 'hosts' && <HostsTab hosts={p.hosts} groups={p.groups ?? []} tabs={p.tabs ?? []} activeTab={p.activeTab ?? ''} onConnect={p.onConnect} onSelectTab={p.onSelectTab} onCloseTab={p.onCloseTab} />}
-        {p.tab === 'snippets' && <SnippetsTab snippets={p.snippets} onInsert={p.onInsert} onNew={p.onNewSnippet} />}
-        {p.tab === 'history' && <HistoryTab onInsert={p.onInsert} />}
+        {p.tab === 'snippets' && <SnippetsTab snippets={p.snippets} onInsert={p.onInsert} onSnippet={p.onSnippet} onNew={p.onNewSnippet} />}
+        {p.tab === 'history' && <HistoryTab hostId={p.hostId ?? ''} onInsert={p.onInsert} />}
+        {p.tab === 'files' && <FilesTab host={p.hosts.find(h => h.id === p.hostId) ?? null} />}
         {p.tab === 'themes' && <ThemesTab settings={p.settings} appearance={p.appearance} onSettings={p.onSettings} />}
         {p.tab === 'assistant' && <AssistantTab paneId={p.paneId ?? ''} onOpenSettings={() => p.onOpenSettings?.()} />}
       </div>
@@ -127,7 +134,7 @@ function SearchBox({value, onChange, label}: {value: string; onChange(v: string)
   )
 }
 
-const FOLD_KEY = 'vvterm.sidebar.folded'
+const FOLD_KEY = 'vutty.sidebar.folded'
 function loadFolded(): Set<string> {
   try { return new Set<string>(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')) } catch { return new Set() }
 }
@@ -236,7 +243,8 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
   )
 }
 
-function SnippetsTab({snippets, onInsert, onNew}: {snippets: Snippet[]; onInsert(text: string, run: boolean): void; onNew?(): void}) {
+function SnippetsTab({snippets, onInsert, onSnippet, onNew}: {snippets: Snippet[]; onInsert(text: string, run: boolean): void; onSnippet?(s: Snippet, run: boolean): void; onNew?(): void}) {
+  const insert = (s: Snippet, run: boolean) => (onSnippet ? onSnippet(s, run) : onInsert(s.script, run))
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState<string | null>(null) // the snippet shown in full
@@ -259,8 +267,8 @@ function SnippetsTab({snippets, onInsert, onNew}: {snippets: Snippet[]; onInsert
                   <IconBraces size={13} /> <span>{s.label}</span>
                 </button>
                 {full && <>
-                  <button className="side-act" aria-label={'Run ' + s.label} onClick={() => onInsert(s.script, true)}>Run</button>
-                  <button className="side-act" aria-label={'Paste ' + s.label} onClick={() => onInsert(s.script, false)}>Paste</button>
+                  <button className="side-act" aria-label={'Run ' + s.label} onClick={() => insert(s, true)}>Run</button>
+                  <button className="side-act" aria-label={'Paste ' + s.label} onClick={() => insert(s, false)}>Paste</button>
                 </>}
               </div>
               {full ? <pre className="side-snippet-code">{s.script}</pre> : <code className="side-snippet-peek" onClick={() => setOpen(s.id)}>{s.script.replace(/\s+/g, ' ')}</code>}
@@ -273,16 +281,20 @@ function SnippetsTab({snippets, onInsert, onNew}: {snippets: Snippet[]; onInsert
   )
 }
 
-function HistoryTab({onInsert}: {onInsert(text: string, run: boolean): void}) {
+/** The commands typed at the host of the focused pane: another host has its own list. */
+function HistoryTab({hostId, onInsert}: {hostId: string; onInsert(text: string, run: boolean): void}) {
   const [q, setQ] = useState('')
-  const [items, setItems] = useState(getHistory)
-  useEffect(() => subscribeHistory(() => setItems(getHistory())), [])
+  const [items, setItems] = useState(() => getHistory(hostId))
+  useEffect(() => {
+    setItems(getHistory(hostId))
+    return subscribeHistory(() => setItems(getHistory(hostId)))
+  }, [hostId])
   const shown = useMemo(() => items.filter(c => c.toLowerCase().includes(q.trim().toLowerCase())), [items, q])
   return (
     <>
       <div className="side-bar">
         <SearchBox value={q} onChange={setQ} label="Search history" />
-        <button className="icon ghost danger" aria-label="Clear history" title="Clear history" disabled={items.length === 0} onClick={clearHistory}><IconTrash size={15} /></button>
+        <button className="icon ghost danger" aria-label="Clear history" title="Clear history" disabled={items.length === 0} onClick={() => clearHistory(hostId)}><IconTrash size={15} /></button>
       </div>
       <div className="side-list" role="list" aria-label="History">
         {shown.map(c => (
@@ -291,7 +303,7 @@ function HistoryTab({onInsert}: {onInsert(text: string, run: boolean): void}) {
             <span className="side-main"><span className="side-cmd">{c}</span></span>
           </button>
         ))}
-        {shown.length === 0 && <div className="side-empty">{items.length ? 'Nothing matches.' : 'Commands you type will show up here.'}</div>}
+        {shown.length === 0 && <div className="side-empty">{items.length ? 'Nothing matches.' : 'Commands you type on this host will show up here.'}</div>}
       </div>
     </>
   )

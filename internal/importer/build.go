@@ -3,7 +3,7 @@ package importer
 import (
 	"fmt"
 
-	"vvterm/internal/domain"
+	"vutty/internal/domain"
 )
 
 // Policy decides what happens when an imported host label already exists.
@@ -94,6 +94,11 @@ func Build(p *Parsed, existing domain.Data, policy Policy) Plan {
 			Username: e.User,
 			Env:      validEnv(e.Env),
 			Tags:     e.Tags,
+
+			ForwardAgent: e.ForwardAgent,
+		}
+		if e.ForwardAgent {
+			plan.Warnings = append(plan.Warnings, fmt.Sprintf("%s: ForwardAgent is on (from your config): that server can use your keys while you are connected", e.Alias))
 		}
 		if g := e.Source; g != "" && g != "config" {
 			gid, ok := groups[g]

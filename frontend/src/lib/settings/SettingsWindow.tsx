@@ -1,18 +1,30 @@
-import {PointerEvent as ReactPointerEvent, useEffect, useRef, useState} from 'react'
-import {useBackend} from '../backend'
+import {Fragment, lazy, PointerEvent as ReactPointerEvent, Suspense, useEffect, useRef, useState} from 'react'
+import {useBackend, type UpdateInfo} from '../backend'
 import {useToast} from '../ui/Toast'
+import {useConfirm} from '../ui/Confirm'
 import {Switch} from '../ui/Switch'
 import {Select} from '../ui/Select'
 import {biometricName, errMsg} from '../util'
 import {ThemePicker} from './ThemePicker'
 import {resolveTerminalTheme} from '../terminal/themes'
-import {SyncPanel} from '../panels/SyncPanel'
-import {IconArrowUpRight, IconUser} from '../ui/Icons'
+import {IconArrowUpRight, IconCloud, IconEnterKey, IconFolder, IconGear, IconShield, IconSparkle, IconTerminal, IconUser} from '../ui/Icons'
+import {formatBytes} from '../sftp/format'
 import {ShortcutsEditor} from './ShortcutsEditor'
-import {AssistantSettings} from './AssistantSettings'
 import {capture, formatCombo, matches} from '../shortcuts/shortcuts'
 import type {Appearance} from './appearance'
 import type {CursorStyle, Settings, ThemeMode, VaultStatus} from '../types'
+import {DONATE_NETWORKS, KOFI, SHOW_CRYPTO_DONATE} from '../donate'
+
+// what is not on the first page is loaded when it is first needed, so the window opens and answers clicks at once
+const loadSupport = () => import('../panels/SupportPanel').then(m => ({default: m.SupportPanel}))
+const loadSync = () => import('../panels/SyncPanel').then(m => ({default: m.SyncPanel}))
+const loadAssistant = () => import('./AssistantSettings').then(m => ({default: m.AssistantSettings}))
+const SupportPanel = lazy(loadSupport)
+const SyncPanel = lazy(loadSync)
+const AssistantSettings = lazy(loadAssistant)
+// the pages are fetched right after the window opens, so a tab opens at once instead of flashing "Loading…"
+const preload = () => { void loadSupport(); void loadSync(); void loadAssistant() }
+const Loading = () => <div className="muted" role="status">Loading…</div>
 
 /** what this computer calls the place that keeps the vault key for quick unlock */
 const keychainName = () => {
@@ -20,10 +32,18 @@ const keychainName = () => {
   return /mac/i.test(p) ? 'the macOS Keychain' : /windows|win32|win64/i.test(p) ? 'Windows Credential Manager' : 'the system keychain'
 }
 
-type Cat = 'general' | 'account' | 'terminal' | 'security' | 'assistant' | 'sync' | 'shortcuts'
-const CATS: {id: Cat; label: string}[] = [
-  {id: 'general', label: 'General'}, {id: 'account', label: 'Account'}, {id: 'terminal', label: 'Terminal'},
-  {id: 'security', label: 'Security'}, {id: 'assistant', label: 'AI assistant'}, {id: 'sync', label: 'Sync'}, {id: 'shortcuts', label: 'Shortcuts'},
+type Cat = 'general' | 'account' | 'terminal' | 'security' | 'assistant' | 'sync' | 'shortcuts' | 'storage'
+interface CatInfo {id: Cat; label: string; icon: () => JSX.Element; desc: string; group: string}
+// the order is the order of the keys (Mod+1…8) and of Ctrl+Tab; the groups only draw the menu
+const CATS: CatInfo[] = [
+  {id: 'general', label: 'General', icon: () => <IconGear size={16} />, group: 'Preferences', desc: 'How the interface looks and behaves.'},
+  {id: 'account', label: 'Account', icon: () => <IconUser size={16} />, group: 'Preferences', desc: 'Your profile and ways to support Vutty.'},
+  {id: 'terminal', label: 'Terminal', icon: () => <IconTerminal size={16} />, group: 'Preferences', desc: 'Theme, font, cursor and how the terminal reacts.'},
+  {id: 'security', label: 'Security', icon: () => <IconShield size={16} />, group: 'Vault and integrations', desc: 'Lock the vault, unlock it faster and change its master password.'},
+  {id: 'assistant', label: 'AI assistant', icon: () => <IconSparkle size={16} />, group: 'Vault and integrations', desc: 'Let an AI command-line tool you already use work in your terminal.'},
+  {id: 'sync', label: 'Sync', icon: () => <IconCloud size={16} />, group: 'Vault and integrations', desc: 'Keep your encrypted hosts and keys in step across machines.'},
+  {id: 'shortcuts', label: 'Shortcuts', icon: () => <IconEnterKey size={16} />, group: 'Advanced', desc: 'Change the keys that drive Vutty.'},
+  {id: 'storage', label: 'Storage', icon: () => <IconFolder size={16} />, group: 'Advanced', desc: 'Clear what Vutty can rebuild, or start the settings over.'},
 ]
 
 const FONTS = [
@@ -34,14 +54,15 @@ const FONTS = [
   {label: 'Courier New', value: "'Courier New', monospace"},
 ]
 
-const REPO = 'https://github.com/vunguyenvu35/vvterm'
+const REPO = 'https://github.com/vunguyenvu35/vutty'
 const LINKS: [string, string][] = [
   ['Documentation', REPO + '#readme'],
   ['Request a feature', REPO + '/issues/new'],
   ['Report a bug', REPO + '/issues/new'],
   ['Release notes', REPO + '/blob/main/RELEASE_NOTES.md'],
-  ['Support on Ko-fi', 'https://ko-fi.com/vunguyenvu'],
 ]
+
+const DONATE: [string, string][] = DONATE_NETWORKS.map(n => [`${n.name.replace(' · ', ' / ')} (${n.chain})`, n.address])
 
 interface Props {
   settings: Settings
@@ -53,22 +74,28 @@ interface Props {
   onClose(): void
   /** Rendered inside its own native window (the Settings process): no floating chrome, the OS provides it. */
   native?: boolean
+  /** false while the saved settings are still being fetched (the window is already up): the menu works, the pages wait */
+  ready?: boolean
+  /** true while the values shown are the ones remembered from last time: they show, but nothing is saved over the real ones yet */
+  stale?: boolean
 }
 
 /**
- * Settings as its own window (like Termius): a floating window with a title bar, a menu on the left
+ * Settings as its own window: a floating window with a title bar, a menu on the left
  * (categories, theme, help links, version) and cards on the right. The dots work like macOS: red closes,
  * yellow rolls the window up to its title bar, green maximises (double-click the title bar too). Drag the
  * title bar to move it and the bottom-right corner to resize. Wails v2 can only create one OS window, so
  * this is an in-app window layer rather than a second native window. Changes apply immediately.
  */
-export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, native = false}: Props) {
+export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, native = false, ready = true, stale = false}: Props) {
   const be = useBackend()
   const toast = useToast()
+  const confirm = useConfirm()
   const [cat, setCat] = useState<Cat>('general')
   const catRef = useRef(cat)
   catRef.current = cat
   const [version, setVersion] = useState('')
+  const [logFolder, setLogFolder] = useState('')
   const [scroll, setScroll] = useState(String(s.scrollback))
   const [auto, setAuto] = useState(String(vault.auto_lock_minutes))
   const [hint, setHint] = useState(vault.hint ?? '')
@@ -82,15 +109,29 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const [rolledUp, setRolledUp] = useState(false)
   const drag = useRef<{sx: number; sy: number; ox: number; oy: number} | null>(null)
 
+  const [newer, setNewer] = useState<UpdateInfo | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
+  const checkUpdate = async () => {
+    setChecking(true)
+    try {
+      const u = await be.system.checkUpdate()
+      setNewer(u)
+      toast.info(u.available ? `Version ${u.latest} is available` : 'You are on the latest version')
+    } catch (e) { toast.error(errMsg(e)) } finally { setChecking(false) }
+  }
+  useEffect(() => { const t = setTimeout(preload, 150); return () => clearTimeout(t) }, [])
   useEffect(() => { void be.system.info().then(i => setVersion(i.version)).catch(() => {}) }, [be])
+  // where session logs go now: asked again when the choice changes
+  useEffect(() => { if (ready && s.session_log !== 'off') void be.settings.sessionLogFolder().then(setLogFolder).catch(() => {}) }, [be, ready, s.session_log, s.session_log_dir])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !document.querySelector('.select-menu') && !document.querySelector('.key-capture')) onClose() // a dropdown or a recording eats its own Esc
+      if (e.key === 'Escape' && !document.querySelector('.select-menu') && !document.querySelector('.key-capture') && !document.querySelector('.modal')) onClose() // a dropdown or a recording eats its own Esc
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, native])
-  // Mod+1…7 jump to a category, Ctrl+Tab / Ctrl+Shift+Tab go to the next / previous one (not while a shortcut is being recorded)
+  // Mod+1…8 jump to a category, Ctrl+Tab / Ctrl+Shift+Tab go to the next / previous one (not while a shortcut is being recorded)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (capture.active) return
@@ -119,12 +160,40 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const endDrag = () => { drag.current = null }
   const toggleMax = () => { setMaximized(m => !m); setRolledUp(false); setOffset({x: 0, y: 0}) }
 
+  // the fields that start from the saved values are filled in again when those arrive
+  useEffect(() => {
+    if (!ready) return
+    setScroll(String(s.scrollback)); setAuto(String(vault.auto_lock_minutes)); setHint(vault.hint ?? ''); setName(s.account_name); setEmail(s.account_email)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, stale])
   const update = async (patch: Partial<Settings>) => {
+    if (!ready || stale) return // never save the placeholder or remembered values over the real ones
     try { onSettings(await be.settings.save({...s, ...patch})) } catch (e) { toast.error(errMsg(e)) }
   }
   const guard = async (fn: () => Promise<void>, ok: string) => {
     setErr('')
     try { await fn(); toast.info(ok) } catch (e) { setErr(errMsg(e)) }
+  }
+
+  const [busyStorage, setBusyStorage] = useState(false)
+  const clearCache = async () => {
+    setBusyStorage(true)
+    try {
+      const r = await be.settings.clearCache()
+      toast.info(r.files > 0 ? `Cache cleared: ${r.files} file${r.files === 1 ? '' : 's'}, ${formatBytes(r.bytes)}` : 'Cache cleared')
+    } catch (e) { toast.error(errMsg(e)) } finally { setBusyStorage(false) }
+  }
+  const resetSettings = async () => {
+    if (!await confirm('Reset every setting to its default? Your profile, sync target, hosts, keys and vault stay as they are.', {confirmLabel: 'Reset settings', danger: true})) return
+    setBusyStorage(true)
+    try {
+      const next = await be.settings.reset()
+      onSettings(next)
+      onVault() // the auto-lock time is part of the vault status
+      setScroll(String(next.scrollback))
+      setAuto(String(next.auto_lock_minutes))
+      toast.info('Settings reset to their defaults')
+    } catch (e) { toast.error(errMsg(e)) } finally { setBusyStorage(false) }
   }
 
   const term = resolveTerminalTheme(s.terminal_theme, appearance).theme
@@ -160,26 +229,44 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
             <nav className="win-nav" aria-label="Settings menu">
               <div role="tablist" aria-orientation="vertical" className="win-tabs">
                 {CATS.map((c, i) => (
-                  <button key={c.id} role="tab" aria-selected={cat === c.id} className={'settings-tab' + (cat === c.id ? ' active' : '')} onClick={() => { setCat(c.id); setErr('') }}>
-                    <span>{c.label}</span>
-                    <kbd className="settings-key" aria-hidden="true">{formatCombo('Mod+' + (i + 1))}</kbd>
-                  </button>
+                  <Fragment key={c.id}>
+                    {c.group !== CATS[i - 1]?.group && <div className="win-group" aria-hidden="true">{c.group}</div>}
+                    <button role="tab" aria-selected={cat === c.id} className={'settings-tab' + (cat === c.id ? ' active' : '')} onClick={() => { setCat(c.id); setErr('') }}>
+                      <i className="tab-ico" aria-hidden="true">{c.icon()}</i>
+                      <span className="tab-name">{c.label}</span>
+                      <kbd className="settings-key" aria-hidden="true">{formatCombo('Mod+' + (i + 1))}</kbd>
+                    </button>
+                  </Fragment>
                 ))}
               </div>
+              <div className="spacer" />
+              <div className="win-group" aria-hidden="true">Help</div>
+              {LINKS.map(([label, url]) => (
+                <button key={label} className="win-link" onClick={() => be.system.openUrl(url)}>{label}<IconArrowUpRight size={14} /></button>
+              ))}
+              <button className="win-link" onClick={() => setSupportOpen(true)}>Support Vutty</button>
               <div className="win-sep" />
               <div className="win-row">
                 <span>Theme</span>
-                <Select className="inline" label="Theme" value={s.theme} onChange={v => update({theme: v as ThemeMode})}
+                <Select className="inline" label="Theme" value={s.theme} onChange={v => update({theme: v as ThemeMode})} disabled={!ready}
                   options={[{value: 'auto', label: 'Auto'}, {value: 'light', label: 'Light'}, {value: 'dark', label: 'Dark'}]} />
               </div>
-              {LINKS.map(([label, url]) => (
-                <button key={label} className="win-link" onClick={() => be.system.openUrl(url)}>{label}<IconArrowUpRight size={15} /></button>
-              ))}
-              <div className="spacer" />
-              <div className="win-row version"><span>Version</span><b data-testid="app-version">{version || '…'}</b></div>
+              {newer?.available && (
+                <button className="win-link update" onClick={() => be.system.openUrl(newer.url)}>Version {newer.latest} is available<IconArrowUpRight size={14} /></button>
+              )}
+              <div className="win-row version">
+                <span>Version <b data-testid="app-version">{version || '…'}</b></span>
+                <button className="link" disabled={checking} onClick={() => void checkUpdate()}>{checking ? 'Checking…' : 'Check for updates'}</button>
+              </div>
             </nav>
 
             <div className="win-content">
+              <div className="win-page">
+              <header className="page-head">
+                <h2>{CATS.find(c => c.id === cat)?.label}</h2>
+                <p>{CATS.find(c => c.id === cat)?.desc}</p>
+              </header>
+              {!ready ? <Loading /> : <>
               {cat === 'general' && (
                 <>
                   <section className="card-section">
@@ -205,7 +292,15 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       <Switch label="Confirm before closing a tab" checked={s.confirm_tab_close} onChange={v => update({confirm_tab_close: v})} />
                     </div>
                     <div className="setting-row">
-                      <div><b>Ask which protocol to use</b><div className="muted">Opening a host first shows SSH, Mosh and Telnet to choose from, like Termius. Turn it off to connect with SSH straight away (hosts that have Telnet still ask).</div></div>
+                      <div><b>Be careful on production hosts</b><div className="muted">In the terminal of a host marked <i>prod</i>, ask before text with a line break is pasted (the line would run at once) and before a snippet or a history command is run. Terminals of production hosts also carry a red PROD badge.</div></div>
+                      <Switch label="Be careful on production hosts" checked={s.confirm_prod} onChange={v => update({confirm_prod: v})} />
+                    </div>
+                    <div className="setting-row">
+                      <div><b>Check for updates automatically</b><div className="muted">When Vutty opens, ask GitHub (at most once a day) whether a newer release exists. Only the release information is read; nothing about you is sent.</div></div>
+                      <Switch label="Check for updates automatically" checked={s.auto_update_check} onChange={v => update({auto_update_check: v})} />
+                    </div>
+                    <div className="setting-row">
+                      <div><b>Ask which protocol to use</b><div className="muted">Opening a host first shows SSH, Mosh and Telnet to choose from. Turn it off to connect with SSH straight away (hosts that have Telnet still ask).</div></div>
                       <Switch label="Ask which protocol to use" checked={s.ask_protocol} onChange={v => update({ask_protocol: v})} />
                     </div>
                   </section>
@@ -226,6 +321,20 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                     <div><button className="primary" disabled={name.trim() === s.account_name && email.trim() === s.account_email}
                       onClick={() => guard(async () => { onSettings(await be.settings.save({...s, account_name: name, account_email: email})) }, 'Profile saved')}>Save profile</button></div>
                     <div className="muted">Stored only on this Mac, in your settings file. It is not sent anywhere.</div>
+                  </section>
+                  <section className="card-section">
+                    <h4>Donate</h4>
+                    <div className="muted">{SHOW_CRYPTO_DONATE
+                      ? 'Vutty is free and open source. If it saves you time, you can send USDT. Check the network before you send.'
+                      : 'Vutty is free and open source. If it saves you time, you can support it on Ko-fi.'}</div>
+                    <div className="muted">☕ $3 – a cup of coffee · 🍜 $10 – a lunch · 🚀 $25 – fuel new features</div>
+                    {!SHOW_CRYPTO_DONATE && <div><button className="primary" onClick={() => void be.system.openUrl(KOFI)}>Support on Ko-fi</button></div>}
+                    {SHOW_CRYPTO_DONATE && DONATE.map(([label, addr]) => (
+                      <div className="setting-row" key={addr}>
+                        <div><b>{label}</b><div className="muted" style={{wordBreak: 'break-all', userSelect: 'text'}}>{addr}</div></div>
+                        <button aria-label={'Copy ' + label + ' address'} onClick={() => { void be.system.writeClipboard(addr).then(() => toast.info('Address copied')).catch(e => toast.error(errMsg(e))) }}>Copy</button>
+                      </div>
+                    ))}
                   </section>
                   <section className="card-section">
                     <h4>Plan</h4>
@@ -287,11 +396,19 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                     <div className="setting-row">
                       <div><b>Right click</b><div className="muted">What a right click does inside a terminal. Copy and paste keys are in Shortcuts.</div></div>
                       <Select label="Right click" className="inline" value={s.right_click} onChange={v => update({right_click: v as Settings['right_click']})}
-                        options={[{value: 'paste', label: 'Paste', hint: 'like Termius'}, {value: 'menu', label: 'Show a menu', hint: 'Copy, Paste, Select all, Clear'}, {value: 'none', label: 'Do nothing'}]} />
+                        options={[{value: 'paste', label: 'Paste', hint: 'Right-click pastes'}, {value: 'menu', label: 'Show a menu', hint: 'Copy, Paste, Select all, Clear'}, {value: 'none', label: 'Do nothing'}]} />
                     </div>
                     <div className="setting-row">
                       <div><b>Highlight output</b><div className="muted">Colour URLs, IP addresses, paths, dates and the words error, warning and success. Colours chosen by a program are kept.</div></div>
                       <Switch label="Highlight output" checked={s.highlight} onChange={v => update({highlight: v})} />
+                    </div>
+                    <div className="setting-row">
+                      <div><b>Suggest commands</b><div className="muted">While you type, a list of the commands that match appears under the cursor (↓ ↑ choose a row, Enter or Tab put it on the line, Esc closes it), and ⌘⇧J (Ctrl+Shift+J elsewhere) opens it by hand. It uses the commands you ran in Vutty, the shell history of this computer (~/.zsh_history, ~/.bash_history) in the local terminal, and your Snippets of one line; it is not offered in vim or at a password prompt, and a line that looks like a secret is never suggested.</div></div>
+                      <Switch label="Suggest commands" checked={s.suggest} onChange={v => update({suggest: v})} />
+                    </div>
+                    <div className="setting-row">
+                      <div><b>Suggest from the host's shell history</b><div className="muted">Also read the last 3000 commands of ~/.bash_history and ~/.zsh_history on an SSH host, once when its terminal opens. They are kept in memory only, and a command with a secret in it is left out.</div></div>
+                      <Switch label="Suggest from the host's shell history" checked={s.suggest_host} disabled={!s.suggest} onChange={v => update({suggest_host: v})} />
                     </div>
                     <div className="setting-row">
                       <div><b>Scrollback</b><div className="muted">Lines kept per terminal (500 to 100000).</div></div>
@@ -299,6 +416,24 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                         onChange={e => setScroll(e.target.value)} onBlur={() => update({scrollback: Number(scroll)})}
                         onKeyDown={e => e.key === 'Enter' && update({scrollback: Number(scroll)})} />
                     </div>
+                  </section>
+                  <section className="card-section">
+                    <h4>Session logs</h4>
+                    <div className="setting-row">
+                      <div><b>Save a log of terminal sessions</b><div className="muted">One text file for each session, line by line with the time: what the host printed, with colours and cursor moves taken out. What you type is not recorded, except what the host echoes back. A log holds everything that was shown on screen, a password in a file you displayed included, so keep the folder private. Files are readable only by you and each stops at 50 MB.</div></div>
+                      <Select label="Session logs" className="control" value={s.session_log} onChange={v => update({session_log: v as Settings['session_log']})}
+                        options={[{value: 'off', label: 'Off'}, {value: 'prod', label: 'Production hosts only', hint: 'Hosts marked prod'}, {value: 'all', label: 'All sessions', hint: 'SSH, Telnet, serial and this computer'}]} />
+                    </div>
+                    {s.session_log !== 'off' && (
+                      <div className="setting-row">
+                        <div><b>Folder</b><div className="muted mono" style={{wordBreak: 'break-all', userSelect: 'text'}} data-testid="session-log-folder">{logFolder || '…'}</div></div>
+                        <div className="fixed-row">
+                          <button onClick={() => void be.system.pickDirectory('Choose the folder for session logs').then(d => { if (d) void update({session_log_dir: d}) }).catch(e => toast.error(errMsg(e)))}>Choose…</button>
+                          {s.session_log_dir && <button onClick={() => void update({session_log_dir: ''})}>Use the default</button>}
+                          <button disabled={!logFolder} onClick={() => void be.system.openPath(logFolder).catch(e => toast.error(errMsg(e)))}>Open</button>
+                        </div>
+                      </div>
+                    )}
                   </section>
                   <section className="card-section">
                     <h4>Preview</h4>
@@ -324,6 +459,10 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       </div>
                     </div>
                     <div className="setting-row">
+                      <div><b>Lock when the computer sleeps</b><div className="muted">The vault locks as the computer goes to sleep, and on a Mac when the screen is locked, so nobody who opens the lid finds your keys unlocked. Open terminals stay connected. Where the system does not announce a sleep, the vault locks when the computer wakes up.</div></div>
+                      <Switch label="Lock when the computer sleeps" checked={s.lock_on_sleep} onChange={v => update({lock_on_sleep: v})} />
+                    </div>
+                    <div className="setting-row">
                       <div>
                         <b>{vault.biometric_available ? `Unlock with ${biometricName()}` : `Unlock with ${keychainName()}`}</b>
                         <div className="muted">{vault.biometric_available
@@ -335,14 +474,14 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                     </div>
                     {vault.biometric_available && vault.keychain_enabled && (
                       <div className="setting-row">
-                        <div><b>Ask as soon as VVTerm opens</b><div className="muted">The lock screen shows the {biometricName()} sheet by itself. Off: press "Use {biometricName()}" yourself.</div></div>
+                        <div><b>Ask as soon as Vutty opens</b><div className="muted">The lock screen shows the {biometricName()} sheet by itself. Off: press "Use {biometricName()}" yourself.</div></div>
                         <Switch label="Ask on open" checked={s.biometric_on_open} onChange={v => update({biometric_on_open: v})} />
                       </div>
                     )}
                   </section>
                   <section className="card-section">
                     <h4>Password hint</h4>
-                    <div className="muted">A reminder shown on the lock screen if you forget the master password. Anyone who opens VVTerm can read it, so never write the password in it.</div>
+                    <div className="muted">A reminder shown on the lock screen if you forget the master password. Anyone who opens Vutty can read it, so never write the password in it.</div>
                     <div className="input-row">
                       <input aria-label="Password hint" className="control wide" maxLength={120} placeholder="A reminder only you understand" value={hint} onChange={e => setHint(e.target.value)} />
                       <button disabled={hint.trim() === (vault.hint ?? '')}
@@ -361,17 +500,34 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                 </>
               )}
 
-              {cat === 'assistant' && <AssistantSettings />}
+              {cat === 'assistant' && <Suspense fallback={<Loading />}><AssistantSettings /></Suspense>}
 
-              {cat === 'sync' && <SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} />}
+              {cat === 'sync' && <Suspense fallback={<Loading />}><SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} /></Suspense>}
 
               {cat === 'shortcuts' && <ShortcutsEditor overrides={s.shortcuts ?? {}} onChange={shortcuts => update({shortcuts})} />}
 
+              {cat === 'storage' && (
+                <section className="card-section">
+                  <h4>Storage</h4>
+                  <div className="setting-row">
+                    <div><b>Clear cache</b><div className="muted">Removes files Vutty can make again and what it remembers about your AI tools (they are looked up again). Your hosts, keys, vault, settings and history are not touched.</div></div>
+                    <button disabled={busyStorage} onClick={() => void clearCache()}>Clear cache</button>
+                  </div>
+                  <div className="setting-row">
+                    <div><b>Reset settings</b><div className="muted">Puts appearance, terminal, general options, shortcuts and auto-lock back to their defaults. Your profile and sync target stay. Hosts, keys and the vault are not touched.</div></div>
+                    <button className="danger" disabled={busyStorage} onClick={() => void resetSettings()}>Reset settings…</button>
+                  </div>
+                </section>
+              )}
+
               {err && cat === 'account' && <div className="error" role="alert">{err}</div>}
+              </>}
+              </div>
             </div>
           </div>
         )}
       </div>
+      {supportOpen && <Suspense fallback={null}><SupportPanel onClose={() => setSupportOpen(false)} /></Suspense>}
     </div>
   )
 }

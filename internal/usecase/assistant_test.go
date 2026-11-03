@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain"
+	"vutty/internal/domain/assistant"
 )
 
 type fakeAgent struct {
@@ -576,7 +576,7 @@ func TestInsertDoesNotPressEnterAndRunNeedsTheTypedWordForRiskyCommands(t *testi
 	if err := x.app.Assistant.Run(sid, "sudo reboot", "run"); err != nil {
 		t.Fatal(err)
 	}
-	for _, bad := range []string{"ls\nrm -rf x", "ls\r", "echo \x1b[2J", "", "curl -d ******* x", "export TOKEN=abc12345678"} {
+	for _, bad := range []string{"ls\nrm -rf x", "ls\r", "ls \u202e/tmp", "rm\u200b -rf x", "ls\u2028rm x", "ls\ufeff", "echo \x1b[2J", "", "curl -d ******* x", "export TOKEN=abc12345678"} {
 		if err := x.app.Assistant.Insert(sid, bad); err == nil {
 			t.Errorf("Insert(%q) must be refused", bad)
 		}

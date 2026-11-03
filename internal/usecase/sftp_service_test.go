@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"vvterm/internal/testssh"
+	"vutty/internal/testssh"
 )
 
 func startSFTPServer(t *testing.T, seed map[string]string) *testssh.Server {

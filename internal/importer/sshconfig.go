@@ -1,4 +1,4 @@
-// Package importer parses OpenSSH client config files into VVTerm records.
+// Package importer parses OpenSSH client config files into Vutty records.
 package importer
 
 import (
@@ -17,6 +17,7 @@ type Entry struct {
 	Port         int
 	User         string
 	IdentityFile string
+	ForwardAgent bool
 	ProxyJump    []string // alias or [user@]host[:port], outermost first
 	Local        []Fwd
 	Remote       []Fwd
@@ -94,7 +95,13 @@ func (p *Parsed) parse(path string, depth int, seen map[string]bool) error {
 			continue
 		}
 		if strings.HasPrefix(raw, "#") {
-			if m, ok := strings.CutPrefix(raw, "# vvterm:"); ok {
+			m, ok := strings.CutPrefix(raw, "# vutty:")
+			for _, old := range []string{"# vuterm:", "# vvterm:"} { // files exported before the renames
+				if !ok {
+					m, ok = strings.CutPrefix(raw, old)
+				}
+			}
+			if ok {
 				pendingEnv, pendingTags = parseMeta(m)
 			}
 			continue
@@ -149,6 +156,9 @@ func (p *Parsed) apply(e *Entry, key, val, path string, line int) {
 		}
 	case "user":
 		e.User = val
+	case "forwardagent":
+		// yes, or the path or the name of an agent socket: any of them asks for a forwarded agent; no does not
+		e.ForwardAgent = !strings.EqualFold(val, "no") && val != ""
 	case "identityfile":
 		if e.IdentityFile == "" {
 			e.IdentityFile = expandHome(strings.Trim(val, `"`))

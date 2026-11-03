@@ -24,6 +24,8 @@ export interface Host {
   keepalive_sec: number
   /** server type learned on the first connection (ubuntu, debian, freebsd…); '' until then */
   os?: string
+  /** this host may use the keys of the user's ssh-agent (or this host's saved key) to sign in to other machines while connected (ssh -A) */
+  forward_agent?: boolean
   /** also reachable with Telnet (unencrypted) on this port */
   telnet_enabled?: boolean
   telnet_port?: number
@@ -80,6 +82,12 @@ export interface VaultStatus {
 export type ThemeMode = 'auto' | 'light' | 'dark'
 export type CursorStyle = 'block' | 'bar' | 'underline'
 
+/** What Clear cache removed. */
+export interface CacheReport {
+  files: number
+  bytes: number
+}
+
 export interface Settings {
   theme: ThemeMode
   terminal_theme: string // 'auto' follows the app theme, otherwise a catalogue id
@@ -96,13 +104,25 @@ export interface Settings {
   sync_url: string
   zoom: number // interface scale in percent
   confirm_tab_close: boolean
+  /** ask before pasting text with a line break, or running a snippet or a history command, in a production host's terminal */
+  confirm_prod: boolean
+  /** lock the vault when the computer goes to sleep (and, on a Mac, when the screen is locked) */
+  lock_on_sleep: boolean
+  /** write what each terminal session printed to a text file: off, prod (production hosts only) or all */
+  session_log: 'off' | 'prod' | 'all'
+  /** the folder for those files; '' means the default one inside the data folder */
+  session_log_dir: string
   /** a host opens on a Choose protocol screen first */
   ask_protocol: boolean
   /** the lock screen asks for Touch ID / Windows Hello by itself, without a click */
   biometric_on_open: boolean
+  suggest: boolean // show command suggestions while typing in a terminal
+  suggest_host: boolean // also read the shell history of an SSH host for them
   /** colour URLs, IP addresses, paths and error / warning / success words in terminal output */
   highlight: boolean
   reduce_motion: boolean
+  /** look for a newer release when the app opens (at most once a day) */
+  auto_update_check: boolean
   account_name: string
   account_email: string
   shortcuts: Record<string, string> // overrides only: action id -> combo
@@ -119,9 +139,12 @@ export interface ConnectionTest {
 export interface SyncStatus {
   configured: boolean
   repo_url: string
+  folder: string
   last_sync: string
   last_error?: string
   syncing: boolean
+  /** this machine holds nothing of its own: the vault of a repository can simply be taken over */
+  local_empty?: boolean
 }
 
 export interface HostFilter {
@@ -131,7 +154,18 @@ export interface HostFilter {
   tag: string
 }
 
+/** What a listing of servers does not say (see ImportInventory). */
+export interface InventoryOptions {
+  user: string
+  /** 'public' (the public address when there is one, else the private one) or 'private' */
+  address: 'public' | 'private'
+  group: string
+  include_stopped: boolean
+}
+
 export interface ImportReport {
+  /** what an inventory import took the file to be */
+  format?: string
   hosts_added: number
   groups_added: number
   forwards_added: number
@@ -144,6 +178,57 @@ export interface ExportReport {
   files: string[]
   key_files: string[]
   warnings: string[]
+}
+
+/** What a server asks while signing in (keyboard-interactive): each prompt wants one answer. */
+export interface AuthChallenge {
+  host: string
+  name: string
+  instruction: string
+  prompts: {text: string; echo: boolean}[]
+}
+
+/** A saved secret that the vault's key cannot open (it was sealed with another key): its owner has to be entered again. */
+export interface UnreadableItem {
+  secret_id: string
+  name: string
+  identity_id?: string
+  kind: 'key' | 'password' | 'agent' | 'telnet' | 'other'
+}
+export interface VaultHealth {
+  checked: number
+  unreadable: UnreadableItem[]
+}
+
+/** One command on several hosts. {{host}}, {{hostname}} and {{user}} in the command become each host's own. */
+export interface ExecSpec {
+  host_ids: string[]
+  command: string
+  timeout_sec: number
+}
+export interface ExecResult {
+  host_id: string
+  label: string
+  env?: string
+  state: 'queued' | 'running' | 'ok' | 'failed' | 'canceled'
+  exit_code: number
+  /** standard output and standard error together (the first 64 KB) */
+  output: string
+  truncated?: boolean
+  error?: string
+  duration_ms: number
+}
+export interface ExecRun {
+  id: string
+  done: boolean
+  results: ExecResult[]
+}
+
+/** Where an ssh:// link points. A password, a path and a query are dropped before it gets here. */
+export interface SSHLink {
+  username: string
+  hostname: string
+  port: number
 }
 
 export interface HostKeyPrompt {
@@ -162,6 +247,8 @@ export interface Snippet {
   label: string
   description?: string
   script: string
+  /** when it was last changed (RFC 3339) */
+  updated_at?: string
 }
 
 export interface RemoteEntry {
@@ -214,6 +301,57 @@ export interface TransferProgress {
   direction: 'upload' | 'download'
   done: number
   total: number
+}
+
+/** Where a queued transfer stands. */
+export type QueueState = 'queued' | 'preparing' | 'running' | 'paused' | 'done' | 'failed' | 'canceled'
+export type QueueDirection = 'upload' | 'download' | 'sync-up' | 'sync-down'
+
+/** What to queue: upload (sources are local paths), download (remote paths), sync-up / sync-down (one folder each). */
+export interface QueueSpec {
+  direction: QueueDirection
+  sources: string[]
+  destDir: string
+  overwrite: boolean
+}
+
+/** One transfer in the queue (see usecase.QueueJob). The counts and lists describe what has happened so far. */
+export interface QueueJob {
+  id: string
+  direction: QueueDirection
+  name: string
+  destDir: string
+  state: QueueState
+  /** the file being worked on */
+  current: string
+  done: number
+  total: number
+  files: number
+  dirs: number
+  bytes: number
+  skipped: string[]
+  ignored: string[]
+  error: string
+}
+
+export interface SyncItem {
+  path: string
+  size: number
+  reason: 'new' | 'changed'
+}
+
+/** What a sync would do: files to copy, how many are identical, and files only on the target (never touched). */
+export interface SyncDiff {
+  copy: SyncItem[]
+  same: number
+  extra: string[]
+}
+
+/** The result of saving an edited remote file back. */
+export interface EditEvent {
+  remote: string
+  state: 'uploaded' | 'conflict' | 'error'
+  message: string
 }
 
 // ---- AI assistant ----

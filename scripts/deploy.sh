@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# VVTerm deploy script (macOS).
+# Vutty deploy script (macOS).
 #
 #   scripts/deploy.sh dev  [--fast] [--fixtures] [--run] [--dry-run]
 #   scripts/deploy.sh prod [--version X.Y.Z] [--e2e] [--tag] [--publish] [--yes]
 #                          [--allow-dirty] [--allow-branch] [--skip-tests] [--platform P] [--dry-run]
 #
-# dev   Builds a debug app (devtools enabled) and installs it as "VVTerm Dev" next to the production
-#       app, with its own bundle id and data directory, plus a `vvterm-dev` launcher.
+# dev   Builds a debug app (devtools enabled) and installs it as "Vutty Dev" next to the production
+#       app, with its own bundle id and data directory, plus a `vutty-dev` launcher.
 # prod  Release pipeline: gates -> tests -> build -> sign -> notarize -> zip + SHA256SUMS.
 #       Nothing leaves your machine unless you pass --publish (which also needs --tag and a confirmation).
 set -euo pipefail
@@ -59,7 +59,7 @@ for t in go node npm wails; do command -v "$t" >/dev/null || die "missing tool: 
 
 BASE_VERSION="$(tr -d '[:space:]' < VERSION)"
 [[ "$BASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "VERSION must be semver X.Y.Z, got '$BASE_VERSION'"
-APP_SRC="build/bin/vvterm.app"
+APP_SRC="build/bin/vutty.app"
 ARCH="${PLATFORM:+${PLATFORM#*/}}"; ARCH="${ARCH:-$(uname -m)}"; [ "$ARCH" = x86_64 ] && ARCH=amd64
 PLATFORM_ARGS=(); [ -n "$PLATFORM" ] && PLATFORM_ARGS=(-platform "$PLATFORM")
 
@@ -73,8 +73,8 @@ run_tests() {
 
 build_app() { # $1 = version string, rest = extra wails flags
   local version="$1"; shift
-  say "Building VVTerm $version"
-  run wails build -ldflags "-X vvterm/app.Version=$version" -trimpath ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} "$@"
+  say "Building Vutty $version"
+  run wails build -ldflags "-X vutty/app.Version=$version" -trimpath ${PLATFORM_ARGS[@]+"${PLATFORM_ARGS[@]}"} "$@"
   [ "$DRY" = 1 ] || [ -d "$APP_SRC" ] || die "build did not produce $APP_SRC"
 }
 
@@ -83,7 +83,7 @@ deploy_dev() {
   local sha version app launcher
   sha="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
   version="$BASE_VERSION-dev.$sha"
-  app="$DEV_APP_DIR"; launcher="$DEV_BIN_DIR/vvterm-dev"
+  app="$DEV_APP_DIR"; launcher="$DEV_BIN_DIR/vutty-dev"
 
   if [ "$FAST" = 1 ]; then warn "--fast: skipping tests"; else
     say "Quick checks"
@@ -93,19 +93,19 @@ deploy_dev() {
   fi
   build_app "$version" -debug
 
-  say "Installing as VVTerm Dev -> $app"
+  say "Installing as Vutty Dev -> $app"
   run mkdir -p "$(dirname "$app")"
   run rm -rf "$app"
   run ditto "$APP_SRC" "$app"
   if [ "$DRY" != 1 ]; then
     local plist="$app/Contents/Info.plist"
     set_plist() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$plist"; }
-    set_plist CFBundleName "VVTerm Dev"
-    set_plist CFBundleDisplayName "VVTerm Dev"
-    set_plist CFBundleIdentifier "com.wails.vvterm-dev"
+    set_plist CFBundleName "Vutty Dev"
+    set_plist CFBundleDisplayName "Vutty Dev"
+    set_plist CFBundleIdentifier "com.wails.vutty-dev"
     codesign --force --deep --sign - "$app" >/dev/null 2>&1 || warn "ad-hoc codesign failed (the app may still run locally)"
   else
-    echo "+ (patch Info.plist: name 'VVTerm Dev', bundle id com.wails.vvterm-dev; ad-hoc codesign)"
+    echo "+ (patch Info.plist: name 'Vutty Dev', bundle id com.wails.vutty-dev; ad-hoc codesign)"
   fi
 
   say "Launcher -> $launcher (data in $DEV_DATA_DIR)"
@@ -113,12 +113,12 @@ deploy_dev() {
   if [ "$DRY" != 1 ]; then
     cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
-# Starts VVTerm Dev with its own data directory (never touches the production data).
-exec open -n --env "VVTERM_DATA_DIR=$DEV_DATA_DIR" "$app" "\$@"
+# Starts Vutty Dev with its own data directory (never touches the production data).
+exec open -n --env "VUTTY_DATA_DIR=$DEV_DATA_DIR" "$app" "\$@"
 LAUNCH
     chmod +x "$launcher"
   else
-    echo "+ (write launcher that runs: open -n --env VVTERM_DATA_DIR=... '$app')"
+    echo "+ (write launcher that runs: open -n --env VUTTY_DATA_DIR=... '$app')"
   fi
 
   if [ "$FIXTURES" = 1 ]; then
@@ -139,7 +139,7 @@ deploy_prod() {
   [ "$PUBLISH" = 0 ] || [ "$TAG" = 1 ] || die "--publish needs --tag"
 
   gate "release notes describe $version"
-  grep -q "^# VVTerm $version\$" RELEASE_NOTES.md || die "RELEASE_NOTES.md has no '# VVTerm $version' heading: write the notes first"
+  grep -q "^# Vutty $version\$" RELEASE_NOTES.md || die "RELEASE_NOTES.md has no '# Vutty $version' heading: write the notes first"
 
   gate "git state"
   if [ "$ALLOW_DIRTY" = 1 ]; then warn "--allow-dirty: building from an unclean tree"; else
@@ -168,7 +168,7 @@ deploy_prod() {
   fi
 
   say "Packaging"
-  local zip="$DIST_DIR/VVTerm-$version-macos-$ARCH.zip"
+  local zip="$DIST_DIR/Vutty-$version-macos-$ARCH.zip"
   run mkdir -p "$DIST_DIR"
   run rm -f "$zip"
   run ditto -c -k --keepParent "$APP_SRC" "$zip"
@@ -191,7 +191,7 @@ deploy_prod() {
   if [ "$TAG" = 1 ]; then
     say "Tagging v$version (local)"
     git rev-parse -q --verify "refs/tags/v$version" >/dev/null && echo "tag v$version already at HEAD" \
-      || run git tag -a "v$version" -m "VVTerm $version"
+      || run git tag -a "v$version" -m "Vutty $version"
   fi
 
   if [ "$PUBLISH" = 1 ]; then
@@ -204,7 +204,7 @@ deploy_prod() {
       [ "$answer" = "$version" ] || die "confirmation mismatch, nothing published"
     fi
     run git push origin "v$version"
-    run gh release create "v$version" "$zip" "$DIST_DIR/SHA256SUMS" --title "VVTerm $version" --notes-file RELEASE_NOTES.md
+    run gh release create "v$version" "$zip" "$DIST_DIR/SHA256SUMS" --title "Vutty $version" --notes-file RELEASE_NOTES.md
   else
     say "Not published. To release: $0 prod --tag --publish"
   fi

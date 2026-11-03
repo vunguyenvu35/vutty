@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/domain/assistant"
-	"vvterm/internal/domain/secretpolicy"
+	"vutty/internal/domain"
+	"vutty/internal/domain/assistant"
+	"vutty/internal/domain/secretpolicy"
 )
 
 // ---- what the agent can reach through the gateway ----

@@ -1,4 +1,6 @@
-import {createLineTracker, recordCommand} from './history'
+import {getHistory, recordCommand} from './history'
+import {createSuggester, SUGGEST_POPUP, type Suggester, type SuggestTerm} from './suggester'
+import type {Snippet} from '../types'
 import {ConnectScreen} from './ConnectScreen'
 import {useEffect, useRef, useState} from 'react'
 import {ITheme, Terminal} from '@xterm/xterm'
@@ -12,10 +14,16 @@ import {registerPane, registerSelection, setPaneSession, setPaneStatus} from './
 import {createHighlighter, HighlightTerm} from './highlight'
 import {matches} from '../shortcuts/shortcuts'
 import {IconArrowDown, IconArrowUp} from '../ui/Icons'
-import type {ClosedInfo, HostKeyPrompt} from '../types'
+import {AuthPrompt} from '../ui/AuthPrompt'
+import {useConfirm} from '../ui/Confirm'
+import type {AuthChallenge, ClosedInfo, HostKeyPrompt} from '../types'
 
 interface Props {
   hostId: string
+  /** the host is marked prod: the pane says so, and (with confirmProd) asks before text with a line break is pasted */
+  prod?: boolean
+  /** the "be careful on production hosts" setting (default on) */
+  confirmProd?: boolean
   /** identifies the pane so other parts of the UI (snippets) can type into it */
   paneId?: string
   visible: boolean
@@ -39,6 +47,12 @@ interface Props {
   /** keys the app owns and the terminal must let through to it (Next / Previous tab): xterm would send them to the shell and swallow them */
   appCombos?: string[]
   pasteCombo?: string
+  /** command suggestions while typing (the Suggest setting; default on) */
+  suggest?: boolean
+  /** also read the shell history of the server for them */
+  suggestHost?: boolean
+  /** key that opens the list of suggestions */
+  suggestCombo?: string
   /** who this pane connects to: drawn on the connecting screen */
   connect?: {label: string; os?: string; subtitle: string}
   onShowLogs?(): void
@@ -52,6 +66,57 @@ interface Props {
 }
 
 type State = 'connecting' | 'ready' | 'closed'
+
+/**
+ * What is typed or pasted goes to the shell composed (NFC). On macOS the input methods of a web view can give a letter in
+ * pieces, such as the Vietnamese ệ as e + dot below + circumflex; zsh cannot edit a line with such pieces and shows them
+ * as <0087>. Composed text is what every other terminal sends. Control sequences are plain ASCII and are not changed.
+ */
+export function composedInput(d: string): string {
+  return /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff]/.test(d) ? d.normalize('NFC') : d
+}
+
+/** The part of a terminal that followReplacements uses (xterm's Terminal has all of it). */
+interface ComposingTerm {
+  textarea?: HTMLTextAreaElement
+  onData(cb: (d: string) => void): {dispose(): void}
+  input(data: string, wasUserInput?: boolean): void
+}
+
+/**
+ * Some input methods (the Vietnamese ones of macOS in WKWebView, for one) do not compose in xterm's hidden text box:
+ * every key replaces the whole word being typed there ("tieng" becomes "tiéng") with an `insertReplacementText` input
+ * event. xterm.js ignores those events, so only the first letter of each word and the spaces reached the shell:
+ * "gõ tiếng việt" arrived as "g t v". Here the word as the shell has it is tracked, and every replacement sends what
+ * differs: backspaces for the letters that changed, then the new letters (what Unikey or OpenKey do too).
+ * Returns what undoes it.
+ */
+export function followReplacements(t: ComposingTerm): () => void {
+  const ta = t.textarea
+  if (!ta) return () => {}
+  let word = '' // the word typed so far, as the shell has it
+  let ours = false // data that we send ourselves is not xterm's
+  const sub = t.onData(d => {
+    if (ours) return
+    // letters extend the word; a space, Enter, Backspace, a control key or an escape sequence ends it
+    word = /^[^\s\u0000-\u001f\u007f]+$/.test(d) ? word + d : ''
+  })
+  const onInput = (e: Event) => {
+    const ev = e as InputEvent
+    if (ev.inputType !== 'insertReplacementText' || !ev.data) return
+    const want = Array.from(ev.data.normalize('NFC'))
+    const have = Array.from(word)
+    let same = 0
+    while (same < want.length && same < have.length && want[same] === have[same]) same++
+    const out = '\x7f'.repeat(have.length - same) + want.slice(same).join('')
+    word = want.join('')
+    if (!out) return
+    ours = true
+    try { t.input(out, true) } finally { ours = false }
+  }
+  ta.addEventListener('input', onInput)
+  return () => { ta.removeEventListener('input', onInput); sub.dispose() }
+}
 
 /**
  * Text being composed with an input method (Vietnamese Telex, Chinese pinyin, Japanese…) is shown at the cursor, highlighted,
@@ -75,6 +140,7 @@ export function TerminalPane(p: Props) {
   const stateRef = useRef<State>('connecting')
   const [state, setState] = useState<State>('connecting')
   const [prompt, setPrompt] = useState<HostKeyPrompt | null>(null)
+  const [auth, setAuth] = useState<AuthChallenge | null>(null)
   const [closed, setClosed] = useState<ClosedInfo | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [needle, setNeedle] = useState('')
@@ -92,6 +158,28 @@ export function TerminalPane(p: Props) {
   copyOnSelect.current = p.copyOnSelect ?? true
   rightClick.current = p.rightClick ?? 'paste'
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null)
+  const confirm = useConfirm()
+  const confirmRef = useRef(confirm)
+  confirmRef.current = confirm
+  const guarded = useRef(false)
+  guarded.current = !!p.prod && (p.confirmProd ?? true)
+  /** text with a line break runs as soon as it arrives: in a production terminal it is asked about first */
+  const okToPaste = async (text: string): Promise<boolean> => {
+    if (!guarded.current || !/[\r\n]/.test(text)) return true
+    const lines = text.replace(/[\r\n]+$/, '').split(/\r\n|\r|\n/).length
+    return confirmRef.current(
+      lines === 1 ? 'Paste a line that ends with Enter into a PRODUCTION terminal? It runs at once.' : `Paste ${lines} lines into a PRODUCTION terminal? Each line runs as soon as it arrives.`,
+      {confirmLabel: 'Paste', danger: true})
+  }
+  const focusedRef = useRef(p.focused && p.visible)
+  focusedRef.current = p.focused && p.visible
+  const suggestOn = useRef(p.suggest ?? true)
+  suggestOn.current = p.suggest ?? true
+  const suggestCombo = useRef(p.suggestCombo ?? 'Mod+Shift+J')
+  suggestCombo.current = p.suggestCombo ?? 'Mod+Shift+J'
+  const suggestHost = useRef(p.suggestHost ?? false)
+  suggestHost.current = p.suggestHost ?? false
+  const hostCmds = useRef<string[]>([])
   const onTyped = useRef(p.onTyped)
   onTyped.current = p.onTyped
   onExit.current = p.onExit
@@ -121,7 +209,7 @@ export function TerminalPane(p: Props) {
     try {
       const text = await be.system.readClipboard()
       // the terminal turns it into bracketed paste when the shell asks for that, and the keys go out in order
-      if (text && stateRef.current === 'ready') term.current?.paste(text)
+      if (text && stateRef.current === 'ready' && await okToPaste(text)) term.current?.paste(text)
     } catch { /* clipboard not available */ }
   }
 
@@ -139,16 +227,44 @@ export function TerminalPane(p: Props) {
     fit.current = f
     search.current = s
     t.open(host.current!)
+    // a paste made by the browser itself (Cmd+V) is asked about too, before xterm sees it
+    const pasteEl = host.current!
+    const onPasteCapture = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain') ?? ''
+      if (!guarded.current || !/[\r\n]/.test(text)) return
+      e.preventDefault()
+      e.stopPropagation()
+      void okToPaste(text).then(ok => { if (ok && stateRef.current === 'ready') t.paste(text) })
+    }
+    pasteEl.addEventListener('paste', onPasteCapture, true)
     imeColours(host.current, p.termTheme)
+    const unfollowIme = followReplacements(t as unknown as ComposingTerm)
     try { f.fit() } catch { /* hidden */ }
 
-    // Termius-style colouring of finished lines, a moment after output stops arriving
+    // Command suggestions: the sources are the commands typed here, the snippets and (when asked) the host's history
+    let snippets: Snippet[] = []
+    const loadSnippets = () => { void be.snippets.list().then(l => { snippets = l }).catch(() => {}) }
+    loadSnippets()
+    window.addEventListener('focus', loadSnippets)
+    let suggester: Suggester | null = null
+    const popupFromMenu = () => { if (focusedRef.current) suggester?.togglePopup() }
+    window.addEventListener(SUGGEST_POPUP, popupFromMenu)
+    if (host.current?.parentElement) {
+      suggester = createSuggester({
+        term: t as unknown as SuggestTerm, container: host.current.parentElement, send: d => sendKeys(d),
+        sources: () => ({typed: getHistory(p.hostId), snippets, host: hostCmds.current}),
+        enabled: () => suggestOn.current, ready: () => stateRef.current === 'ready', popupCombo: () => suggestCombo.current, onCommand: line => recordCommand(p.hostId, line),
+      })
+    }
+
+    // Colouring of finished lines, a moment after output stops arriving
     const hl = createHighlighter(t as unknown as HighlightTerm)
     highlighter.current = hl
     let hlTimer = 0
     const hlSub = (t as unknown as {onWriteParsed?(cb: () => void): {dispose(): void}}).onWriteParsed?.(() => {
       window.clearTimeout(hlTimer)
       hlTimer = window.setTimeout(() => hl.scan(), 60)
+      suggester?.refresh()
     })
     if (p.highlight === false) hl.dispose()
 
@@ -183,23 +299,12 @@ export function TerminalPane(p: Props) {
         setSt('closed')
       })
     }
-    const track = createLineTracker()
-    t.onData(d => {
+    t.onData(raw => {
+      const d = composedInput(raw)
       if (stateRef.current === 'ready') {
+        suggester?.feed(d)
         sendKeys(d)
         onTyped.current?.(d)
-        for (const line of track(d)) {
-          // only what the terminal echoed: a password prompt shows nothing, so nothing is remembered. The echo
-          // comes back from the server a moment after the keys, so look a moment later, a few lines up.
-          const tail = line.trim().slice(-20)
-          window.setTimeout(() => {
-            const buf = t.buffer?.active
-            if (!buf || buf.type !== 'normal') return
-            for (let y = buf.baseY + buf.cursorY, n = 0; y >= 0 && n < 8; y--, n++) {
-              if (buf.getLine(y)?.translateToString(true).includes(tail)) { recordCommand(line); return }
-            }
-          }, 250)
-        }
       } else if (stateRef.current === 'closed' && (d === '\r' || d === '\n')) {
         retry.current()
       }
@@ -208,6 +313,7 @@ export function TerminalPane(p: Props) {
     const unregister = p.paneId ? registerPane(p.paneId, text => {
       if (stateRef.current !== 'ready') return false
       sendKeys(text)
+      suggester?.feed(text)
       return true
     }) : () => {}
     t.onResize(({cols, rows}) => {
@@ -215,6 +321,7 @@ export function TerminalPane(p: Props) {
     })
     t.attachCustomKeyEventHandler(e => {
       if (e.type !== 'keydown') return true
+      if (suggester?.handleKey(e)) return false
       if (matches(e, searchCombo.current)) {
         setShowSearch(v => !v)
         return false
@@ -235,6 +342,8 @@ export function TerminalPane(p: Props) {
       return true
     })
 
+    const cursorSub = (t as unknown as {onCursorMove?(cb: () => void): {dispose(): void}}).onCursorMove?.(() => suggester?.refresh())
+
     // copy on select: once the selection stops changing
     let selTimer = 0
     const selSub = (t as unknown as {onSelectionChange?(cb: () => void): {dispose(): void}}).onSelectionChange?.(() => {
@@ -253,11 +362,13 @@ export function TerminalPane(p: Props) {
           // output can only come from a live shell: do not keep the connecting screen up until the ready event
           if (stateRef.current === 'connecting') setSt('ready')
         }))
-        offs.push(be.on(`term:ready:${id}`, () => { setPrompt(null); setClosed(null); setSt('ready') }))
+        offs.push(be.on(`term:ready:${id}`, () => { setPrompt(null); setAuth(null); setClosed(null); setSt('ready') }))
         offs.push(be.on(`term:hostkey:${id}`, (hk: HostKeyPrompt) => setPrompt(hk)))
+        offs.push(be.on(`term:auth:${id}`, (a: AuthChallenge) => setAuth(a)))
         offs.push(be.on(`term:progress:${id}`, (e: {stage?: string}) => { if (e?.stage === 'authenticated') setStage('authenticated') }))
         offs.push(be.on(`term:closed:${id}`, (c: ClosedInfo) => {
           setPrompt(null)
+          setAuth(null)
           setSt('closed')
           if (c.clean) onExit.current()
           else setClosed(c)
@@ -274,10 +385,16 @@ export function TerminalPane(p: Props) {
 
     return () => {
       disposed = true
+      pasteEl.removeEventListener('paste', onPasteCapture, true)
       window.clearTimeout(hlTimer)
       window.clearTimeout(selTimer)
       hlSub?.dispose()
+      cursorSub?.dispose()
+      suggester?.dispose()
+      window.removeEventListener('focus', loadSnippets)
+      window.removeEventListener(SUGGEST_POPUP, popupFromMenu)
       selSub?.dispose()
+      unfollowIme()
       hl.dispose()
       unregister()
       unregSelection()
@@ -303,6 +420,14 @@ export function TerminalPane(p: Props) {
     t.options.scrollback = p.scrollback
     try { fit.current?.fit() } catch { /* hidden */ }
   }, [p.fontSize, p.fontFamily, p.termTheme, p.cursorStyle, p.cursorBlink, p.scrollback])
+
+  // the shell history is read once the session is ready: this computer's for the local terminal, a server's when asked for
+  useEffect(() => {
+    if (state !== 'ready' || !sid.current || p.suggest === false) { hostCmds.current = []; return }
+    let gone = false
+    void be.session.hostHistory(sid.current).then(l => { if (!gone) hostCmds.current = l }).catch(() => { if (!gone) hostCmds.current = [] }) // refused: an SSH host while that setting is off
+    return () => { gone = true }
+  }, [be, state, p.suggest, p.suggestHost])
 
   // the Highlight output switch in Settings
   useEffect(() => {
@@ -344,8 +469,9 @@ export function TerminalPane(p: Props) {
   }
 
   return (
-    <div className={'pane' + (p.focused ? ' focused' : '')} onMouseDown={p.onFocus} onContextMenu={onContextMenu} data-testid="pane" style={{background: p.termTheme.background}}>
+    <div className={'pane' + (p.focused ? ' focused' : '') + (p.prod ? ' prod' : '')} onMouseDown={p.onFocus} onContextMenu={onContextMenu} data-testid="pane" style={{background: p.termTheme.background}}>
       <div ref={host} style={{height: '100%', background: p.termTheme.background}} />
+      {p.prod && <div className="prod-badge" title="This host is marked production" aria-label="Production host">PROD</div>}
       {menu && (
         <div className="ctx-menu" role="menu" aria-label="Terminal" style={{left: menu.x, top: menu.y}} onMouseDown={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()}>
           <button role="menuitem" disabled={!hasSelection} onClick={() => { copyText(term.current?.getSelection() ?? ''); setMenu(null); term.current?.focus() }}>Copy</button>
@@ -388,6 +514,7 @@ export function TerminalPane(p: Props) {
           <b>Press Enter to reconnect</b>
         </div>
       )}
+      <AuthPrompt challenge={auth} promptKey={sid.current} onDone={() => setAuth(null)} onError={m => { setClosed({reason: m, clean: false}); setSt('closed') }} />
       {prompt && (
         <div className="overlay" role="alertdialog" aria-label="Host key confirmation">
           <div className="card">

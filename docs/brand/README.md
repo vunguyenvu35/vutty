@@ -1,8 +1,8 @@
-<p align="center"><img src="logo-mark-256.png" alt="VVTerm" width="88"></p>
+<p align="center"><img src="logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# VVTerm brand
+# Vutty brand
 
-Concept: the two **V**s of VVTerm, turned on their side, become a shell prompt `»`, followed by a block cursor `_`. Flat, two colours plus white, no glow or decoration: it reads the same at 1024 px and at 16 px.
+Concept: two chevrons make a shell prompt `»`, followed by a block cursor `_`. The mark did not change when the app was renamed from VVTerm to VuTerm and then Vutty; only the wordmark did. Flat, two colours plus white, no glow or decoration: it reads the same at 1024 px and at 16 px.
 
 | File | Use |
 | --- | --- |
@@ -22,7 +22,7 @@ Regenerate the PNGs with `node docs/brand/render.mjs '<jobs json>'` (needs the P
 | --- | --- | --- |
 | Ink | `#0B1020` | tile background (bottom), text on light |
 | Ink-2 | `#131B3A` | tile background (top, subtle vertical gradient) |
-| Indigo | `#5B8CFF` | first chevron, "VV" in the wordmark |
+| Indigo | `#5B8CFF` | first chevron, "Vu" in the wordmark |
 | Cyan | `#22D3EE` | second chevron, accent |
 | Mist | `#F2F5FF` | cursor, text on dark |
 

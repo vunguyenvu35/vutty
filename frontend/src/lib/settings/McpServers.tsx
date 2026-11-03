@@ -13,7 +13,7 @@ const MODES: {value: McpMode; label: string}[] = [{value: 'allow', label: 'Allow
 
 /**
  * Settings → AI assistant → MCP servers. The assistant never connects to these servers itself: it talks to a
- * VVTerm gateway, which starts the servers, checks every call's arguments for secrets, redacts every result and
+ * Vutty gateway, which starts the servers, checks every call's arguments for secrets, redacts every result and
  * asks you first for anything that is not a plain read. New tools of a server stay off until you review them.
  */
 export function McpServersPanel({providers, hosts}: {providers: AiProvider[]; hosts: Host[]}) {
@@ -41,7 +41,7 @@ export function McpServersPanel({providers, hosts}: {providers: AiProvider[]; ho
   return (
     <section className="card-section" aria-label="MCP servers">
       <h4>MCP servers</h4>
-      <div className="muted">Give the assistant extra tools (documentation search, an issue tracker…). Every call goes through VVTerm: arguments that contain a secret are blocked, results are redacted, and a tool that changes something asks you first.</div>
+      <div className="muted">Give the assistant extra tools (documentation search, an issue tracker…). Every call goes through Vutty: arguments that contain a secret are blocked, results are redacted, and a tool that changes something asks you first.</div>
       {servers && servers.length === 0 && <div className="muted">No MCP servers yet.</div>}
       {(servers ?? []).map(s => (
         <div key={s.id} className="ai-mcp-row" data-testid={'mcp-' + s.name}>

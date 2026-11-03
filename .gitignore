@@ -27,7 +27,7 @@ vault.json
 hosts.json
 known_hosts
 settings.json
-*.vvbak
+*.vubak
 *.pem
 id_ed25519
 id_rsa

@@ -34,12 +34,12 @@ Await ([Windows.Security.Credentials.UI.UserConsentVerifier]::CheckAvailabilityA
 `
 
 const helloVerify = helloPrelude + `
-Await ([Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync($env:VVTERM_HELLO_MESSAGE)) ([Windows.Security.Credentials.UI.UserConsentVerificationResult])
+Await ([Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync($env:VUTTY_HELLO_MESSAGE)) ([Windows.Security.Credentials.UI.UserConsentVerificationResult])
 `
 
 func runPowerShell(script, message string, timeout time.Duration) (string, error) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", script)
-	cmd.Env = append(cmd.Environ(), "VVTERM_HELLO_MESSAGE="+message)
+	cmd.Env = append(cmd.Environ(), "VUTTY_HELLO_MESSAGE="+message)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000} // CREATE_NO_WINDOW
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb

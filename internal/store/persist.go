@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"vvterm/internal/domain"
-	"vvterm/internal/fsutil"
+	"vutty/internal/domain"
+	"vutty/internal/fsutil"
 )
 
 // Persister is where the store keeps its data. Save receives the complete data set.

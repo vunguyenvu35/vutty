@@ -12,7 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// WindowFlag starts a terminal window process: `vvterm --window <host id> <title>`.
+// WindowFlag starts a terminal window process: `vutty --window <host id> <title>`.
 const WindowFlag = "--window"
 
 // WindowLauncher (main process) opens a terminal window as another process of this program. Like the

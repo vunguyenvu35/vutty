@@ -7,6 +7,7 @@ import {SettingsWindow} from './SettingsWindow'
 import {Switch} from '../ui/Switch'
 import {makeFake, Providers} from '../../test/fakeBackend'
 import type {Settings, VaultStatus} from '../types'
+import {SHOW_CRYPTO_DONATE} from '../donate'
 
 const vaultSt: VaultStatus = {exists: true, unlocked: true, keychain_enabled: false, auto_lock_minutes: 15}
 
@@ -23,6 +24,54 @@ function setup(over: Partial<Settings> = {}, vault = vaultSt) {
 }
 const tab = (n: string) => userEvent.click(screen.getByRole('tab', {name: n}))
 
+describe('SettingsWindow: session logs', () => {
+  it('is off to begin with, with no folder shown; turning it on shows the default folder and saves the choice', async () => {
+    const {be} = setup()
+    await tab('Terminal')
+    const sel = await screen.findByRole('combobox', {name: /^Session logs, Off/})
+    expect(screen.queryByTestId('session-log-folder')).toBeNull()
+    await userEvent.click(sel)
+    await userEvent.click(screen.getByRole('option', {name: /Production hosts only/}))
+    await waitFor(() => expect(be.state.settings.session_log).toBe('prod'))
+    expect(await screen.findByTestId('session-log-folder')).toHaveTextContent('/session-logs')
+    await userEvent.click(screen.getByRole('combobox', {name: /^Session logs/}))
+    await userEvent.click(screen.getByRole('option', {name: /All sessions/}))
+    await waitFor(() => expect(be.state.settings.session_log).toBe('all'))
+  })
+
+  it('warns what a log holds, and what is not recorded', async () => {
+    setup()
+    await tab('Terminal')
+    expect(await screen.findByText(/a password in a file you displayed included/)).toBeInTheDocument()
+    expect(screen.getByText(/What you type is not recorded/)).toBeInTheDocument()
+  })
+
+  it('chooses another folder, goes back to the default one, and opens the folder', async () => {
+    const {be} = setup({session_log: 'all'})
+    await tab('Terminal')
+    expect(await screen.findByTestId('session-log-folder')).toHaveTextContent('/Users/me/Library/Application Support/vutty/session-logs')
+    expect(screen.queryByRole('button', {name: 'Use the default'})).toBeNull()
+    await userEvent.click(screen.getByRole('button', {name: 'Choose…'}))
+    await waitFor(() => expect(be.state.settings.session_log_dir).toBe('/tmp/dir')) // what the fake folder picker answers
+    await waitFor(() => expect(screen.getByTestId('session-log-folder')).toHaveTextContent('/tmp/dir'))
+    await userEvent.click(screen.getByRole('button', {name: 'Open'}))
+    await waitFor(() => expect(be.state.calls).toContainEqual(['system.openPath', '/tmp/dir']))
+    await userEvent.click(screen.getByRole('button', {name: 'Use the default'}))
+    await waitFor(() => expect(be.state.settings.session_log_dir).toBe(''))
+    await waitFor(() => expect(screen.getByTestId('session-log-folder')).toHaveTextContent('/session-logs'))
+  })
+})
+
+describe('SettingsWindow: production hosts', () => {
+  it('has the switch for being careful on production hosts, on to begin with, and saves it', async () => {
+    const {be} = setup()
+    const sw = await screen.findByRole('switch', {name: 'Be careful on production hosts'})
+    expect(sw).toBeChecked()
+    await userEvent.click(sw)
+    await waitFor(() => expect(be.state.settings.confirm_prod).toBe(false))
+  })
+})
+
 describe('SettingsWindow', () => {
   it('is a window with a title bar, not a page', () => {
     setup()
@@ -31,12 +80,12 @@ describe('SettingsWindow', () => {
     expect(document.querySelector('.win-back')).not.toBeNull()
   })
 
-  it('has categories on the left and theme, help links and version below them (Termius layout)', async () => {
+  it('has categories on the left and theme, help links and version below them', async () => {
     setup()
     const nav = screen.getByRole('navigation', {name: 'Settings menu'})
-    expect(within(nav).getAllByRole('tab').map(t => t.querySelector('span')?.textContent)).toEqual(['General', 'Account', 'Terminal', 'Security', 'AI assistant', 'Sync', 'Shortcuts'])
+    expect(within(nav).getAllByRole('tab').map(t => t.querySelector('span')?.textContent)).toEqual(['General', 'Account', 'Terminal', 'Security', 'AI assistant', 'Sync', 'Shortcuts', 'Storage'])
     expect(within(nav).getByRole('combobox', {name: /^Theme,/})).toBeInTheDocument()
-    for (const l of ['Documentation', 'Request a feature', 'Report a bug', 'Release notes', 'Support on Ko-fi']) {
+    for (const l of ['Documentation', 'Request a feature', 'Report a bug', 'Release notes', 'Support Vutty']) {
       expect(within(nav).getByRole('button', {name: new RegExp(l)})).toBeInTheDocument()
     }
     expect(await screen.findByTestId('app-version')).toHaveTextContent('1.1.0-test')
@@ -109,7 +158,7 @@ describe('SettingsWindow', () => {
     setup({terminal_theme: 'nord'})
     await tab('Terminal')
     const match = screen.getByRole('radio', {name: /Match app theme/})
-    expect(match).toHaveTextContent('VVTerm Dark') // appearance=dark
+    expect(match).toHaveTextContent('Vutty Dark') // appearance=dark
     expect(match).not.toHaveTextContent('Nord')
   })
 
@@ -169,19 +218,19 @@ describe('SettingsWindow', () => {
     await waitFor(() => expect(be.state.settings.biometric_on_open).toBe(false))
   })
 
-  it('Ctrl+1…7 jump to a category and Ctrl+Tab goes round them, with the keys shown on the tabs', async () => {
+  it('Ctrl+1…8 jump to a category and Ctrl+Tab goes round them, with the keys shown on the tabs', async () => {
     setup()
     const key = (init: KeyboardEventInit) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ...init})) })
     const on = () => screen.getByRole('tab', {selected: true}).textContent
     expect(screen.getByRole('tab', {name: /^Security/})).toHaveTextContent('Ctrl+4')
     key({key: '4', code: 'Digit4', ctrlKey: true})
     expect(on()).toMatch(/^Security/)
-    key({key: '7', code: 'Digit7', ctrlKey: true})
-    expect(on()).toMatch(/^Shortcuts/)
+    key({key: '8', code: 'Digit8', ctrlKey: true})
+    expect(on()).toMatch(/^Storage/)
     key({key: 'Tab', code: 'Tab', ctrlKey: true}) // after the last one comes the first
     expect(on()).toMatch(/^General/)
     key({key: 'Tab', code: 'Tab', ctrlKey: true, shiftKey: true}) // and back
-    expect(on()).toMatch(/^Shortcuts/)
+    expect(on()).toMatch(/^Storage/)
   })
 
   it('security: a password hint can be saved', async () => {
@@ -193,6 +242,18 @@ describe('SettingsWindow', () => {
     await userEvent.click(save)
     await waitFor(() => expect(be.state.vault.hint).toBe('three random words'))
     expect(onVault).toHaveBeenCalled()
+  })
+
+  it('security: locking when the computer sleeps is on to begin with, explains itself and saves the choice', async () => {
+    const {be} = setup()
+    await tab('Security')
+    const sw = screen.getByRole('switch', {name: 'Lock when the computer sleeps'})
+    expect(sw).toBeChecked()
+    expect(screen.getByText(/Open terminals stay connected/)).toBeInTheDocument()
+    await userEvent.click(sw)
+    await waitFor(() => expect(be.state.settings.lock_on_sleep).toBe(false))
+    await userEvent.click(screen.getByRole('switch', {name: 'Lock when the computer sleeps'}))
+    await waitFor(() => expect(be.state.settings.lock_on_sleep).toBe(true))
   })
 
   it('security: auto-lock, keychain switch and password change', async () => {
@@ -231,10 +292,33 @@ describe('SettingsWindow', () => {
 
   it('help links open only the project pages', async () => {
     const {be} = setup()
-    await userEvent.click(screen.getByRole('button', {name: /Support on Ko-fi/}))
     await userEvent.click(screen.getByRole('button', {name: /Report a bug/}))
+    expect(be.state.calls).toContainEqual(['system.openUrl', 'https://github.com/vunguyenvu35/vutty/issues/new'])
+  })
+
+  it('Support Vutty opens Ko-fi, and hides the USDT addresses while crypto donations are off', async () => {
+    const {be} = setup()
+    await userEvent.click(screen.getByRole('button', {name: 'Support Vutty'}))
+    const dlg = await screen.findByRole('dialog', {name: 'Support Vutty'})
+    if (!SHOW_CRYPTO_DONATE) expect(within(dlg).queryByText(/USDT|Prefer crypto/)).toBeNull()
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Support on Ko-fi'}))
     expect(be.state.calls).toContainEqual(['system.openUrl', 'https://ko-fi.com/vunguyenvu'])
-    expect(be.state.calls).toContainEqual(['system.openUrl', 'https://github.com/vunguyenvu35/vvterm/issues/new'])
+  })
+
+  it.skipIf(!SHOW_CRYPTO_DONATE)('Support Vutty opens Ko-fi and the USDT addresses (QR code, Copy)', async () => {
+    const {be} = setup()
+    await userEvent.click(screen.getByRole('button', {name: 'Support Vutty'}))
+    const dlg = await screen.findByRole('dialog', {name: 'Support Vutty'})
+    expect(within(dlg).getByText('TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK')).toBeInTheDocument()
+    expect(within(dlg).getByText('0x4bdfd1d6456c28d06e3f8456ddac59e6168e5153')).toBeInTheDocument()
+    expect(within(dlg).getAllByRole('img')).toHaveLength(2)
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Support on Ko-fi'}))
+    expect(be.state.calls).toContainEqual(['system.openUrl', 'https://ko-fi.com/vunguyenvu'])
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Copy USDT · Tron address'}))
+    await waitFor(() => expect(be.state.calls).toContainEqual(['system.writeClipboard', 'TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK']))
+    await userEvent.keyboard('{Escape}') // closes the dialog, not the whole Settings window
+    expect(screen.queryByRole('dialog', {name: 'Support Vutty'})).toBeNull()
+    expect(screen.getByRole('navigation', {name: 'Settings menu'})).toBeInTheDocument()
   })
 })
 
@@ -501,5 +585,55 @@ describe('SettingsWindow: Highlight output', () => {
     expect(sw).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(sw)
     await waitFor(() => expect(be.state.settings.highlight).toBe(false))
+  })
+})
+
+describe('SettingsWindow: Storage', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('clears the cache and says what was removed', async () => {
+    const {be} = setup()
+    await tab('Storage')
+    await userEvent.click(screen.getByRole('button', {name: 'Clear cache'}))
+    expect(await screen.findByText('Cache cleared: 3 files, 5.0 KB')).toBeInTheDocument()
+    expect(be.state.calls.some(c => c[0] === 'settings.clearCache')).toBe(true)
+  })
+
+  it('asks before resetting, and a "no" changes nothing', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup({zoom: 140})
+    await tab('Storage')
+    await userEvent.click(screen.getByRole('button', {name: 'Reset settings…'}))
+    expect(be.state.calls.some(c => c[0] === 'settings.reset')).toBe(false)
+    expect(be.state.settings.zoom).toBe(140)
+  })
+
+  it('resets the preferences, keeps the profile and shows the defaults again', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be, onVault} = setup({zoom: 140, scrollback: 2000, account_name: 'Vu'})
+    await tab('Storage')
+    await userEvent.click(screen.getByRole('button', {name: 'Reset settings…'}))
+    expect(await screen.findByText('Settings reset to their defaults')).toBeInTheDocument()
+    expect(be.state.settings.zoom).toBe(100)
+    expect(be.state.settings.account_name).toBe('Vu')
+    expect(onVault).toHaveBeenCalled()
+    await tab('General')
+    expect(screen.getByLabelText('Zoom level')).toHaveTextContent('100%')
+  })
+})
+
+describe('SettingsWindow: Suggest commands', () => {
+  it('is on, reads no host history by default, and the history switch waits for the first one', async () => {
+    const {be} = setup()
+    await tab('Terminal')
+    const on = screen.getByRole('switch', {name: 'Suggest commands'})
+    const host = screen.getByRole('switch', {name: "Suggest from the host's shell history"})
+    expect(on).toHaveAttribute('aria-checked', 'true')
+    expect(host).toHaveAttribute('aria-checked', 'false')
+    await userEvent.click(host)
+    expect(be.state.settings.suggest_host).toBe(true)
+    await userEvent.click(on)
+    expect(be.state.settings.suggest).toBe(false)
+    expect(screen.getByRole('switch', {name: "Suggest from the host's shell history"})).toBeDisabled()
   })
 })

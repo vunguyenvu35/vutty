@@ -3,15 +3,17 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
-	"vvterm/internal/vault"
+	"vutty/internal/vault"
 )
 
 func newBridgeApp(t *testing.T) (*App, *Bridge, *[]string, string) {
@@ -46,6 +48,20 @@ func TestBridgeConnectionFileIsPrivateAndRemovedOnClose(t *testing.T) {
 	b.Close()
 	if _, err := os.Stat(filepath.Join(dir, bridgeFile)); !os.IsNotExist(err) {
 		t.Fatal("the connection file must be removed on close")
+	}
+}
+
+func TestBridgeRefusesAWindowOfAnotherVersion(t *testing.T) {
+	_, _, _, dir := newBridgeApp(t)
+	c, err := ConnectBridge(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := Version
+	defer func() { Version = old }()
+	Version = "0.0.1-left-open" // this process is an older window; the main process answers with its own version
+	if err := c.Ping(); err == nil || !strings.Contains(err.Error(), "close it and open it again") {
+		t.Fatalf("a window of another version must be refused: %v", err)
 	}
 }
 
@@ -206,7 +222,7 @@ func TestOpenSettingsFallsBackWithoutNativeWindows(t *testing.T) {
 	if err := s.OpenSettings(); err != nil || called != 1 {
 		t.Fatalf("%v %d", err, called)
 	}
-	t.Setenv("VVTERM_NO_NATIVE_DIALOGS", "1")
+	t.Setenv("VUTTY_NO_NATIVE_DIALOGS", "1")
 	if err := s.OpenSettings(); err == nil || called != 1 {
 		t.Fatal("the e2e switch must keep the in-app window")
 	}
@@ -228,11 +244,13 @@ func TestLockingTheVaultClosesTheSettingsWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.Vault.Lock()
-	done := make(chan struct{})
-	go func() { _ = cmd.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
+	// the launcher is the one that waits for the process: here it is only asked whether it is still alive (a second Wait would race with it)
+	alive := func(c *exec.Cmd) bool { return c.Process.Signal(syscall.Signal(0)) == nil }
+	deadline := time.Now().Add(5 * time.Second)
+	for alive(cmd) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if alive(cmd) {
 		_ = cmd.Process.Kill()
 		t.Fatal("the Settings window must end when the vault locks")
 	}
@@ -248,7 +266,7 @@ func TestLockingTheVaultClosesTheSettingsWindow(t *testing.T) {
 	}
 	a.closeSettingsWhenLocked("hosts:changed")
 	time.Sleep(200 * time.Millisecond)
-	if cmd.ProcessState != nil {
+	if !alive(cmd) {
 		t.Fatal("an unrelated event must not close Settings")
 	}
 	_ = cmd.Process.Kill()
@@ -332,5 +350,58 @@ func TestSettingsWindowIsRaisedAfterItStartsAndWhenAskedAgain(t *testing.T) {
 	defer mu.Unlock()
 	if attempts != 4 {
 		t.Fatalf("asking again must raise the same window once more: %d", attempts)
+	}
+}
+
+// A web page or a rebinding attack cannot reach the bridge even with a token it somehow learned.
+func TestBridgeRefusesBrowserOriginsAndForeignHostNames(t *testing.T) {
+	_, b, _, _ := newBridgeApp(t)
+	for name, mod := range map[string]func(*http.Request){
+		"origin": func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") },
+		"host":   func(r *http.Request) { r.Host = "evil.example:" + strings.Split(b.ln.Addr().String(), ":")[1] },
+	} {
+		req, _ := http.NewRequest("GET", "http://"+b.ln.Addr().String()+"/ping", nil)
+		req.Header.Set("Authorization", "Bearer "+b.token)
+		mod(req)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s: got %d, want 403 even with the right token", name, resp.StatusCode)
+		}
+	}
+	req, _ := http.NewRequest("GET", "http://"+b.ln.Addr().String()+"/ping", nil)
+	req.Header.Set("Authorization", "Bearer "+b.token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("a plain client with the token must still work: %v %v", resp, err)
+	}
+	resp.Body.Close()
+}
+
+func TestReadOnlyCallAssistantPolling(t *testing.T) {
+	for _, m := range []string{"Providers", "Settings", "Models"} {
+		if !readOnlyCall("AssistantService", m) {
+			t.Errorf("AssistantService.%s must not broadcast a change", m)
+		}
+	}
+	if readOnlyCall("AssistantService", "SetProviderEnabled") {
+		t.Error("SetProviderEnabled changes data")
+	}
+}
+
+func TestBridgeAllowsResetAndClearCacheFromSettings(t *testing.T) {
+	_, _, changed, dir := newBridgeApp(t)
+	c, _ := ConnectBridge(dir)
+	if _, err := c.Call("SettingsService", "ResetSettings", "[]"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Call("SettingsService", "ClearCache", "[]"); err != nil {
+		t.Fatal(err)
+	}
+	if len(*changed) != 2 {
+		t.Fatalf("the main window must hear about both: %v", *changed)
 	}
 }

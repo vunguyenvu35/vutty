@@ -16,16 +16,17 @@ const ids: Identity[] = [
 function Harness({be}: {be: ReturnType<typeof makeFake>}) {
   const [mode, setMode] = useState<KeyMode | null>(null)
   const [draft, setDraft] = useState('')
+  const [edit, setEdit] = useState<Identity | null>(null)
   const [list, setList] = useState<Identity[]>(be.state.identities)
   const refresh = async () => setList(await be.vault.listIdentities())
   return (
     <>
-      <KeychainPage identities={list} draft={mode ? draft : undefined} onNew={m => { setDraft(''); setMode(m) }} onChanged={refresh} />
-      {mode && <KeyPanel key={mode} mode={mode} onClose={() => setMode(null)} onChanged={refresh} onDraft={setDraft} />}
+      <KeychainPage identities={list} draft={mode && !edit ? draft : undefined} onNew={m => { setDraft(''); setEdit(null); setMode(m) }} onEdit={i => { setEdit(i); setMode(i.auth_type) }} onChanged={refresh} />
+      {mode && <KeyPanel key={edit?.id ?? mode} mode={mode} identity={edit ?? undefined} onClose={() => { setMode(null); setEdit(null) }} onChanged={refresh} onDraft={setDraft} />}
     </>
   )
 }
-function setup(identities: Identity[] = ids) {
+function setup(identities: Identity[] = ids.map(i => ({...i}))) { // a copy each time: editing one must not change the next test
   const be = makeFake({identities})
   render(<Providers be={be}><Harness be={be} /></Providers>)
   return be
@@ -39,8 +40,8 @@ describe('Keychain page', () => {
     setup()
     expect(screen.getByRole('button', {name: 'New key'})).toBeInTheDocument()
     const cards = within(screen.getByRole('list', {name: 'Identities'})).getAllByRole('listitem')
-    expect(cards.map(c => c.querySelector('.label')?.textContent)).toEqual(['deploy', 'legacy', 'db', 'agent'])
-    expect(cards.map(c => c.querySelector('.addr')?.textContent)).toEqual(['Type ED25519', 'Type RSA', 'Type Password · root', 'Type ssh-agent'])
+    expect(cards.map(c => c.querySelector('.label')?.textContent)).toEqual(['agent', 'db', 'deploy', 'legacy']) // by name
+    expect(cards.map(c => c.querySelector('.addr')?.textContent)).toEqual(['Type ssh-agent', 'Type Password · root', 'Type ED25519', 'Type RSA'])
     expect(document.body.textContent).not.toMatch(/PRIVATE KEY|secret_ref/)
   })
 
@@ -178,6 +179,121 @@ describe('New key panel', () => {
   })
 })
 
+describe('Vault health on the Keychain page', () => {
+  it('says nothing when every secret can be read', async () => {
+    const be = setup()
+    await waitFor(() => expect(calls(be, 'vault.health').length).toBeGreaterThan(0))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText("Can't be read")).toBeNull()
+  })
+
+  it('names the identities whose secret cannot be read, and the ones that belong to no identity', async () => {
+    const be = makeFake({identities: ids.map(i => ({...i})), health: {checked: 4, unreadable: [
+      {secret_id: 's3', name: 'db', identity_id: 'i3', kind: 'password'},
+      {secret_id: 'telnet:h9', name: 'Telnet password of router', kind: 'telnet'},
+    ]}})
+    render(<Providers be={be}><Harness be={be} /></Providers>)
+    const warn = await screen.findByRole('alert')
+    expect(warn).toHaveTextContent("2 saved items can't be read with this vault's key")
+    expect(warn).toHaveTextContent('Also: Telnet password of router')
+    const cards = within(screen.getByRole('list', {name: 'Identities'})).getAllByRole('listitem')
+    const marked = cards.filter(c => within(c).queryByText("Can't be read"))
+    expect(marked.map(c => c.querySelector('.label')?.textContent)).toEqual(["dbCan't be read"]) // only that card
+  })
+
+  it('checks again when the list changes, so entering a secret again clears the mark', async () => {
+    const be = makeFake({identities: ids.map(i => ({...i})), health: {checked: 4, unreadable: [{secret_id: 's3', name: 'db', identity_id: 'i3', kind: 'password'}]}})
+    render(<Providers be={be}><Harness be={be} /></Providers>)
+    await screen.findByRole('alert')
+    be.state.health = {checked: 4, unreadable: []} // what the vault finds once it was entered again
+    await userEvent.click(screen.getByRole('button', {name: 'Edit db'}))
+    const dlg = await screen.findByRole('dialog', {name: 'Edit Password'})
+    await userEvent.type(within(dlg).getByLabelText('New password'), 'typed again')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Save changes'}))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(screen.queryByText("Can't be read")).toBeNull()
+  })
+})
+
+describe('Editing an identity', () => {
+  const edit = (name: string) => userEvent.click(screen.getByRole('button', {name: `Edit ${name}`}))
+
+  it('every card has an Edit button (and a double click opens it too), and the panel shows no draft card', async () => {
+    setup()
+    for (const n of ['agent', 'db', 'deploy', 'legacy']) expect(screen.getByRole('button', {name: `Edit ${n}`})).toBeInTheDocument()
+    await userEvent.dblClick(screen.getByText('db'))
+    expect(await screen.findByRole('dialog', {name: 'Edit Password'})).toBeInTheDocument()
+    expect(screen.queryByTestId('draft-card')).toBeNull()
+  })
+
+  it('renames a password identity and changes its user; the password is only sent when a new one is typed', async () => {
+    const be = setup()
+    await edit('db')
+    const dlg = await screen.findByRole('dialog', {name: 'Edit Password'})
+    const save = within(dlg).getByRole('button', {name: 'Save changes'})
+    expect(save).toBeDisabled() // nothing changed yet
+    expect(within(dlg).getByLabelText('Label')).toHaveValue('db')
+    expect(within(dlg).getByLabelText('Username')).toHaveValue('root')
+    await userEvent.clear(within(dlg).getByLabelText('Label'))
+    await userEvent.type(within(dlg).getByLabelText('Label'), 'db-prod')
+    await userEvent.clear(within(dlg).getByLabelText('Username'))
+    await userEvent.type(within(dlg).getByLabelText('Username'), 'admin')
+    await userEvent.click(save)
+    await waitFor(() => expect(calls(be, 'vault.updateIdentity')).toHaveLength(1))
+    expect(calls(be, 'vault.updateIdentity')[0]).toEqual(['vault.updateIdentity', 'i3', 'db-prod', 'admin', '', '', '', ''])
+    await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Edit Password'})).toBeNull())
+    expect(screen.getByText('db-prod')).toBeInTheDocument()
+    expect(be.state.identities.filter(i => i.name.startsWith('db'))).toHaveLength(1) // edited, not duplicated
+  })
+
+  it('replaces the password when a new one is typed', async () => {
+    const be = setup()
+    await edit('db')
+    const dlg = await screen.findByRole('dialog', {name: 'Edit Password'})
+    await userEvent.type(within(dlg).getByLabelText('New password'), 's3cret-new')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Save changes'}))
+    await waitFor(() => expect(calls(be, 'vault.updateIdentity')[0].slice(1, 5)).toEqual(['i3', 'db', 'root', 's3cret-new']))
+  })
+
+  it('a key shows its public key and keeps its private key unless a new one is given', async () => {
+    const be = setup()
+    await edit('deploy')
+    const dlg = await screen.findByRole('dialog', {name: 'Edit Key'})
+    expect(within(dlg).getByTestId('pubkey')).toHaveTextContent('ssh-ed25519 AAAAB3Nza')
+    expect(within(dlg).queryByLabelText('Username')).toBeNull()
+    expect(document.body.textContent).not.toMatch(/BEGIN .*PRIVATE KEY/)
+    await userEvent.clear(within(dlg).getByLabelText('Label'))
+    await userEvent.type(within(dlg).getByLabelText('Label'), 'deploy-2')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Save changes'}))
+    await waitFor(() => expect(calls(be, 'vault.updateIdentity')[0].slice(1, 5)).toEqual(['i1', 'deploy-2', '', '']))
+  })
+
+  it('replaces the private key with a chosen file, and shows the error of a key that is refused', async () => {
+    const be = setup()
+    await edit('deploy')
+    const dlg = await screen.findByRole('dialog', {name: 'Edit Key'})
+    fireEvent.change(within(dlg).getByLabelText('Key file'), {target: {files: [keyFile(PEM)]}})
+    await waitFor(() => expect(within(dlg).getByLabelText('Private key')).toHaveValue(PEM))
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Save changes'}))
+    await waitFor(() => expect(calls(be, 'vault.updateIdentity')[0].slice(1, 5)).toEqual(['i1', 'deploy', '', PEM]))
+    be.vault.updateIdentity = async () => { throw 'ssh: no key found' }
+    await edit('deploy')
+    const again = await screen.findByRole('dialog', {name: 'Edit Key'})
+    await userEvent.type(within(again).getByLabelText('Private key'), 'junk')
+    await userEvent.click(within(again).getByRole('button', {name: 'Save changes'}))
+    expect(await within(again).findByRole('alert')).toHaveTextContent('ssh: no key found') // the panel stays open
+  })
+
+  it('an ssh-agent identity can be renamed', async () => {
+    const be = setup()
+    await edit('agent')
+    const dlg = await screen.findByRole('dialog', {name: 'Edit ssh-agent identity'})
+    await userEvent.type(within(dlg).getByLabelText('Username'), 'me')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Save changes'}))
+    await waitFor(() => expect(calls(be, 'vault.updateIdentity')[0].slice(1, 5)).toEqual(['i4', 'agent', 'me', '']))
+  })
+})
+
 describe('New Key panel: the design', () => {
   const open = async () => { setup(); await userEvent.click(screen.getByRole('button', {name: 'New key'})) }
 
@@ -221,5 +337,67 @@ describe('New Key panel: the design', () => {
     expect(screen.getByLabelText('Passphrase')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Private key'), {target: {value: PEM}})
     expect(screen.queryByLabelText('Passphrase')).toBeNull()
+  })
+})
+
+describe('Keychain page: filter, sort and view', () => {
+  // the shared fixture is changed by the tests above, so these start from their own copies
+  const base = (): Identity[] => [
+    {id: 'i1', name: 'deploy', auth_type: 'key', public_key: 'ssh-ed25519 AAAAB3Nza'} as Identity,
+    {id: 'i2', name: 'legacy', auth_type: 'key', public_key: 'ssh-rsa AAAAB3'} as Identity,
+    {id: 'i3', name: 'db', auth_type: 'password', username: 'root'} as Identity,
+    {id: 'i4', name: 'agent', auth_type: 'agent'} as Identity,
+  ]
+  const names = () => within(screen.getByRole('list', {name: 'Identities'})).getAllByRole('listitem').map(c => c.querySelector('.label')?.textContent)
+  beforeEach(() => localStorage.clear())
+
+  it('searches the name, the user and the type', async () => {
+    setup(base())
+    await userEvent.type(screen.getByLabelText('Search keys'), 'root')
+    expect(names()).toEqual(['db'])
+    await userEvent.clear(screen.getByLabelText('Search keys'))
+    await userEvent.type(screen.getByLabelText('Search keys'), 'rsa')
+    expect(names()).toEqual(['legacy'])
+    await userEvent.clear(screen.getByLabelText('Search keys'))
+    await userEvent.type(screen.getByLabelText('Search keys'), 'nothing')
+    expect(screen.getByText('No key matches.')).toBeInTheDocument()
+  })
+
+  it('filters by kind: keys, passwords, ssh-agent', async () => {
+    setup(base())
+    await userEvent.click(screen.getByRole('button', {name: 'Keys'}))
+    expect(names()).toEqual(['deploy', 'legacy'])
+    await userEvent.click(screen.getByRole('button', {name: 'ssh-agent'}))
+    expect(names()).toEqual(['agent', 'deploy', 'legacy'])
+    await userEvent.click(screen.getByRole('button', {name: 'Keys'}))
+    await userEvent.click(screen.getByRole('button', {name: 'ssh-agent'}))
+    expect(names()).toEqual(['agent', 'db', 'deploy', 'legacy'])
+  })
+
+  it('sorts by name, reversed, or by type; and switches between grid and list', async () => {
+    setup(base())
+    await userEvent.click(screen.getByRole('button', {name: 'Sort'}))
+    await userEvent.click(screen.getByRole('menuitemradio', {name: /Name Z–A/}))
+    expect(names()).toEqual(['legacy', 'deploy', 'db', 'agent'])
+    await userEvent.click(screen.getByRole('button', {name: 'Sort'}))
+    await userEvent.click(screen.getByRole('menuitemradio', {name: /^Type/}))
+    expect(names()).toEqual(['deploy', 'db', 'legacy', 'agent']) // ED25519, Password, RSA, ssh-agent
+    await userEvent.click(screen.getByRole('button', {name: 'View'}))
+    await userEvent.click(screen.getByRole('menuitemradio', {name: /List/}))
+    expect(screen.getByRole('list', {name: 'Identities'})).toHaveClass('as-list')
+  })
+
+  it('offers kind chips only when there is more than one kind, and no toolbar when there are no keys', () => {
+    setup(base().slice(0, 2))
+    expect(screen.queryByRole('button', {name: 'Keys'})).toBeNull()
+    expect(screen.getByLabelText('Search keys')).toBeInTheDocument()
+  })
+
+  it('keeps the draft card of a key being added, whatever the filter', async () => {
+    const list = base()
+    const be = makeFake({identities: list})
+    render(<Providers be={be}><KeychainPage identities={list} draft="new key" onNew={vi.fn()} onChanged={vi.fn()} /></Providers>)
+    await userEvent.type(screen.getByLabelText('Search keys'), 'zzz')
+    expect(screen.getByTestId('draft-card')).toBeInTheDocument()
   })
 })

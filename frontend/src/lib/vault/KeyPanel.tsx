@@ -21,6 +21,7 @@ export async function readKeyFile(file: File): Promise<string> {
   return text
 }
 
+const EDIT_TITLES: Record<KeyMode, string> = {key: 'Edit Key', generate: 'Edit Key', password: 'Edit Password', agent: 'Edit ssh-agent identity'}
 const TITLES: Record<KeyMode, string> = {key: 'New Key', generate: 'Generate Key', password: 'New Password', agent: 'New ssh-agent identity'}
 
 /** A text area whose name floats up onto its border once it has the focus or something in it. */
@@ -52,6 +53,8 @@ interface Props {
   onChanged(): void
   /** the label as it is typed, for the draft card */
   onDraft(label: string): void
+  /** change this identity instead of adding one (`mode` is its kind) */
+  identity?: Identity
 }
 
 /**
@@ -59,23 +62,23 @@ interface Props {
  * but the private key optional), a drop area and an "Import from key file" button. Also: generate a key,
  * add a password, add an ssh-agent identity.
  */
-export function KeyPanel({mode, onClose, onChanged, onDraft}: Props) {
+export function KeyPanel({mode, onClose, onChanged, onDraft, identity}: Props) {
   const be = useBackend()
   const toast = useToast()
   const fileInput = useRef<HTMLInputElement>(null)
-  const [label, setLabelState] = useState('')
+  const [label, setLabelState] = useState(identity?.name ?? '')
   const [pem, setPem] = useState('')
   const [pub, setPub] = useState('')
   const [cert, setCert] = useState('')
   const [pass, setPass] = useState('')
-  const [user, setUser] = useState('')
+  const [user, setUser] = useState(identity?.username ?? '')
   const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [over, setOver] = useState(false)
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<Identity | null>(null)
 
-  const setLabel = (v: string) => { setLabelState(v); onDraft(v) }
+  const setLabel = (v: string) => { setLabelState(v); if (!identity) onDraft(v) } // the draft card is only for a new one
   // an encrypted key needs its passphrase: the field appears only then
   const encrypted = /ENCRYPTED|bcrypt/.test(pem) || (/BEGIN OPENSSH PRIVATE KEY/.test(pem) && /aes\d+-(ctr|cbc|gcm)/i.test(atobSafe(pem)))
 
@@ -119,7 +122,44 @@ export function KeyPanel({mode, onClose, onChanged, onDraft}: Props) {
 
   let cards: ReactNode
   let footer: ReactNode
-  if (mode === 'key') {
+  if (identity) {
+    const secret = mode === 'key' ? pem : mode === 'password' ? pw : ''
+    const changed = label.trim() !== identity.name || user !== (identity.username ?? '') || secret !== ''
+    cards = (
+      <>
+        <Section title="Identity">
+          {labelBox}
+          {mode !== 'key' && <input aria-label="Username" value={user} onChange={e => setUser(e.target.value)} placeholder="Username" />}
+          {mode === 'key' && identity.public_key && (
+            <>
+              <div className="pubkey" data-testid="pubkey">{identity.public_key}</div>
+              <button onClick={() => copy(identity.public_key!)}>Copy public key</button>
+            </>
+          )}
+          {mode === 'agent' && <div className="muted">Authenticates with the keys loaded in your running ssh-agent.</div>}
+        </Section>
+        {mode === 'password' && (
+          <Section title="Password">
+            <input aria-label="New password" type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Leave empty to keep the current password" />
+            <div className="muted">The hosts that use this identity switch to the new password as soon as you save.</div>
+          </Section>
+        )}
+        {mode === 'key' && (
+          <Section title="Replace the private key">
+            <div className="muted">Leave empty to keep the current key. A new key replaces it for every host that uses this identity.</div>
+            <FloatArea label="Private key" value={pem} onChange={setPem} />
+            <FloatArea label="Public key" value={pub} onChange={setPub} />
+            <FloatArea label="Certificate" value={cert} onChange={setCert} />
+            {encrypted && <input aria-label="Passphrase" type="password" autoComplete="off" value={pass} onChange={e => setPass(e.target.value)} placeholder="Passphrase of the private key" />}
+            <input ref={fileInput} type="file" hidden aria-label="Key file" onChange={e => { void takeFile(e.target.files?.[0]); e.target.value = '' }} />
+            <button className="wide-btn" onClick={() => fileInput.current?.click()}>Import from key file</button>
+          </Section>
+        )}
+      </>
+    )
+    footer = <><button onClick={onClose}>Cancel</button><button className="primary" disabled={busy || !label.trim() || !changed}
+      onClick={() => run(() => be.vault.updateIdentity(identity.id, label.trim(), user, secret, pass, pub, cert), 'Changes saved')}>Save changes</button></>
+  } else if (mode === 'key') {
     cards = (
       <>
         <Section>
@@ -183,7 +223,7 @@ export function KeyPanel({mode, onClose, onChanged, onDraft}: Props) {
   }
 
   return (
-    <SidePanel title={TITLES[mode]} onClose={onClose} footer={footer}>
+    <SidePanel title={identity ? EDIT_TITLES[mode] : TITLES[mode]} onClose={onClose} footer={footer}>
       {cards}
       {errBox}
     </SidePanel>

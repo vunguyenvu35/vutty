@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"vvterm/internal/domain/assistant"
+	"vutty/internal/domain/assistant"
 )
 
 // Gemini drives the Gemini CLI in headless mode. It cannot list its models, so only the default and a custom id
@@ -62,7 +62,7 @@ func (g *Gemini) Detect(ctx context.Context) assistant.Status {
 	}
 	// Which sign-in the CLI is set to is read from its settings (not a secret); the sign-in file itself is only
 	// checked for existence, never read. Only "Login with Google" works: the other methods need an API key or
-	// a gateway from the environment, which VVTerm does not pass on.
+	// a gateway from the environment, which Vutty does not pass on.
 	kind := g.authType()
 	switch {
 	case kind == "":

@@ -22,7 +22,7 @@ interface Props {
 }
 
 /**
- * The screen of a tab that is not connected yet, like Termius: who we are connecting to, a line from "plug"
+ * The screen of a tab that is not connected yet: who we are connecting to, a line from "plug"
  * to "terminal" that shows how far it got, and room below for the protocol choice, the message or the buttons.
  */
 export function ConnectScreen({label, os, subtitle, step, target, rate = 0.5, onFull, headerAction, children, footer}: Props) {
