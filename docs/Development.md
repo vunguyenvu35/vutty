@@ -20,6 +20,7 @@ make build        # build/bin/vutty.app
 make test         # go vet + go test -race + frontend typecheck + vitest
 ./e2e/run.sh      # the walkthrough: also regenerates docs/screenshots and then runs scripts/check-doc-links.sh
 make e2e          # end-to-end walkthrough on the real backend; refreshes docs/screenshots
+./tools/termperf/run.sh   # heavy-output benchmark of the terminal in the real macOS WKWebView (about 10 minutes)
 make inventory    # regenerate docs/TestInventory.md
 make deploy-dev   # install a "Vutty Dev" build next to the production app
 make deploy-prod  # release pipeline (see below)

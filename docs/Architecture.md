@@ -384,7 +384,7 @@ After Gate 2 it is usable every day for basic SSH; Gate 4 is when Vutty has enou
 
 | Risk | Impact | Response |
 | --- | --- | --- |
-| xterm.js on WKWebView is slow with large output | Lag during `tail -f` on a log | Batch events in chunks; measure performance as early as phase 1 |
+| xterm.js on WKWebView is slow with large output | Lag during `tail -f` on a log | Batch events in chunks; measured in the real WKWebView (see [Assessment.md](Assessment.md), G4): fine for text at the backend's rate, slow for full-screen redraws, no flow control yet |
 | Old keys (RSA SHA-1, DSA) are not compatible with `x/crypto/ssh` | Cannot log in to old servers | Support `rsa-sha2-256/512`; say clearly when a key is not supported |
 | Forgotten master password | The whole vault is lost | Warn when the vault is created; remind the user to export a backup regularly |
 | Clock skew between machines when syncing | An edit may be overwritten by mistake | Accepted in the MVP; a version vector can be used later |
