@@ -157,6 +157,7 @@ export default {
   'the ones you changed': 'những phím bạn đã đổi',
   'Highlight output and Suggest commands': 'Tô sáng kết quả và Gợi ý lệnh',
   'name and email': 'tên và email',
+  '{n} of {total} selected': '{n} / {total} mục được chọn',
   'High risk': 'Rủi ro cao',
   'Highlight output': 'Tô sáng kết quả',
   'Hosts': 'Máy chủ',

@@ -154,6 +154,9 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const [name, setName] = useState(s.account_name)
   const [email, setEmail] = useState(s.account_email)
   const [err, setErr] = useState('')
+  // the What to sync box can be folded; the choice is remembered on this machine only
+  const [syncOpen, setSyncOpen] = useState(() => { try { return localStorage.getItem('vutty.sync.whatOpen') !== '0' } catch { return true } })
+  const toggleSyncOpen = () => setSyncOpen(o => { try { localStorage.setItem('vutty.sync.whatOpen', o ? '0' : '1') } catch { /* private window */ } return !o })
   const [maximized, setMaximized] = useState(false)
   const backdrop = useRef<HTMLDivElement>(null)
   // the window the popup is in, measured on its own backdrop (the interface zoom changes what a pixel is, so window.innerWidth would be wrong)
@@ -602,9 +605,15 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
               {cat === 'sync' && (
                 <>
                   <section className="card-section" aria-label={t('What to sync')}>
-                    <h4>{t('What to sync')}</h4>
-                    <p className="muted">{t('Hosts, groups, keys, port forwards and snippets are always synced. Choose which of your preferences travel with them, inside the same encrypted bundle; the newest change of each group wins. Zoom, folders, auto-lock, Touch ID and the other settings of one machine never leave it.')}</p>
-                    {SYNC_GROUPS.map(g => (
+                    <h4>
+                      <button type="button" className="collapse-head" aria-expanded={syncOpen} onClick={toggleSyncOpen}>
+                        <svg className="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        <span>{t('What to sync')}</span>
+                        {!syncOpen && <span className="count">{t('{n} of {total} selected', {n: s.sync_items.length, total: SYNC_GROUPS.length})}</span>}
+                      </button>
+                    </h4>
+                    {syncOpen && <p className="muted">{t('Hosts, groups, keys, port forwards and snippets are always synced. Choose which of your preferences travel with them, inside the same encrypted bundle; the newest change of each group wins. Zoom, folders, auto-lock, Touch ID and the other settings of one machine never leave it.')}</p>}
+                    {syncOpen && SYNC_GROUPS.map(g => (
                       <label key={g.id} className="check" style={{paddingTop: 11, paddingBottom: 11}}>
                         <input type="checkbox" checked={s.sync_items.includes(g.id)}
                           onChange={e => update({sync_items: e.target.checked ? [...s.sync_items, g.id] : s.sync_items.filter(x => x !== g.id)})} />

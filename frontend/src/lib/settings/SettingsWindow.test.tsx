@@ -773,6 +773,24 @@ describe('SettingsWindow: What to sync', () => {
   })
 })
 
+describe('SettingsWindow: What to sync can be folded', () => {
+  beforeEach(() => localStorage.removeItem('vutty.sync.whatOpen'))
+  afterEach(() => localStorage.removeItem('vutty.sync.whatOpen'))
+
+  it('folds to a header that says how many are ticked, and opens again', async () => {
+    setup()
+    await tab('Sync')
+    const head = await screen.findByRole('button', {name: /What to sync/})
+    expect(head).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(head)
+    expect(screen.queryByRole('checkbox', {name: /Language/})).not.toBeInTheDocument()
+    expect(screen.getByRole('button', {name: /What to sync/})).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('6 of 6 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: /What to sync/}))
+    expect(await screen.findByRole('checkbox', {name: /Language/})).toBeChecked()
+  })
+})
+
 describe('SettingsWindow: Storage', () => {
   afterEach(() => vi.restoreAllMocks())
 

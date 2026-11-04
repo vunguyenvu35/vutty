@@ -157,6 +157,7 @@ export default {
   'the ones you changed': '你修改过的',
   'Highlight output and Suggest commands': '高亮输出和命令建议',
   'name and email': '名称和邮箱',
+  '{n} of {total} selected': '已选 {n} / {total} 项',
   'High risk': '高风险',
   'Highlight output': '高亮输出',
   'Hosts': '主机',

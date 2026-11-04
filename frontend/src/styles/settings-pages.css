@@ -157,3 +157,12 @@ label:has(> input[type='checkbox']:not(:disabled)) { cursor: pointer; }
 .dx-check.indent { display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; align-items: center; }
 .dx-check.indent input { justify-self: center; }
 .dx-warn.indent { margin-left: 44px; }
+
+/* a section header that folds its box (What to sync) */
+.win-page .card-section > h4:has(> .collapse-head) { padding: 0; }
+.collapse-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 18px; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; text-align: left; }
+.collapse-head:hover { color: var(--text); }
+.collapse-head .chev { flex: none; transition: transform .15s; }
+.collapse-head[aria-expanded='false'] .chev { transform: rotate(-90deg); }
+.collapse-head .count { margin-left: auto; font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .collapse-head .chev { transition: none; } }

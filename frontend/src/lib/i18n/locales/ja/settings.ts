@@ -157,6 +157,7 @@ export default {
   'the ones you changed': '変更したもの',
   'Highlight output and Suggest commands': '出力をハイライトとコマンドの候補',
   'name and email': '名前とメール',
+  '{n} of {total} selected': '{total} 件中 {n} 件を選択',
   'High risk': '高リスク',
   'Highlight output': '出力をハイライト',
   'Hosts': 'ホスト',
