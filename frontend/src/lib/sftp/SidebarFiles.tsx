@@ -13,7 +13,7 @@ import {QueuePanel} from './QueuePanel'
 import {queueTransfer, summarize, useQueues, verbOf} from './transfer'
 import {authenticity} from './RemotePane'
 import {AuthPrompt} from '../ui/AuthPrompt'
-import {cwdOfPane, paneStatusVersion, sessionOfPane, watchPaneStatus} from '../terminal/panes'
+import {cwdOfPane, paneStatusVersion, sessionOfPane, watchPaneStatus, writeToPane, toTerminalInput} from '../terminal/panes'
 import {LOCAL_HOST_ID, localPaneFs} from './localFs'
 import type {AuthChallenge, Host, HostKeyPrompt, QueueJob, RemoteEntry} from '../types'
 
@@ -215,6 +215,11 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
     if (entry && !selected.includes(entry.path)) { setSelected([entry.path]); setAnchor(entry.path) }
     setMenu({x: Math.max(4, Math.min(ev.clientX, window.innerWidth - 220)), y: Math.max(4, Math.min(ev.clientY, window.innerHeight - 380))})
   }
+  // types `cd` into this sidebar's terminal: a folder goes to itself, a file to the folder it is in
+  const goToFolder = (e: RemoteEntry) => {
+    const dir = e.is_dir ? e.path : parentOf(e.path)
+    if (!paneId || !writeToPane(paneId, toTerminalInput(`cd '${dir.replace(/'/g, "'\\''")}'`, true))) toast.error(t('The terminal is not available'))
+  }
   const act = (fn: () => void | Promise<void>) => { setMenu(null); void guard(async () => { await fn() }) }
   const remove = (list: RemoteEntry[]) => guard(async () => {
     const question = list.length > 1 ? t('Delete these {n} items (folders with everything in them)? This cannot be undone.', {n: list.length})
@@ -306,6 +311,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
           <div className="ctx-menu" role="menu" aria-label={none ? t('Folder menu') : t('File menu')} style={{left: menu.x, top: menu.y}}
             onMouseDown={ev => ev.stopPropagation()} onContextMenu={ev => ev.preventDefault()}>
             <button role="menuitem" disabled={!entry || (!entry.is_dir && !pfs?.open)} onClick={() => act(() => open(entry!))}>{t('Open')}</button>
+            <button role="menuitem" disabled={!entry || !paneId} onClick={() => act(() => goToFolder(entry!))}>{t('Go to folder')}</button>
             <button role="menuitem" disabled={!entry || entry.is_dir || !pfs?.openWith} onClick={() => act(() => pfs!.openWith!(entry!))}>{t('Open with…')}</button>
             {pfs?.edit && <button role="menuitem" disabled={!entry || entry.is_dir} onClick={() => act(() => pfs.edit!(entry!))}>{t('Edit and save back')}</button>}
             {!local && <>

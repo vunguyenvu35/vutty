@@ -48,6 +48,8 @@ export default {
   "Hide Hidden Files": "隐藏隐藏文件",
   "Show Hidden Files": "显示隐藏文件",
   "Edit Permissions": "编辑权限",
+  "Go to folder": "转到文件夹",
+  "The terminal is not available": "终端不可用",
   "Select All": "全选",
   "Close": "关闭",
   "Owner": "所有者",

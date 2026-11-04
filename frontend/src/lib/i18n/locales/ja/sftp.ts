@@ -48,6 +48,8 @@ export default {
   "Hide Hidden Files": "隠しファイルを隠す",
   "Show Hidden Files": "隠しファイルを表示",
   "Edit Permissions": "権限を編集",
+  "Go to folder": "フォルダーへ移動",
+  "The terminal is not available": "ターミナルを使用できません",
   "Select All": "すべて選択",
   "Close": "閉じる",
   "Owner": "所有者",

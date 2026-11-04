@@ -48,6 +48,8 @@ export default {
   "Hide Hidden Files": "Ẩn tệp ẩn",
   "Show Hidden Files": "Hiện tệp ẩn",
   "Edit Permissions": "Sửa quyền",
+  "Go to folder": "Đi tới thư mục",
+  "The terminal is not available": "Terminal không khả dụng",
   "Select All": "Chọn tất cả",
   "Close": "Đóng",
   "Owner": "Chủ sở hữu",
