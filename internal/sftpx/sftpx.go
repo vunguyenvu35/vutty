@@ -15,8 +15,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -37,7 +39,12 @@ const (
 	// rewind is how much of an interrupted file is written again when a transfer continues: the last
 	// chunk may have been cut short.
 	rewind = 64 << 10
+	// partMaxAge is how long a partial copy is kept for a transfer to continue it; an older one is taken to be abandoned.
+	partMaxAge = 7 * 24 * time.Hour
 )
+
+// partName matches the name of a partial copy: the target's name, the suffix and the fingerprint of the source.
+var partName = regexp.MustCompile(regexp.QuoteMeta(partSuffix) + `-[0-9a-f]{8}$`)
 
 // fingerprint names the version of a source file, so a partial copy of another version is never continued.
 func fingerprint(size int64, mod time.Time) string {
@@ -54,7 +61,57 @@ func resumeOffset(have, size int64) int64 {
 }
 
 // FS is an SFTP session over an SSH connection.
-type FS struct{ c *sftp.Client }
+type FS struct {
+	c *sftp.Client
+
+	mu    sync.Mutex
+	swept map[string]bool // directories (local and remote) whose abandoned partial copies were looked for in this session
+}
+
+// firstVisit is true once per directory and session: the directory is swept on the first transfer into it, not on every file of a folder.
+func (f *FS) firstVisit(key string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.swept[key] {
+		return false
+	}
+	if f.swept == nil {
+		f.swept = map[string]bool{}
+	}
+	f.swept[key] = true
+	return true
+}
+
+// sweepRemote deletes the partial copies in a remote directory that nothing wrote to for longer than maxAge. keep is the
+// one the current transfer is about to use. Best effort: a directory that cannot be read or a file that cannot be deleted is left.
+func (f *FS) sweepRemote(dir, keep string, maxAge time.Duration) {
+	infos, err := f.c.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, fi := range infos {
+		full := path.Join(dir, fi.Name())
+		if fi.Mode().IsRegular() && full != keep && partName.MatchString(fi.Name()) && time.Since(fi.ModTime()) > maxAge {
+			_ = f.c.Remove(full)
+		}
+	}
+}
+
+// sweepLocal is sweepRemote for a local directory (the downloads' partial copies are hidden files there).
+func sweepLocal(dir, keep string, maxAge time.Duration) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		full := filepath.Join(dir, e.Name())
+		fi, err := e.Info()
+		if err != nil || !fi.Mode().IsRegular() || full == keep || !partName.MatchString(e.Name()) || time.Since(fi.ModTime()) <= maxAge {
+			continue
+		}
+		_ = os.Remove(full)
+	}
+}
 
 // Open starts the sftp subsystem on an established SSH connection.
 func Open(cl *ssh.Client) (*FS, error) {
@@ -235,6 +292,9 @@ func (f *FS) Upload(ctx context.Context, local, rpath string, overwrite bool, pr
 	defer src.Close()
 
 	tmp := rpath + partSuffix + "-" + fingerprint(st.Size(), st.ModTime())
+	if f.firstVisit("r:" + path.Dir(rpath)) {
+		f.sweepRemote(path.Dir(rpath), tmp, partMaxAge)
+	}
 	var offset int64
 	if have, serr := f.c.Stat(tmp); serr == nil && have.Mode().IsRegular() {
 		offset = resumeOffset(have.Size(), st.Size())
@@ -271,6 +331,7 @@ func (f *FS) Upload(ctx context.Context, local, rpath string, overwrite bool, pr
 	if err = dst.Close(); err != nil {
 		return err
 	}
+	_ = f.c.Chtimes(tmp, st.ModTime(), st.ModTime()) // the copy keeps the time of the source (best effort: a server may refuse); the rename keeps it
 	if overwrite {
 		old, serr := f.c.Stat(rpath)                       // the replacement keeps the permissions of the file it replaces
 		if err = f.c.PosixRename(tmp, rpath); err != nil { // servers without the extension: replace by hand
@@ -313,6 +374,9 @@ func (f *FS) Download(ctx context.Context, rpath, local string, overwrite bool, 
 	}
 	defer src.Close()
 	partPath := filepath.Join(filepath.Dir(local), "."+filepath.Base(local)+partSuffix+"-"+fingerprint(st.Size(), st.ModTime()))
+	if f.firstVisit("l:" + filepath.Dir(local)) {
+		sweepLocal(filepath.Dir(local), partPath, partMaxAge)
+	}
 	var offset int64
 	if have, serr := os.Stat(partPath); serr == nil && have.Mode().IsRegular() {
 		offset = resumeOffset(have.Size(), st.Size())
@@ -351,5 +415,6 @@ func (f *FS) Download(ctx context.Context, rpath, local string, overwrite bool, 
 	if err = tmp.Close(); err != nil {
 		return err
 	}
+	_ = os.Chtimes(partPath, st.ModTime(), st.ModTime()) // the copy keeps the time of the source
 	return os.Rename(partPath, local)
 }
