@@ -11,9 +11,9 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 | Hosts by group, tag, environment colour (§1, §4) | Done | store + domain tests, `HostList`/`HostForm` tests, E2E |
 | Vault with master password, envelope encryption, Argon2id (m=64 MiB, t=3, p=4), AES-256-GCM, secret id as AAD (§5) | Done | `vault_test.go` (swap attack, tamper, wrong password, hostile KDF params) |
 | Change master password re-wraps DEK only (§5) | Done | `TestChangePasswordKeepsSecrets` |
-| Keychain quick unlock (§5) | Partial | Works through the OS keychain (`go-keyring`); **not biometric-gated** (see gap G1) |
+| Keychain quick unlock (§5) | Done (app-level gate) | The key sits in the OS keychain (`go-keyring`); before it is read the app asks for Touch ID (or the account password) through `LAContext` (`internal/vault/touchid_darwin.go`, wired in `app/app.go`). The keychain item itself carries no biometric access-control flag (see gap G1) |
 | Auto-lock after N minutes (§5) | Done | timer tests, UI returns to unlock screen |
-| Auto-lock when the machine sleeps (§5) | **Missing** | gap G2 |
+| Auto-lock when the machine sleeps or the screen locks (§5) | Done | `app/syswatch_darwin.go` listens for `NSWorkspaceWillSleepNotification` and `com.apple.screenIsLocked`; a test posts the notification |
 | Strict `known_hosts`, TOFU prompt with SHA-256 fingerprint, no override on change (§5) | Done | `sshx` + session tests + E2E; `InsecureIgnoreHostKey` is never used |
 | Frontend never receives secrets; strict CSP (§5) | Done | identity metadata only; CSP in `index.html`; tests grep for secret material |
 | Multi-tab terminal, split panes (§1, §6) | Done | component tests, E2E |
@@ -42,8 +42,8 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 
 | ID | Gap | Impact | Suggested next step |
 | --- | --- | --- | --- |
-| G1 | "Touch ID" is not enforced. `go-keyring` stores the key in the login keychain without an access-control flag that demands biometrics. | Anyone able to read the user's keychain can unlock the vault. The UI therefore says "keychain unlock". | Native `SecAccessControl` (`.biometryCurrentSet`) through a small cgo bridge. |
-| G2 | No lock on system sleep. | Vault stays unlocked during sleep until the idle timer fires. | Subscribe to `NSWorkspaceWillSleepNotification` and call `Vault.Lock()`. |
+| G1 | Touch ID is checked by the app (`LAContext`) before the keychain key is read, but the keychain item has no `SecAccessControl` biometric flag. | A process that reads the login keychain without going through Vutty is not stopped by Touch ID. | Store the key with `SecAccessControl` (`.biometryCurrentSet`) through the cgo bridge. |
+| G2 | ~~No lock on system sleep.~~ **Closed:** the vault locks on sleep and on screen lock. | | |
 | G3 | Not launched as a native window in this environment. | The Wails build succeeds (`vutty.app`), but WKWebView rendering, native dialogs and keychain prompts were not exercised; E2E runs in Chromium against the real backend. | Run the manual checklist in [TestPlan.md](TestPlan.md). |
 | G4 | xterm.js heavy-output performance on WKWebView: measured (see below). Text is fine at the rate the backend sends; a full-screen redraw with every cell coloured is slow with the DOM renderer. | Input is delayed by about 150 ms while such a screen is redrawn. | The WebGL renderer for redraw-heavy screens (see the measurements below). Flow control is in place (output waits while 512 KB is unparsed). |
 | G5 | Sync merge window: edits made between the snapshot and the write-back of a sync run can be overwritten. | Rare data loss for concurrent edits during a sync (seconds). | Re-apply local changes after sync or lock writes during sync. |
@@ -52,10 +52,10 @@ An honest comparison of what was built with [Architecture.md](Architecture.md), 
 | G8 | SQLite saves rewrite all rows in one transaction. | Fine for hundreds of hosts; wasteful for very large inventories. | Per-record upserts behind the same persister. |
 | G9 | `ProxyCommand`, `Match`, token expansion in `ssh_config` are unsupported. | Such hosts import with a warning or incompletely. | Extend the parser. |
 | G10 | Legacy keys (RSA/SHA-1, DSA) are limited by `x/crypto/ssh`; there is no dedicated "unsupported key" message. | Old servers may fail with a generic handshake error. | Detect and explain. |
-| G11 | Passwords for `password` identities are stored in the vault and sent via both `password` and `keyboard-interactive`. | Servers that prompt for 2FA are not supported. | Add interactive prompts. |
+| G11 | ~~Servers that prompt for 2FA are not supported.~~ **Closed:** `sshx.InteractiveAuth` answers a password question with the saved password (once) and asks the user for any other question (a code). A connection that cannot ask fails with the question in the message. | | |
 | G12 | The domain package's own coverage is 43 % because the merge tests still live in `syncgit` (they pass through type aliases). | Reporting artefact, not a behaviour gap. | Move those tests into `domain`. |
 | G13 | Settings is a second native window implemented as a second process (Wails v2 has one window per process), connected by a local token-protected bridge. | No second Dock icon (the helper is hidden from the Dock); a new local attack surface (loopback, token, allow-list). The native window was not exercised visually in this environment. | Wails v3 multi-window would remove the extra process. |
-| G14 | A saved host cannot pick its own terminal theme; the theme is global. | Less flexible than it could be. | Add `terminal_theme` to the host record. |
+| G14 | ~~A host cannot pick its own terminal theme.~~ **Closed:** `Host.TerminalTheme` (`terminal_theme`) is set in the host form; an empty value follows Settings. | | |
 | G15 | Replacing a host's saved password creates a new identity; the old one stays in Keychain. | Orphan identities until deleted by hand. | Offer to update the existing identity's secret. |
 | G17 | SFTP does not preserve the modification time of copied files, and does not clean up the hidden `.vutty-part-…` files of transfers that were abandoned. Remote change detection while editing uses size and time to the second. | A sync can copy a file again that has the same content; a conflict made within one second of the same size goes unnoticed. | Set the time after a copy; sweep old part files; compare a checksum when the server offers one. |
 | G18 | Account is a local profile; Sign in is a placeholder. | No cloud features yet (by design). | Define the account service before enabling it. |

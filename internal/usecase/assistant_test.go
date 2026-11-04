@@ -97,6 +97,25 @@ func (g *fakeGateway) Open(s map[string]assistant.ToolServer, h assistant.Gatewa
 	return assistant.Gateway{URL: "http://127.0.0.1:1/mcp", Token: "tok"}, func() { g.mu.Lock(); g.closed++; g.mu.Unlock() }, nil
 }
 
+func (g *fakeGateway) counts() (opened, closed int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.opened, g.closed
+}
+
+// waitClosed waits for the session's close func: Ask runs it on its own goroutine, after the answer event.
+func (g *fakeGateway) waitClosed(t *testing.T) (opened, closed int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		opened, closed = g.counts()
+		if closed >= opened || time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 type fakeToolServer struct {
 	tools []assistant.Tool
 	calls []string

@@ -120,8 +120,8 @@ func TestGatewayEnforcesToolPolicy(t *testing.T) {
 	if ev.err != nil {
 		t.Fatal(ev.err)
 	}
-	if x.gw.opened != 1 || x.gw.closed != 1 {
-		t.Fatalf("the gateway session must be opened and closed once: %d/%d", x.gw.opened, x.gw.closed)
+	if opened, closed := x.gw.waitClosed(t); opened != 1 || closed != 1 {
+		t.Fatalf("the gateway session must be opened and closed once: %d/%d", opened, closed)
 	}
 	if res.visible["search"] != "yes" || res.visible["delete"] != "yes" || res.visible["newtool"] != "" {
 		t.Fatalf("a tool that was never reviewed must stay hidden: %v", res.visible)
@@ -263,7 +263,7 @@ func TestNoGatewayForAProviderThatCannotBeLimitedToIt(t *testing.T) {
 	x.ag.mcp = false
 	sid := x.session(t)
 	x.ask(t, sid, "q")
-	if x.gw.opened != 0 || x.ag.requests()[0].Gateway != nil {
+	if opened, _ := x.gw.counts(); opened != 0 || x.ag.requests()[0].Gateway != nil {
 		t.Fatal("a provider without verified MCP isolation must get no gateway")
 	}
 }
