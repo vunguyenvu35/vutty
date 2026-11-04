@@ -112,7 +112,7 @@ Back up regularly with **Import / Export → Encrypted backup**.
 - Windows and Linux builds are new and less tested than macOS. On Windows the **terminal on this computer** is not available yet (SSH, SFTP and the rest work). Touch ID and the macOS-specific window features exist only on a Mac.
 - "Keychain unlock" stores the vault key in the macOS Keychain; it does **not** require Touch ID yet.
 - Locking the vault when the computer sleeps works on a Mac as the system announces it (and when the screen is locked); on Windows and Linux it locks when the computer wakes up, and a sleep of a few seconds is not noticed.
-- Settings opens as a second window of the app (a second process): it shows a second Dock icon while open and needs the main app running.
+- Settings opens as a second window of the app (a second process): it is hidden from the Dock (no second icon) but needs the main app running.
 - SFTP does not keep the modification time of copied files, and a transfer you abandon leaves a hidden `.vutty-part-…` file next to its target.
 - Git sync was tested with local repositories, not yet with every hosting provider.
 - `ProxyCommand` and `Match` blocks in `~/.ssh/config` are reported as warnings on import and skipped.
