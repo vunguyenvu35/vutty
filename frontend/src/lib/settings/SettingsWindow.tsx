@@ -601,7 +601,6 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
 
               {cat === 'sync' && (
                 <>
-                  <Suspense fallback={<Loading />}><SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} /></Suspense>
                   <section className="card-section" aria-label={t('What to sync')}>
                     <h4>{t('What to sync')}</h4>
                     <p className="muted">{t('Hosts, groups, keys, port forwards and snippets are always synced. Choose which of your preferences travel with them, inside the same encrypted bundle; the newest change of each group wins. Zoom, folders, auto-lock, Touch ID and the other settings of one machine never leave it.')}</p>
@@ -613,6 +612,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       </label>
                     ))}
                   </section>
+                  <Suspense fallback={<Loading />}><SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} /></Suspense>
                 </>
               )}
 
