@@ -8,6 +8,7 @@ import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
 import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction} from './shared'
+import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
@@ -491,14 +492,15 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
     const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0')
     const name = `${source.name.replace(/\//g, '-') || 'system'}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.log`
     try {
-      const path = await be.system.saveText(t('Save log'), name, lines.join('\n') + '\n')
+      const path = await be.system.saveText(t('Save log'), name, lines.map(stripAnsi).join('\n') + '\n')
       if (path) toast.info(t('Saved to {path}', {path}))
     } catch (e) { toast.error(errMsg(e)) }
   }
   const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
-  const all = useMemo(() => (data ?? '').split('\n').filter(Boolean), [data])
+  // what the programs print can hold colour codes: they are read for the colours, but what is searched, counted as an error or saved is the text
+  const all = useMemo(() => (data ?? '').split('\n').filter(l => stripAnsi(l) !== ''), [data])
   const lines = useMemo(
-    () => all.filter(l => (!matcher.test || matcher.test(l)) && (lv === 'all' || (lv === 'info' ? logLevel(l) === '' : logLevel(l) === lv))),
+    () => all.filter(l => { const p = stripAnsi(l); return (!matcher.test || matcher.test(p)) && (lv === 'all' || (lv === 'info' ? logLevel(p) === '' : logLevel(p) === lv)) }),
     [all, matcher, lv])
   useEffect(() => { const b = boxRef.current; if (b && stuck.current) b.scrollTop = b.scrollHeight }, [lines])
   const onScroll = () => { const b = boxRef.current; if (b) stuck.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40 }
@@ -524,7 +526,12 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
       </div>
       <Err error={error} />
       <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !follow} onScroll={onScroll}>
-        {lines.map((l, i) => <div key={i} className={'sp-log-line ' + logLevel(l)}>{matcher.mark ? highlight(l, matcher.mark) : l}</div>)}
+        {lines.map((l, i) => {
+          const p = stripAnsi(l)
+          // the colours of the program, unless a search is on (a match is marked on the plain text) or the line is an error or a warning (its own colour)
+          const body = matcher.mark ? highlight(p, matcher.mark) : p === l || logLevel(p) ? p : ansiSpans(l).map((s, k) => (s.style ? <span key={k} style={s.style}>{s.text}</span> : s.text))
+          return <div key={i} className={'sp-log-line ' + logLevel(p)}>{body}</div>
+        })}
         {data !== null && lines.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
       </div>
     </div>

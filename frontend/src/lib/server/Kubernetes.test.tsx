@@ -290,6 +290,41 @@ describe('Logs tab with a pod source', () => {
     expect(screen.queryByRole('button', {name: 'Timestamps'})).toBeNull()
   })
 
+  it('shows the colours of a program as colours (and not as boxes and "[32m"), and searches, counts and saves the plain text', async () => {
+    const ESC = '\u001b'
+    const be = makeFake({hosts: [web]})
+    be.state.k8s.logs = [
+      `${ESC}[32m[Nest]${ESC}[0m 1  - ${ESC}[2m04/11/2026, 21:41:25${ESC}[0m  ${ESC}[33m[ChatAiService]${ESC}[0m : ${ESC}[32mINFO${ESC}[0m: send chat ok duration=4809ms`,
+      `${ESC}[32m[Nest]${ESC}[0m 1  - ${ESC}[31mERROR${ESC}[0m [TokenService] boom`,
+      'a plain line',
+    ].join('\n')
+    const saved: string[] = []
+    be.system.saveText = async (_t: string, _n: string, text: string) => { saved.push(text); return '/tmp/x.log' }
+    await openOn('Pods', {be})
+    await screen.findByText('redis-0')
+    await userEvent.click(within(podRow('redis-0')).getByRole('button', {name: 'Logs'}))
+    const log = await screen.findByRole('log')
+    await waitFor(() => expect(log.textContent).toContain('ChatAiService'))
+    expect(log.textContent).not.toMatch(/\u001b|\[32m|\[0m/) // no escape left in what is drawn
+    expect(log.textContent).toContain('[Nest] 1  - 04/11/2026, 21:41:25  [ChatAiService] : INFO: send chat ok duration=4809ms')
+    const green = Array.from(log.querySelectorAll('span')).filter(e => e.getAttribute('style')?.includes('color'))
+    expect(green.map(e => e.textContent)).toEqual(expect.arrayContaining(['[Nest]', '[ChatAiService]', 'INFO']))
+    // an error line is an error, whatever its colour codes say
+    expect(screen.getByText(/TokenService/).closest('.sp-log-line')).toHaveClass('err')
+    // a search finds the text, not the codes
+    await userEvent.type(screen.getByRole('textbox', {name: 'Filter log lines'}), '32m')
+    expect(await screen.findByText('No log lines.')).toBeInTheDocument()
+    await userEvent.clear(screen.getByRole('textbox', {name: 'Filter log lines'}))
+    await userEvent.type(screen.getByRole('textbox', {name: 'Filter log lines'}), 'ChatAi')
+    expect(log.querySelectorAll('.sp-log-line')).toHaveLength(1)
+    expect(log.querySelector('mark')?.textContent).toBe('ChatAi')
+    await userEvent.clear(screen.getByRole('textbox', {name: 'Filter log lines'}))
+    await userEvent.click(screen.getByRole('button', {name: /Download/}))
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]).not.toMatch(/\u001b/)
+    expect(saved[0]).toContain('[ChatAiService] : INFO: send chat ok')
+  })
+
   it('lists the pods of the cluster among the sources', async () => {
     await openOn('Pods')
     await screen.findByText('redis-0')
