@@ -71,7 +71,7 @@ function Spark({data, max}: {data: number[]; max: number}) {
   if (data.length < 2) return <div className="sp-spark" aria-hidden="true" />
   const w = 240, h = 44
   const top = Math.max(max, ...data, 1)
-  const pts = data.map((v, i) => [(i / (HISTORY - 1)) * w, h - 3 - (v / top) * (h - 8)] as const)
+  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - 3 - (v / top) * (h - 8)] as const)
   const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
   const last = pts[pts.length - 1]
   return (
