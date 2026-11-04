@@ -5,7 +5,7 @@ import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh} from '../ui/Icons'
 import {errMsg} from '../util'
-import {formatBytes, joinPath, parentOf, validName} from './format'
+import {cdCommand, folderOf, formatBytes, joinPath, parentOf, validName} from './format'
 import {PermissionsDialog} from './Permissions'
 import type {PaneFs} from './FilePane'
 import {remoteFs, watchEdits} from './remoteFs'
@@ -217,8 +217,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   }
   // types `cd` into this sidebar's terminal: a folder goes to itself, a file to the folder it is in
   const goToFolder = (e: RemoteEntry) => {
-    const dir = e.is_dir ? e.path : parentOf(e.path)
-    if (!paneId || !writeToPane(paneId, toTerminalInput(`cd '${dir.replace(/'/g, "'\\''")}'`, true))) toast.error(t('The terminal is not available'))
+    if (!paneId || !writeToPane(paneId, toTerminalInput(cdCommand(folderOf(e)), true))) toast.error(t('The terminal is not available'))
   }
   const act = (fn: () => void | Promise<void>) => { setMenu(null); void guard(async () => { await fn() }) }
   const remove = (list: RemoteEntry[]) => guard(async () => {

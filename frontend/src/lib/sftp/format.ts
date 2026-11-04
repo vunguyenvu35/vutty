@@ -50,3 +50,23 @@ export function kindOf(e: {name: string; is_dir: boolean}): string {
   const i = e.name.lastIndexOf('.')
   return i > 0 && i < e.name.length - 1 ? e.name.slice(i + 1).toUpperCase() : t('file')
 }
+
+const WINDOWS_PATH = /^([A-Za-z]:[\\/]|\\\\)/
+
+/**
+ * The line that makes a terminal change into `dir`. A Windows path (drive letter or UNC) gets PowerShell
+ * syntax, with -LiteralPath so [brackets] are not read as wildcards; everything else is a POSIX shell.
+ */
+export function cdCommand(dir: string): string {
+  if (WINDOWS_PATH.test(dir)) return `cd -LiteralPath '${dir.replace(/'/g, "''")}'`
+  return `cd '${dir.replace(/'/g, "'\\''")}'`
+}
+
+/** The folder a "go to" on this entry means: a folder itself, a file's parent. Understands both kinds of path. */
+export function folderOf(e: {path: string; is_dir: boolean}): string {
+  if (e.is_dir) return e.path
+  if (!WINDOWS_PATH.test(e.path)) return parentOf(e.path)
+  const i = Math.max(e.path.lastIndexOf('\\'), e.path.lastIndexOf('/'))
+  const dir = e.path.slice(0, i)
+  return /^[A-Za-z]:$/.test(dir) ? dir + e.path[i] : dir // C:\file.txt goes to C:\, not C:
+}
