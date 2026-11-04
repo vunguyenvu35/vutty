@@ -72,6 +72,8 @@ export default {
   "Open {name} in a new tab": "{name} を新しいタブで開く",
   "{n} open": "{n} 件を開いています",
   "Search hosts in the sidebar": "サイドバーでホストを検索",
+  "Expand all groups": "すべてのグループを展開",
+  "Collapse all groups": "すべてのグループを折りたたむ",
   "Active sessions": "アクティブなセッション",
   "Active": "アクティブ",
   "Switch to {name}": "{name} に切り替え",

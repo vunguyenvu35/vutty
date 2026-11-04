@@ -618,19 +618,37 @@ input[type='password']::-webkit-credentials-auto-fill-button { visibility: hidde
 .side-main b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-main small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-active { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.tree-active .side-sub small { color: #3ecf8e; margin-left: 4px; }
-.tree-session { padding: 0 4px 0 0; gap: 0; } .tree-session.on { background: var(--bg-3); } .tree-session.on b { color: #3ecf8e; }
-.tree-session-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 7px 10px; background: transparent; border: none; color: var(--text); text-align: left; }
-.tree-group { padding-top: 6px; padding-bottom: 6px; color: var(--muted); font-weight: 600; font-size: 12.5px; }
-.tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-count { font-weight: 400; } .tree-count b { color: #3ecf8e; font-weight: 600; }
-.tree-host { padding-top: 6px; padding-bottom: 6px; }
-.tree-host.on { background: var(--bg-3); } .tree-host.on b { color: #3ecf8e; }
-.tree-lead { position: relative; display: inline-flex; }
-.tree-lead .env-pip { right: -4px; bottom: -4px; width: 8px; height: 8px; border-width: 1.5px; }
-.tree-live { margin-left: auto; min-width: 8px; height: 8px; border-radius: 8px; background: #3ecf8e; font-size: 10px; line-height: 8px; color: #04140c; text-align: center; }
-.tree-live:not(:empty) { height: 14px; line-height: 14px; padding: 0 4px; font-weight: 700; }
+.tree-bar { border-bottom: none; padding-bottom: 4px; }
+.tree-bar .icon { width: 28px; height: 28px; flex: none; }
+.tree-active { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.tree-active .side-sub { display: flex; align-items: center; gap: 6px; margin: 4px 4px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.tree-active .side-sub small { color: #3ecf8e; background: #3ecf8e1f; border-radius: 8px; padding: 0 6px; font-weight: 700; }
+.tree { gap: 0; padding-bottom: 6px; }
+.tree .side-item { gap: 6px; padding: 0 8px 0 4px; height: 26px; border-radius: 6px; font-size: 13px; }
+.tree .side-item:focus-visible { outline: 1.5px solid #3ecf8e; outline-offset: -1.5px; }
+.tree-guide { flex: none; align-self: stretch; width: 14px; border-left: 1px solid var(--line); margin-left: 4px; margin-right: -4px; }
+.tree-chev { display: inline-flex; flex: none; width: 14px; color: var(--muted); }
+.tree-folder { display: inline-flex; flex: none; color: #e0b34a; }
+.tree-group { color: var(--text); font-weight: 600; }
+.tree-group:hover .tree-chev { color: var(--text); }
+.tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-count { margin-left: auto; font-weight: 500; font-size: 11px; color: var(--muted); background: var(--bg-3); border-radius: 8px; padding: 0 6px; line-height: 16px; }
+.tree-count b { color: #3ecf8e; font-weight: 700; }
+.tree-host { color: var(--text); }
+.tree-host.live .tree-lead svg { color: #3ecf8e; }
+.tree-host.on { background: #3ecf8e1a; }
+.tree-host.on b { color: #3ecf8e; }
+.tree-lead { position: relative; display: inline-flex; flex: none; margin-left: 2px; color: var(--muted); }
+.tree-lead .env-pip { right: -4px; bottom: -4px; width: 7px; height: 7px; border-width: 1.5px; }
+.tree-label { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.tree-label b { font-weight: 500; flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-label small { color: var(--muted); font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-label .env-pip.inline { position: static; align-self: center; flex: none; width: 7px; height: 7px; }
+.tree-live { flex: none; min-width: 7px; height: 7px; border-radius: 8px; background: #3ecf8e; box-shadow: 0 0 0 3px #3ecf8e26; font-size: 10px; line-height: 7px; color: #04140c; text-align: center; }
+.tree-live:not(:empty) { height: 14px; line-height: 14px; padding: 0 4px; font-weight: 700; box-shadow: none; }
+.live-dot { width: 7px; height: 7px; margin: 0 3px; border-radius: 50%; background: #3ecf8e; box-shadow: 0 0 0 3px #3ecf8e26; }
+.tree-session { padding: 0 4px 0 0; gap: 0; height: 28px; } .tree-session.on { background: #3ecf8e1a; } .tree-session.on b { color: #3ecf8e; }
+.tree-session-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 100%; padding: 0 8px; background: transparent; border: none; color: var(--text); text-align: left; font-size: 13px; }
 .side-empty { color: var(--muted); padding: 14px 4px; font-size: 13px; }
 .side-fold { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 4px; background: transparent; border: none; border-bottom: 1px solid var(--line); border-radius: 0; color: var(--text); }
 .side-fold.open { color: #3ecf8e; }

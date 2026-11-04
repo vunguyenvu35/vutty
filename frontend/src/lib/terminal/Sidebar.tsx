@@ -1,4 +1,4 @@
-import {PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState} from 'react'
+import {KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState} from 'react'
 import {clearHistory, getHistory, subscribeHistory} from './history'
 import {TERMINAL_THEMES, resolveTerminalTheme} from './themes'
 import {AssistantTab} from '../assistant/AssistantTab'
@@ -182,17 +182,21 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
     const i = mine.findIndex(x => x.id === activeTab)
     onSelectTab?.(mine[(i + 1) % mine.length].id)
   }
+  const guides = (depth: number) => Array.from({length: depth}, (_, i) => <i key={i} className="tree-guide" aria-hidden="true" />)
   const hostRow = (h: Host, depth: number) => {
     const mine = open.get(h.id) ?? []
+    // the second part is only worth showing when it says something the label does not
+    const sub = h.label === h.hostname ? h.username : (h.username ? h.username + '@' : '') + h.hostname
     return (
-      <button key={h.id} role="treeitem" aria-level={depth + 1} className={'side-item tree-host' + (mine.some(x => x.id === activeTab) ? ' on' : '')}
-        style={{paddingLeft: 10 + depth * 14}} onClick={e => pick(h, e.altKey || e.shiftKey)}
-        title={mine.length ? t('Switch to {name} (Alt-click: new tab)', {name: h.label}) : t('Open {name} in a new tab', {name: h.label})}>
+      <button key={h.id} role="treeitem" aria-level={depth + 1} className={'side-item tree-host' + (mine.some(x => x.id === activeTab) ? ' on' : '') + (mine.length ? ' live' : '')}
+        onClick={e => pick(h, e.altKey || e.shiftKey)}
+        title={(mine.length ? t('Switch to {name} (Alt-click: new tab)', {name: h.label}) : t('Open {name} in a new tab', {name: h.label})) + '\n' + (h.username ? h.username + '@' : '') + h.hostname}>
+        {guides(depth)}
         <span className="tree-lead">
-          <IconServer size={15} />
+          <IconServer size={14} />
           {h.env && <i className={'env-pip env-' + h.env} aria-label={h.env} />}
         </span>
-        <span className="side-main"><b>{h.label}</b><small>{h.username ? h.username + '@' : ''}{h.hostname}</small></span>
+        <span className="tree-label"><b>{h.label}</b>{sub && <small>{sub}</small>}</span>
         {mine.length > 0 && <span className="tree-live" aria-label={t('{n} open', {n: mine.length})}>{mine.length > 1 ? mine.length : ''}</span>}
       </button>
     )
@@ -202,9 +206,11 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
     const live = countOpen(n, open)
     return (
       <div key={n.group.id} role="group">
-        <button role="treeitem" aria-level={depth + 1} aria-expanded={isOpen} className="side-item tree-group" style={{paddingLeft: 6 + depth * 14}}
+        <button role="treeitem" aria-level={depth + 1} aria-expanded={isOpen} className="side-item tree-group" data-gid={n.group.id}
           onClick={() => toggle(n.group.id)}>
-          {isOpen ? <IconChevronDown size={14} /> : <IconChevron size={14} />}
+          {guides(depth)}
+          <span className="tree-chev">{isOpen ? <IconChevronDown size={13} /> : <IconChevron size={13} />}</span>
+          <span className="tree-folder" style={n.group.color ? {color: n.group.color} : undefined}><IconFolder size={14} /></span>
           <span className="tree-name" style={n.group.color ? {color: n.group.color} : undefined}>{n.group.name}</span>
           <small className="tree-count">{live > 0 && <b>{live}/</b>}{countHosts(n)}</small>
         </button>
@@ -215,12 +221,46 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
       </div>
     )
   }
+  const allGroupIds = groups.map(g => g.id)
+  const setAll = (fold: boolean) => {
+    const n = fold ? new Set(allGroupIds) : new Set<string>()
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify([...n])) } catch { /* not remembered */ }
+    setFolded(n)
+  }
+  // arrows walk the tree like in a file manager: up and down move, right opens a group, left closes it (or goes to its parent)
+  const keys = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')]
+    const i = items.indexOf(document.activeElement as HTMLElement)
+    if (i < 0) return
+    const cur = items[i]
+    const level = Number(cur.getAttribute('aria-level'))
+    const group = cur.getAttribute('aria-expanded') !== null
+    const go = (el?: HTMLElement) => { if (el) { e.preventDefault(); el.focus() } }
+    if (e.key === 'ArrowDown') go(items[i + 1])
+    else if (e.key === 'ArrowUp') go(items[i - 1])
+    else if (e.key === 'Home') go(items[0])
+    else if (e.key === 'End') go(items[items.length - 1])
+    else if (e.key === 'ArrowRight' && group) {
+      e.preventDefault()
+      if (cur.getAttribute('aria-expanded') === 'false') cur.click()
+      else go(items[i + 1])
+    } else if (e.key === 'ArrowLeft') {
+      if (group && cur.getAttribute('aria-expanded') === 'true' && !searching) { e.preventDefault(); cur.click() }
+      else go([...items.slice(0, i)].reverse().find(x => Number(x.getAttribute('aria-level')) < level))
+    }
+  }
   const active = tabs.filter(isTerminalTab)
   const hostOf = (x: Tab) => hosts.find(h => h.id === leaves(x.root)[0]?.hostId.replace(/^telnet:/, ''))
   const empty = tree.roots.length === 0 && tree.ungrouped.length === 0
   return (
     <>
-      <SearchBox value={q} onChange={setQ} label={t('Search hosts in the sidebar')} />
+      <div className="side-bar tree-bar">
+        <SearchBox value={q} onChange={setQ} label={t('Search hosts in the sidebar')} />
+        {groups.length > 0 && <>
+          <button className="icon ghost" aria-label={t('Expand all groups')} title={t('Expand all groups')} onClick={() => setAll(false)}><IconPlus size={14} /></button>
+          <button className="icon ghost" aria-label={t('Collapse all groups')} title={t('Collapse all groups')} onClick={() => setAll(true)}><IconMinus size={14} /></button>
+        </>}
+      </div>
       {active.length > 0 && !searching && (
         <div className="side-list tree-active" role="list" aria-label={t('Active sessions')}>
           <h4 className="side-sub">{t('Active')} <small>{active.length}</small></h4>
@@ -229,8 +269,8 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
             return (
               <div key={x.id} role="listitem" className={'side-item tree-session' + (x.id === activeTab ? ' on' : '')}>
                 <button className="tree-session-main" aria-label={t('Switch to {name}', {name: x.title})} aria-current={x.id === activeTab} onClick={() => onSelectTab?.(x.id)}>
-                  <span className="tree-lead"><IconServer size={15} />{h?.env && <i className={'env-pip env-' + h.env} aria-label={h.env} />}</span>
-                  <span className="side-main"><b>{x.title}</b>{h && <small>{h.hostname}</small>}</span>
+                  <span className="tree-lead"><i className="live-dot" aria-hidden="true" /></span>
+                  <span className="tree-label"><b>{x.title}</b>{h?.env && <i className={'env-pip env-' + h.env + ' inline'} aria-label={h.env} />}{h && h.hostname !== x.title && <small>{h.hostname}</small>}</span>
                 </button>
                 {onCloseTab && <button className="icon ghost" aria-label={t('End session {name}', {name: x.title})} onClick={() => onCloseTab(x.id)}><IconClose size={13} /></button>}
               </div>
@@ -238,7 +278,7 @@ function HostsTab({hosts, groups, tabs, activeTab, onConnect, onSelectTab, onClo
           })}
         </div>
       )}
-      <div className="side-list" role="tree" aria-label={t('Hosts')}>
+      <div className="side-list tree" role="tree" aria-label={t('Hosts')} onKeyDown={keys}>
         {tree.roots.map(n => groupRow(n, 0))}
         {tree.ungrouped.map(h => hostRow(h, 0))}
         {empty && <div className="side-empty">{hosts.length ? t('No hosts match.') : t('No hosts yet.')}</div>}

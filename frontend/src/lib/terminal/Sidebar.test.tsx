@@ -113,6 +113,31 @@ describe('TerminalSidebar hosts tree', () => {
     expect(cb.onSelectTab).toHaveBeenCalledWith(b.id)
   })
 
+  it('Collapse all and Expand all fold every group at once', async () => {
+    mount()
+    await userEvent.click(screen.getByRole('button', {name: 'Collapse all groups'}))
+    expect(screen.queryByText('web-1')).toBeNull()
+    expect(screen.queryByText('db-1')).toBeNull()
+    expect(screen.getByText('lone')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: 'Expand all groups'}))
+    expect(screen.getByText('web-1')).toBeInTheDocument()
+  })
+
+  it('arrow keys walk the tree: down, left to the parent, left again to fold, right to unfold', async () => {
+    mount()
+    screen.getByRole('treeitem', {name: /Prod/}).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('treeitem', {name: /Web/})).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('treeitem', {name: /web-1/})).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(screen.getByRole('treeitem', {name: /Web/})).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(screen.getByRole('treeitem', {name: /Web/})).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(screen.getByRole('treeitem', {name: /Web/})).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('searching unfolds the groups that lead to a match', async () => {
     mount()
     await userEvent.click(screen.getByRole('treeitem', {name: /Prod/}))

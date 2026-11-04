@@ -72,6 +72,8 @@ export default {
   "Open {name} in a new tab": "Mở {name} trong tab mới",
   "{n} open": "{n} đang mở",
   "Search hosts in the sidebar": "Tìm máy chủ trong thanh bên",
+  "Expand all groups": "Mở tất cả nhóm",
+  "Collapse all groups": "Thu gọn tất cả nhóm",
   "Active sessions": "Phiên đang hoạt động",
   "Active": "Đang hoạt động",
   "Switch to {name}": "Chuyển đến {name}",

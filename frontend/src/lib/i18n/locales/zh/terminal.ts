@@ -72,6 +72,8 @@ export default {
   "Open {name} in a new tab": "在新标签页中打开 {name}",
   "{n} open": "已打开 {n} 个",
   "Search hosts in the sidebar": "在侧边栏中搜索主机",
+  "Expand all groups": "展开所有分组",
+  "Collapse all groups": "折叠所有分组",
   "Active sessions": "活动会话",
   "Active": "活动",
   "Switch to {name}": "切换到 {name}",
