@@ -72,6 +72,20 @@ func TestParseProcessesSortsByCPUAndKeepsTheWholeCommand(t *testing.T) {
 	}
 }
 
+func TestParseProcessesLeavesOutThePanelsOwnPs(t *testing.T) {
+	out := "3997644 root 100.0 0.1 ps -eo pid=,user=,pcpu=,pmem=,args=\n3997643 root 0.0 0.0 bash -c LC_ALL=C; export LC_ALL; ps -eo pid=,user=,pcpu=,pmem=,args=\n" +
+		"2210 app 38.5 12.4 node server.js\n4001 app 9.0 0.1 ps -eo pid=,user=,pcpu=,pmem=,args= --other\n4002 app 1.0 0.1 sh -c ps -eo pid=,user=,pcpu=,pmem=,args=\n"
+	ps := parseProcesses(out, 10)
+	var pids []int
+	for _, p := range ps {
+		pids = append(pids, p.PID)
+	}
+	// only the panel's own ps and its shell go: a ps somebody else runs (other flags, another wrapper) stays
+	if len(pids) != 3 || pids[0] != 2210 || pids[1] != 4001 || pids[2] != 4002 {
+		t.Fatalf("%v", pids)
+	}
+}
+
 func TestParseUnitsJoinsEnabledStateAndPutsFailedFirst(t *testing.T) {
 	out := `##units
   nginx.service        loaded active running A high performance web server

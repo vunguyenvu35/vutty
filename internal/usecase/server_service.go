@@ -209,7 +209,7 @@ func (s *ServerService) Overview(sid string) (ServerOverview, error) {
 
 // Processes lists the busiest processes.
 func (s *ServerService) Processes(sid string) ([]ServerProcess, error) {
-	out, err := s.run(sid, "ps -eo pid=,user=,pcpu=,pmem=,args=")
+	out, err := s.run(sid, psCommand)
 	if err != nil {
 		return nil, err
 	}
