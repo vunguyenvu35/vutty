@@ -540,3 +540,67 @@ func (s *Store) DeleteSnippet(id string) error {
 	s.data.Snippets[i].UpdatedAt = now
 	return s.flush()
 }
+
+// ---- Clusters ----
+
+func (s *Store) clusterIdx(id string) int {
+	for i, x := range s.data.Clusters {
+		if x.ID == id && !x.Deleted() {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Store) ListClusters() []domain.Cluster {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []domain.Cluster{}
+	for _, x := range s.data.Clusters {
+		if !x.Deleted() {
+			out = append(out, x)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Label) < strings.ToLower(out[j].Label) })
+	return out
+}
+
+func (s *Store) GetCluster(id string) (domain.Cluster, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if i := s.clusterIdx(id); i >= 0 {
+		return s.data.Clusters[i], nil
+	}
+	return domain.Cluster{}, ErrNotFound
+}
+
+func (s *Store) SaveCluster(x domain.Cluster) (domain.Cluster, error) {
+	if err := domain.NormalizeCluster(&x); err != nil {
+		return x, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if x.CreatedAt.IsZero() {
+		x.CreatedAt = s.now()
+	}
+	s.touch(&x.Meta)
+	if i := s.clusterIdx(x.ID); i >= 0 {
+		s.data.Clusters[i] = x
+	} else {
+		s.data.Clusters = append(s.data.Clusters, x)
+	}
+	return x, s.flush()
+}
+
+func (s *Store) DeleteCluster(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.clusterIdx(id)
+	if i < 0 {
+		return ErrNotFound
+	}
+	now := s.now()
+	s.data.Clusters[i].DeletedAt = &now
+	s.data.Clusters[i].UpdatedAt = now
+	return s.flush()
+}

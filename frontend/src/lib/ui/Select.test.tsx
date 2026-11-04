@@ -11,7 +11,7 @@ const OPTS: SelectOption[] = [
   {value: 'prod', label: 'prod'},
 ]
 
-function Harness({initial = '', onChange = vi.fn(), options = OPTS, ...rest}: {initial?: string; onChange?: (v: string) => void; options?: SelectOption[]; placeholder?: string; disabled?: boolean}) {
+function Harness({initial = '', onChange = vi.fn(), options = OPTS, ...rest}: {initial?: string; onChange?: (v: string) => void; options?: SelectOption[]; placeholder?: string; disabled?: boolean; searchable?: boolean}) {
   const [v, setV] = useState(initial)
   return <Select label="Env" value={v} options={options} onChange={x => { setV(x); onChange(x) }} {...rest} />
 }
@@ -147,3 +147,62 @@ describe('Select', () => {
     expect(trigger()).toBeDisabled()
   })
 })
+
+describe('Select that can be searched', () => {
+  const PODS: SelectOption[] = [
+    {value: 'a', label: 'binlog-reader-cron-main-0', hint: 'Pods · vl24hv2-qc'},
+    {value: 'b', label: 'service-employer-6bf58f98dd-q8lfn', hint: 'Pods · vl24hv2-qc'},
+    {value: 'c', label: 'service-employer-queue-58bfcd897f-hzmb6', hint: 'Pods · vl24hv2-qc'},
+    {value: 'd', label: 'nginx-ingress', hint: 'Pods · edge'},
+  ]
+  const box = () => screen.getByRole('searchbox')
+  const shown = () => screen.queryAllByRole('option').map(o => o.querySelector('.opt-text')!.firstChild!.textContent)
+
+  it('has no box unless it is asked for', async () => {
+    render(<Harness initial="dev" />)
+    await userEvent.click(trigger())
+    expect(screen.queryByRole('searchbox')).toBeNull()
+  })
+
+  it('puts the cursor in the box and keeps only the options that contain what is typed, in the name or in the small print', async () => {
+    render(<Harness options={PODS} initial="a" searchable />)
+    await userEvent.click(trigger())
+    expect(box()).toHaveFocus()
+    expect(shown()).toHaveLength(4)
+    await userEvent.type(box(), 'employer')
+    expect(shown()).toEqual(['service-employer-6bf58f98dd-q8lfn', 'service-employer-queue-58bfcd897f-hzmb6'])
+    await userEvent.clear(box())
+    await userEvent.type(box(), 'edge') // the hint
+    expect(shown()).toEqual(['nginx-ingress'])
+    await userEvent.clear(box())
+    await userEvent.type(box(), 'service queue') // every word, in any order
+    expect(shown()).toEqual(['service-employer-queue-58bfcd897f-hzmb6'])
+  })
+
+  it('chooses the first match with Enter, or the one the arrows moved to, and says so when nothing matches', async () => {
+    const onChange = vi.fn()
+    render(<Harness options={PODS} initial="a" searchable onChange={onChange} />)
+    await userEvent.click(trigger())
+    await userEvent.type(box(), 'zzz')
+    expect(screen.getByText('No match')).toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    expect(onChange).not.toHaveBeenCalled() // nothing to choose
+    await userEvent.clear(box())
+    await userEvent.type(box(), 'employer{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('c')
+    expect(trigger()).toHaveTextContent('service-employer-queue')
+  })
+
+  it('takes a space as a letter of the search, starts empty each time, and closes with Escape', async () => {
+    render(<Harness options={PODS} initial="a" searchable />)
+    await userEvent.click(trigger())
+    await userEvent.type(box(), 'in x')
+    expect(box()).toHaveValue('in x')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('searchbox')).toBeNull()
+    await userEvent.click(trigger())
+    expect(box()).toHaveValue('')
+    expect(shown()).toHaveLength(4)
+  })
+})
+

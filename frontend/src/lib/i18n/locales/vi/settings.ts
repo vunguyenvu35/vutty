@@ -452,4 +452,7 @@ export default {
   '{provider} cannot list its models, so it uses its default one.': '{provider} không liệt kê được các mô hình của nó nên dùng mô hình mặc định.',
   '{server} wants to run {tool}': '{server} muốn chạy {tool}',
   '☕ $3 – a cup of coffee · 🍜 $10 – a lunch · 🚀 $25 – fuel new features': '☕ $3 – một ly cà phê · 🍜 $10 – một bữa trưa · 🚀 $25 – tiếp sức cho tính năng mới',
-} as Record<string, string>
+  "Kubernetes clusters": "Cluster Kubernetes",
+  "the clusters you added from a kubeconfig, with the kubeconfig of each (encrypted)": "các cluster bạn đã thêm từ kubeconfig, kèm kubeconfig của từng cái (đã mã hoá)",
+  "the ones saved in Keychain; hosts that use one need it on the other machine (not the kubeconfigs: those go with the clusters)": "những cái đã lưu trong Keychain; host dùng chúng cần có chúng trên máy kia (không gồm kubeconfig: kubeconfig đi cùng cluster)",
+}

@@ -120,12 +120,13 @@ var prefGroups = []prefGroup{
 // Their ids are stored in settings.json (SyncWhat), so they never change.
 const (
 	syncHosts    = "hosts"    // hosts and groups
-	syncKeys     = "keys"     // saved keys, passwords and ssh-agent identities (with the secrets of Telnet hosts)
+	syncKeys     = "keys"     // saved keys, passwords and ssh-agent identities (with the secrets of Telnet hosts), but not the kubeconfigs: those go with Clusters
 	syncForwards = "forwards" // port forwards; they point at hosts, so they need Hosts
 	syncSnippets = "snippets" // snippets
+	syncClusters = "clusters" // Kubernetes clusters, with the kubeconfig of each (a secret of the vault that goes with them)
 )
 
-var dataKinds = []string{syncHosts, syncKeys, syncForwards, syncSnippets}
+var dataKinds = []string{syncHosts, syncKeys, syncForwards, syncSnippets, syncClusters}
 
 // allSyncWhat is every id the user can tick, and the default of SyncWhat: the data first, then the preference groups.
 func allSyncWhat() []string {

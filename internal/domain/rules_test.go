@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNormalizeHostDefaultsAndRejects(t *testing.T) {
 	h := Host{Hostname: "10.0.0.1"}
@@ -94,5 +97,35 @@ func TestNormalizeSnippet(t *testing.T) {
 		if NormalizeSnippet(&bad) == nil {
 			t.Errorf("%s accepted", name)
 		}
+	}
+}
+
+func TestNormalizeCluster(t *testing.T) {
+	c := Cluster{Label: "  prod  ", Env: EnvProd}
+	if err := NormalizeCluster(&c); err != nil || c.Label != "prod" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	for name, bad := range map[string]Cluster{"empty": {}, "long": {Label: string(make([]byte, 101))}, "env": {Label: "x", Env: "moon"}} {
+		if err := NormalizeCluster(&bad); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestMergeKeepsTheNewerClusterAndTheOneOnlyOneSideHas(t *testing.T) {
+	old, now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	local := Bundle{Data: Data{Clusters: []Cluster{{Meta: Meta{ID: "a", UpdatedAt: old}, Label: "old name"}, {Meta: Meta{ID: "mine", UpdatedAt: old}, Label: "mine"}}}}
+	remote := Bundle{Data: Data{Clusters: []Cluster{{Meta: Meta{ID: "a", UpdatedAt: now}, Label: "new name"}, {Meta: Meta{ID: "theirs", UpdatedAt: old}, Label: "theirs"}}}}
+	got := Merge(local, remote).Data.Clusters
+	names := map[string]string{}
+	for _, c := range got {
+		names[c.ID] = c.Label
+	}
+	if len(got) != 3 || names["a"] != "new name" || names["mine"] != "mine" || names["theirs"] != "theirs" {
+		t.Fatalf("merge = %+v", got)
+	}
+	purged := PurgeTombstones(Bundle{Data: Data{Clusters: []Cluster{{Meta: Meta{ID: "x", UpdatedAt: old, DeletedAt: &old}}, {Meta: Meta{ID: "y"}}}}}, now)
+	if len(purged.Data.Clusters) != 1 || purged.Data.Clusters[0].ID != "y" {
+		t.Fatalf("purge = %+v", purged.Data.Clusters)
 	}
 }

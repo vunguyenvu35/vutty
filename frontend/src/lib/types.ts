@@ -686,3 +686,88 @@ export interface ServerFleetHost {
   /** how long the SSH connection took, in milliseconds */
   latency_ms: number
 }
+
+/** The Kubernetes tab of the Panel: kubectl run on the host over SSH (see usecase.ServerService, K8s*). */
+/** direct: a cluster opened with a kubeconfig, with no host and no kubectl (so no Shell and no Port-forward) */
+export interface K8sDetect {found: boolean; cmd: string; path: string; client_version: string; tried: string[]; direct?: boolean}
+export type KubeAuth = 'token' | 'certificate' | 'exec' | 'password' | 'none'
+/** auth and exec say how a kubeconfig signs in, and the login program it runs (the whole command line) */
+export interface K8sContext {name: string; cluster: string; server: string; user: string; current: boolean; auth?: KubeAuth; exec?: string; insecure?: boolean}
+export interface K8sContexts {kubeconfig: string; sudo: boolean; contexts: K8sContext[]; kind: '' | 'kubeconfig'; raw: string}
+export type K8sFailKind = 'unreachable' | 'unauthorized' | 'certificate' | 'forbidden' | 'other'
+/** kind 'approval': raw is the command line of a login program that the person has to approve before it may run */
+export interface K8sCheck {ok: boolean; kind: '' | K8sFailKind | 'approval'; raw: string; server: string; server_version: string}
+export interface K8sAccess {rights: Record<string, boolean>}
+export interface K8sNamespaces {names: string[]}
+export interface K8sNode {name: string; status: 'Ready' | 'NotReady' | 'Unknown'; roles: string; version: string; ip: string; unschedulable: boolean; cpu_pct: number | null; mem_pct: number | null; pods: number; pods_max: number; age_sec: number}
+export interface K8sEvent {age_sec: number; type: 'Normal' | 'Warning'; reason: string; object: string; namespace: string; message: string; count: number}
+export interface K8sPodContainer {name: string; image: string; init: boolean; ready: boolean; running: boolean; state: string; restarts: number; resources: string; probes: string}
+export interface K8sPod {name: string; namespace: string; status: string; tone: 'ok' | 'warn' | 'bad' | ''; ready: string; restarts: number; node: string; age_sec: number; why: string; owner: string; containers: K8sPodContainer[]}
+export interface K8sPodDetail {pod: K8sPod; ip: string; qos: string; service_account: string; labels: string[]; conditions: {type: string; status: string}[]; volumes: {name: string; source: string}[]; events: K8sEvent[]}
+export interface K8sWorkload {kind: 'Deployment' | 'StatefulSet' | 'DaemonSet' | 'Job' | 'CronJob'; name: string; namespace: string; ready: string; desired: number; available: number; up_to_date: number; image: string; age_sec: number; tone: 'ok' | 'warn' | 'bad' | ''; note: string; schedule: string; last_run_sec: number | null; suspended: boolean; result: string; volumes: string; hpa: boolean; /** what made a Job ("CronJob cron-sync") */ owner?: string}
+export interface K8sWorkloads {items: K8sWorkload[]}
+export interface K8sRevision {revision: number; image: string; cause: string; age_sec: number; current: boolean}
+export interface K8sHPA {name: string; min: number; max: number; current: number; cpu_pct: number | null; target_cpu_pct: number | null; last_scaled_sec: number | null}
+export interface K8sDeployment {workload: K8sWorkload; strategy: string; max_surge: string; max_unavailable: string; selector: string; paused: boolean; updated: number; rolling: boolean; revision: number; revisions: K8sRevision[]; hpa: K8sHPA | null}
+export interface K8sService {name: string; namespace: string; type: string; cluster_ip: string; ports: string; ready_endpoints: number; not_ready_endpoints: number}
+export interface K8sIngress {name: string; namespace: string; host: string; path: string; service: string; class: string; tls_secret: string; cert_days_left: number | null; address: string}
+export interface K8sNetwork {services: K8sService[]; ingresses: K8sIngress[]}
+export interface K8sConfigItem {name: string; namespace: string; type: string; keys: string[]; used_by: string[]; age_sec: number}
+export interface K8sVolume {name: string; namespace: string; status: string; size: string; used_pct: number | null; used: string; storage_class: string; used_by: string[]}
+export interface K8sConfig {configmaps: K8sConfigItem[]; secrets: K8sConfigItem[]; volumes: K8sVolume[]}
+/** what pods, CPU and memory take against what the nodes give; used is null without a metrics-server */
+export interface K8sCapacity {known: boolean; partial: boolean; pods_used: number; pods_allocatable: number; cpu_reserved: number; cpu_allocatable: number; mem_reserved_gib: number; mem_allocatable_gib: number; cpu_used: number | null; mem_used_gib: number | null}
+export interface K8sOverview {
+  capacity: K8sCapacity
+  server_version: string
+  nodes: {total: number; ready: number; cordoned: number}
+  pods: {total: number; running: number; pending: number; failing: number}
+  /** the login may not read the nodes (they are cluster-wide): the node and usage cards are empty */
+  nodes_hidden?: boolean
+  cpu_requested_pct: number | null; mem_requested_pct: number | null; cpu_cores: number | null; mem_gib: number | null
+  namespaces: {name: string; pods: number; not_ready: number; restarts: number}[]
+  attention: {severity: 'bad' | 'warn'; kind: 'pod' | 'node' | 'deployment' | 'ingress' | 'pvc'; namespace: string; name: string; text: string}[]
+}
+export interface K8sDrainOpts {ignore_daemonsets: boolean; delete_emptydir: boolean; force: boolean; grace_sec: number; timeout_sec: number}
+export interface K8sDrainPlan {node: string; moved: number; daemonsets: number; emptydir: string[]; bare: string[]; pdb: {namespace: string; name: string; detail: string}[]; blocked: boolean}
+export interface K8sLogOpts {container: string; lines: 100 | 300 | 1000 | 5000; since: '' | '15m' | '1h' | '24h'; previous: boolean; timestamps: boolean}
+export interface K8sForward {id: string; namespace: string; service: string; local_port: number; remote_port: number; status: 'running' | 'stopped' | 'failed'; error: string}
+
+/** what the Rancher-style menu of a workload works with: Deployment, StatefulSet and DaemonSet */
+export type K8sWorkloadKind = 'deployment' | 'statefulset' | 'daemonset'
+export interface K8sEnvVar {name: string; value: string; /** where a value comes from when it is not written in the spec ("secret db:password"); such a variable is never given a value here */ from: string}
+export interface K8sContainerSpec {
+  name: string; image: string; init: boolean; command: string[]; args: string[]; ports: string[]
+  env: K8sEnvVar[]; env_from: string[]; requests: Record<string, string>; limits: Record<string, string>; mounts: string[]
+}
+export interface K8sWorkloadSpec {kind: string; name: string; namespace: string; replicas: number | null; service_account: string; containers: K8sContainerSpec[]}
+export interface K8sEditable {yaml: string; version: string}
+export interface K8sDiffLine {op: ' ' | '+' | '-' | '~'; text: string}
+export interface K8sEditPreview {diff: K8sDiffLine[]; changed: number}
+/** one container of a workload changed; what is left out stays. In requests and limits a value of "" removes the entry */
+export interface K8sContainerEdit {
+  container: string; init?: boolean; image?: string
+  env?: {name: string; value: string; remove?: boolean}[]
+  requests?: Record<string, string>; limits?: Record<string, string>
+}
+export interface K8sSidecar {name: string; image: string; command?: string[]; args?: string[]}
+
+/** A Kubernetes cluster reached with a kubeconfig that someone gave the user. The kubeconfig itself stays in the vault. */
+export interface Cluster {
+  id: string
+  label: string
+  group_id?: string
+  env?: Env
+  /** the context chosen when it was added */
+  context?: string
+  /** the API server of that context, for display */
+  server?: string
+  /** login programs the user agreed to run for this cluster (a command line each) */
+  approved_exec?: string[]
+  created_at: string
+  updated_at: string
+}
+export interface KubeContext {name: string; cluster: string; server: string; user: string; namespace?: string; current: boolean; auth: KubeAuth; exec?: string; insecure?: boolean}
+/** what a kubeconfig holds: the contexts that can be used, and why the others cannot (by context name) */
+export interface ClusterPreview {contexts: KubeContext[]; problems: Record<string, string>}
+export interface ClusterInput {label: string; group_id: string; env: Env; path: string; kubeconfig: string; context: string}

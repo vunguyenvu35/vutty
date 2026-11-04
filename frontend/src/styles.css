@@ -9,4 +9,5 @@
 @import './styles/screens.css';
 @import './styles/assistant.css';
 @import './styles/server.css';
+@import './styles/kubernetes.css';
 @import './styles/settings-pages.css';

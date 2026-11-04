@@ -3,7 +3,7 @@ import {useBackend} from '../backend'
 import type {TFn} from '../i18n'
 import {useT} from '../i18n'
 import {AuthPrompt} from '../ui/AuthPrompt'
-import {IconRefresh} from '../ui/Icons'
+import {IconChevron, IconRefresh} from '../ui/Icons'
 import {useMinBusy} from '../ui/useMinBusy'
 import {authenticity} from '../sftp/RemotePane'
 import {errMsg} from '../util'
@@ -150,13 +150,55 @@ export function stackQuestion(t: TFn, action: StackAction, name: string): {messa
 }
 
 /** The bar above a table: what is on the left, and the refresh button at the right. */
-export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): void; children?: ReactNode}) {
+/** The refresh button alone: for a screen that has nothing else for a bar, it goes in the head of its first box instead of making a row of its own. */
+export function RefreshButton({busy, onReload}: {busy: boolean; onReload(): void}) {
   const t = useT()
   const spinning = useMinBusy(busy)
+  return <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={spinning} onClick={onReload}><IconRefresh size={14} /></button>
+}
+
+export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): void; children?: ReactNode}) {
   return (
     <div className="sp-bar">
       {children}
-      <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={spinning} onClick={onReload}><IconRefresh size={14} /></button>
+      <RefreshButton busy={busy} onReload={onReload} />
+    </div>
+  )
+}
+
+/**
+ * What a screen shows while its first answer is on the way: grey shapes in the place and the size of what will come (cards, bars, rows),
+ * with a soft shimmer (still when the person asked for less motion), not a word on an empty page.
+ */
+export function Loading({kind = 'table', rows = 7}: {kind?: 'table' | 'overview' | 'detail' | 'lines'; rows?: number}) {
+  const t = useT()
+  const row = (n: number, i: number) => <i key={i} className="sk-row" style={{opacity: 1 - i * 0.07, width: [96, 92, 98, 90, 94, 88, 96][i % 7] + '%'}} aria-hidden="true" data-n={n} />
+  const card = (i: number) => <div key={i} className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" /><i className="sk-line sk-big" /><i className="sk-line sk-w60" /></div>
+  return (
+    <div className={'sk sk-' + kind} role="status" aria-busy="true">
+      {kind === 'overview' && (
+        <>
+          <div className="sk-grid">{[0, 1].map(card)}</div>
+          <i className="sk-line sk-title" aria-hidden="true" />
+          <div className="sk-grid sk-grid3">{[0, 1, 2].map(i => <div key={i} className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" /><i className="sk-line sk-w60" /><i className="sk-bar" /><i className="sk-line sk-w60" /><i className="sk-bar" /></div>)}</div>
+          <div className="sk-grid sk-grid2">{[0, 1].map(i => <div key={i} className="sk-card sk-tall" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 5}, row.bind(null, i))}</div>)}</div>
+        </>
+      )}
+      {kind === 'detail' && (
+        <>
+          <i className="sk-line sk-title" aria-hidden="true" />
+          <div className="sk-grid sk-grid2">{[0, 1].map(i => <div key={i} className="sk-card sk-tall" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 5}, row.bind(null, i))}</div>)}</div>
+          <div className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 3}, row.bind(null, 0))}</div>
+        </>
+      )}
+      {kind === 'table' && (
+        <>
+          <i className="sk-head" aria-hidden="true" />
+          {Array.from({length: rows}, row.bind(null, 0))}
+        </>
+      )}
+      {kind === 'lines' && Array.from({length: 4}, row.bind(null, 0))}
+      <span className="sr-only">{t('Loading…')}</span>
     </div>
   )
 }
@@ -164,11 +206,34 @@ export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): 
 export const Err = ({error}: {error: string}) => (error ? <div className="error" role="alert">{error}</div> : null)
 
 /** A box of the page with a title: the unit of every section that has more than one thing to show. */
-export function Card({title, children, right}: {title: string; children: ReactNode; right?: ReactNode}) {
+export function Card({title, children, right, collapsible = false, closed: closedProp, onToggle, count, filter}: {
+  title: string; children: ReactNode; right?: ReactNode
+  /** the title closes and opens the box (a long list can be put away) */
+  collapsible?: boolean
+  /** the screen keeps whether the box is closed (so it stays closed when the screen is built again); without it the box keeps it itself */
+  closed?: boolean
+  onToggle?(): void
+  /** shown beside the title: how many there are, or "shown of all" while a search is on */
+  count?: string | number
+  /** a search box in the head that keeps only what contains what is typed; the box owns no text, the screen filters its own rows */
+  filter?: {value: string; onChange(v: string): void; label: string}
+}) {
+  const t = useT()
+  const [own, setClosed] = useState(false)
+  const closed = closedProp ?? own
+  const toggle = onToggle ?? (() => setClosed(c => !c))
   return (
     <section className="sp-card sp-wide">
-      <div className="sp-card-head"><h3>{title}</h3>{right}</div>
-      {children}
+      <div className="sp-card-head">
+        {collapsible
+          ? <button className="sp-card-fold" aria-expanded={!closed} aria-label={title} onClick={toggle}>
+              <span className={'k8s-chev' + (closed ? '' : ' open')}><IconChevron size={12} /></span><h3>{title}</h3>{count !== undefined && <small className="sp-count">{count}</small>}
+            </button>
+          : <h3>{title}</h3>}
+        {filter && !closed && <input className="sp-filter sp-card-filter" aria-label={filter.label} placeholder={t('Search')} value={filter.value} onChange={e => filter.onChange(e.target.value)} />}
+        {right}
+      </div>
+      {!closed && children}
     </section>
   )
 }

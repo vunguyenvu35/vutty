@@ -38,6 +38,7 @@ const (
 	SecretPrivateKey SecretKind = "private_key"
 	SecretPassword   SecretKind = "password"
 	SecretPassphrase SecretKind = "passphrase"
+	SecretKubeconfig SecretKind = "kubeconfig"
 )
 
 // Meta is embedded in every synced record: UUID v7 id, last update time and a
@@ -152,6 +153,7 @@ type Data struct {
 	Forwards   []PortForward `json:"forwards"`
 	Identities []Identity    `json:"identities"`
 	Snippets   []Snippet     `json:"snippets"`
+	Clusters   []Cluster     `json:"clusters"`
 }
 
 // Snippet is a reusable shell script. It is plain text (not a secret) and syncs with the other records.
@@ -160,6 +162,24 @@ type Snippet struct {
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
 	Script      string `json:"script"`
+}
+
+// Cluster is a Kubernetes cluster reached with a kubeconfig that someone gave the user, with no SSH host in between. The kubeconfig
+// itself is a secret of the vault (SecretRef): it holds the credentials of the cluster, so it never reaches the interface.
+type Cluster struct {
+	Meta
+	Label   string `json:"label"`
+	GroupID string `json:"group_id,omitempty"`
+	Env     Env    `json:"env,omitempty"`
+	// SecretRef is the vault secret that holds the kubeconfig.
+	SecretRef string `json:"secret_ref,omitempty"`
+	// Context is the one chosen when the kubeconfig was added ("" asks each time).
+	Context string `json:"context,omitempty"`
+	// Server is the address of that context's API server, for display only.
+	Server string `json:"server,omitempty"`
+	// ApprovedExec are the login programs (a whole command line each) that the user agreed to run for this cluster.
+	ApprovedExec []string  `json:"approved_exec,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // RemoteEntry is one item of a remote directory listing (SFTP).

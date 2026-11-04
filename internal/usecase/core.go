@@ -107,9 +107,13 @@ type Core struct {
 	NewCustomAgent CustomAgentFactory
 	ToolGateway    ToolGateway
 	MCP            MCPConnector
-	emit           Emitter
-	setMu          sync.Mutex
-	settings       Settings
+	// Kube opens clusters from a kubeconfig; nil turns the feature off.
+	Kube KubeConnector
+	// kubeShells are the pods that terminal tabs ("kubeexec:<id>") open a shell in.
+	kubeShells sync.Map
+	emit       Emitter
+	setMu      sync.Mutex
+	settings   Settings
 
 	prompts     *prompter
 	authPrompts *authPrompter
@@ -137,6 +141,8 @@ type Options struct {
 	NewCustomAgent CustomAgentFactory
 	ToolGateway    ToolGateway
 	MCP            MCPConnector
+	// Kube opens clusters from a kubeconfig (optional: without it the Clusters feature is off).
+	Kube KubeConnector
 }
 
 // NewCore wires the use cases around the given ports. dir is the root of user data.
@@ -147,7 +153,7 @@ func NewCore(dir string, opt Options) (*Core, error) {
 	c := &Core{CacheDir: opt.CacheDir, Dir: dir, DataDir: filepath.Join(dir, "data"), SyncDir: filepath.Join(dir, "sync"), emit: opt.Emit,
 		Store: opt.Store, Vault: opt.Vault, prompts: newPrompter(), authPrompts: newAuthPrompter(), OpenRemoteFS: opt.OpenRemoteFS,
 		OpenLocalShell: opt.OpenLocalShell, OpenSerial: opt.OpenSerial, OpenTelnet: opt.OpenTelnet, ListSerial: opt.ListSerial, Activity: opt.Activity,
-		Agents: opt.Agents, NewCustomAgent: opt.NewCustomAgent, ToolGateway: opt.ToolGateway, MCP: opt.MCP}
+		Agents: opt.Agents, NewCustomAgent: opt.NewCustomAgent, ToolGateway: opt.ToolGateway, MCP: opt.MCP, Kube: opt.Kube}
 	if c.emit == nil {
 		c.emit = func(string, ...any) {}
 	}

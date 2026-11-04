@@ -43,7 +43,7 @@ func ParseSerialID(id string) (path string, baud int, err error) {
 }
 
 func isDeviceID(id string) bool {
-	return id == LocalHostID || strings.HasPrefix(id, serialPrefix) || strings.HasPrefix(id, telnetPrefix)
+	return id == LocalHostID || strings.HasPrefix(id, serialPrefix) || strings.HasPrefix(id, telnetPrefix) || strings.HasPrefix(id, kubeExecPrefix)
 }
 
 // SerialService lists serial ports for the Serial panel.

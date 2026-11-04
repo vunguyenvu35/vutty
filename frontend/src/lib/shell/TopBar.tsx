@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {IconClose, IconFolder, IconGear, IconKey, IconPlus, IconServer, IconSidebar, IconSplitH, IconSplitV} from '../ui/Icons'
+import {IconClose, IconCloud, IconFolder, IconGear, IconKey, IconPlus, IconServer, IconSidebar, IconSplitH, IconSplitV} from '../ui/Icons'
 import {draggingPane, isTerminalTab, PANE_DRAG, setDraggingPane, setDraggingTab, TAB_DRAG, type Tab} from '../layout'
 import {TabStatus} from './TabStatus'
 import {OS_INFO, OsIcon} from '../ui/OsIcon'
@@ -83,6 +83,7 @@ export function TopBar(p: Props) {
     if (tb.kind === 'new') return <IconPlus size={15} />
     if (tb.kind === 'settings') return <IconGear size={15} />
     if (tb.kind === 'server') return <IconServer size={15} />
+    if (tb.kind === 'cluster') return <IconCloud size={15} />
     const hostId = leaves(tb.root)[0]?.hostId ?? ''
     const id = hostId.startsWith('telnet:') ? hostId.slice('telnet:'.length) : hostId
     const os = p.hosts?.find(h => h.id === id)?.os

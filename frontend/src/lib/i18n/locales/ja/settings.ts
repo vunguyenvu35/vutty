@@ -452,4 +452,7 @@ export default {
   '{provider} cannot list its models, so it uses its default one.': '{provider} はモデルの一覧を取得できないため、既定のモデルを使います。',
   '{server} wants to run {tool}': '{server} が {tool} を実行しようとしています',
   '☕ $3 – a cup of coffee · 🍜 $10 – a lunch · 🚀 $25 – fuel new features': '☕ $3 – コーヒー 1 杯 · 🍜 $10 – ランチ 1 回 · 🚀 $25 – 新機能の燃料',
-} as Record<string, string>
+  "Kubernetes clusters": "Kubernetes クラスター",
+  "the clusters you added from a kubeconfig, with the kubeconfig of each (encrypted)": "kubeconfig から追加したクラスターと、それぞれの kubeconfig（暗号化されます）",
+  "the ones saved in Keychain; hosts that use one need it on the other machine (not the kubeconfigs: those go with the clusters)": "キーチェーンに保存したもの。使っているホストは、もう一方のマシンにも必要です（kubeconfig は含まれません。クラスターと一緒に同期されます）",
+}

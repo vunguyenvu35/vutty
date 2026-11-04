@@ -50,6 +50,12 @@ func (c *Core) sessionLogFor(sess *session) *sessionLog {
 	case id == LocalHostID:
 	case strings.HasPrefix(id, "serial:"):
 		label = strings.TrimPrefix(id, "serial:")
+	case strings.HasPrefix(id, kubeExecPrefix):
+		t, ok := c.kubeShell(id)
+		if !ok {
+			return nil
+		}
+		label, target, prod = t.label, "kubernetes pod", t.prod
 	default:
 		hostID := strings.TrimPrefix(id, telnetPrefix)
 		h, err := c.Store.GetHost(hostID)

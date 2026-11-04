@@ -39,6 +39,11 @@ type Repository interface {
 	SaveSnippet(domain.Snippet) (domain.Snippet, error)
 	DeleteSnippet(id string) error
 
+	ListClusters() []domain.Cluster
+	GetCluster(id string) (domain.Cluster, error)
+	SaveCluster(domain.Cluster) (domain.Cluster, error)
+	DeleteCluster(id string) error
+
 	ListForwards(hostID string) []domain.PortForward
 	GetForward(id string) (domain.PortForward, error)
 	SaveForward(domain.PortForward) (domain.PortForward, error)

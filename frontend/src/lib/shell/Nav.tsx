@@ -2,9 +2,9 @@ import {ReactNode, useEffect, useState} from 'react'
 import {formatCombo} from '../shortcuts/shortcuts'
 import {useT} from '../i18n'
 import {Brand} from '../ui/Brand'
-import {IconBraces, IconClock, IconData, IconFingerprint, IconForward, IconGear, IconGrid, IconKey, IconLock, IconServer} from '../ui/Icons'
+import {IconBraces, IconClock, IconCloud, IconData, IconFingerprint, IconForward, IconGear, IconGrid, IconKey, IconLock, IconServer} from '../ui/Icons'
 
-export type Page = 'hosts' | 'keychain' | 'forwards' | 'snippets' | 'knownhosts' | 'logs' | 'fleet'
+export type Page = 'hosts' | 'keychain' | 'forwards' | 'snippets' | 'knownhosts' | 'logs' | 'fleet' | 'clusters'
 
 interface Props {
   page: Page
@@ -52,6 +52,7 @@ export function Nav(p: Props) {
       <div className="nav-group">
         <Item icon={<IconServer />} label={t('Hosts')} iconsOnly={iconsOnly} combo={k.go_hosts} active={p.page === 'hosts'} onClick={() => p.onPage('hosts')} />
         <Item icon={<IconGrid />} label={t('Fleet')} iconsOnly={iconsOnly} active={p.page === 'fleet'} onClick={() => p.onPage('fleet')} />
+        <Item icon={<IconCloud />} label={t('Kubernetes')} iconsOnly={iconsOnly} active={p.page === 'clusters'} onClick={() => p.onPage('clusters')} />
         <Item icon={<IconKey />} label={t('Keychain')} iconsOnly={iconsOnly} combo={k.go_keychain} active={p.page === 'keychain'} onClick={() => p.onPage('keychain')} />
         <Item icon={<IconForward />} label={t('Port Forwarding')} iconsOnly={iconsOnly} combo={k.go_forwards} active={p.page === 'forwards'} onClick={() => p.onPage('forwards')} />
         <Item icon={<IconBraces />} label={t('Snippets')} iconsOnly={iconsOnly} combo={k.go_snippets} active={p.page === 'snippets'} onClick={() => p.onPage('snippets')} />

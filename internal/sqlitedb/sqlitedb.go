@@ -137,6 +137,13 @@ var additions = []struct{ table, column, def string }{
 	{"identities", "certificate", "TEXT NOT NULL DEFAULT ''"}, // OpenSSH user certificate
 }
 
+// clustersTable holds the Kubernetes clusters (the kubeconfig of each is a vault secret, not a column). Like the activity log it is
+// created when missing, so it needs no schema version of its own.
+const clustersTable = `CREATE TABLE IF NOT EXISTS clusters (
+	id TEXT PRIMARY KEY, label TEXT NOT NULL, group_id TEXT NOT NULL DEFAULT '', env TEXT NOT NULL DEFAULT '',
+	secret_ref TEXT NOT NULL DEFAULT '', context TEXT NOT NULL DEFAULT '', server TEXT NOT NULL DEFAULT '',
+	approved_exec TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)`
+
 const activityTable = `CREATE TABLE IF NOT EXISTS activity_log (
 		id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, kind TEXT NOT NULL, host_id TEXT NOT NULL DEFAULT '',
 		host_label TEXT NOT NULL DEFAULT '', message TEXT NOT NULL, ok INTEGER NOT NULL DEFAULT 1)`
@@ -169,6 +176,9 @@ func ensureAdditions(tx *sql.Tx) error {
 		if _, err := tx.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, a.table, a.column, a.def)); err != nil {
 			return fmt.Errorf("add %s.%s: %w", a.table, a.column, err)
 		}
+	}
+	if _, err := tx.Exec(clustersTable); err != nil {
+		return err
 	}
 	_, err := tx.Exec(activityTable)
 	return err
@@ -301,7 +311,25 @@ func (p StorePersister) Load() (domain.Data, bool, error) {
 	}
 	rows.Close()
 
-	found := len(data.Groups)+len(data.Hosts)+len(data.Identities)+len(data.Forwards)+len(data.Snippets) > 0
+	rows, err = p.db.Query(`SELECT id,label,group_id,env,secret_ref,context,server,approved_exec,created_at,updated_at,deleted_at FROM clusters ORDER BY rowid`)
+	if err != nil {
+		return data, false, err
+	}
+	for rows.Next() {
+		var x domain.Cluster
+		var env, approved, created, upd string
+		var del sql.NullString
+		if err := rows.Scan(&x.ID, &x.Label, &x.GroupID, &env, &x.SecretRef, &x.Context, &x.Server, &approved, &created, &upd, &del); err != nil {
+			rows.Close()
+			return data, false, err
+		}
+		x.Env, x.CreatedAt, x.UpdatedAt, x.DeletedAt = domain.Env(env), parseTS(created), parseTS(upd), parseTSNull(del)
+		_ = json.Unmarshal([]byte(approved), &x.ApprovedExec)
+		data.Clusters = append(data.Clusters, x)
+	}
+	rows.Close()
+
+	found := len(data.Groups)+len(data.Hosts)+len(data.Identities)+len(data.Forwards)+len(data.Snippets)+len(data.Clusters) > 0
 	return data, found, nil
 }
 
@@ -312,7 +340,7 @@ func (p StorePersister) Save(d domain.Data) error {
 		return err
 	}
 	defer tx.Rollback()
-	for _, t := range []string{"groups", "hosts", "identities", "port_forwards", "snippets"} {
+	for _, t := range []string{"groups", "hosts", "identities", "port_forwards", "snippets", "clusters"} {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return err
 		}
@@ -349,6 +377,16 @@ func (p StorePersister) Save(d domain.Data) error {
 	for _, x := range d.Snippets {
 		if _, err := tx.Exec(`INSERT INTO snippets(id,label,description,script,updated_at,deleted_at) VALUES(?,?,?,?,?,?)`,
 			x.ID, x.Label, x.Description, x.Script, ts(x.UpdatedAt), tsNull(x.DeletedAt)); err != nil {
+			return err
+		}
+	}
+	for _, x := range d.Clusters {
+		approved, _ := json.Marshal(x.ApprovedExec)
+		if x.ApprovedExec == nil {
+			approved = []byte("[]")
+		}
+		if _, err := tx.Exec(`INSERT INTO clusters(id,label,group_id,env,secret_ref,context,server,approved_exec,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+			x.ID, x.Label, x.GroupID, string(x.Env), x.SecretRef, x.Context, x.Server, string(approved), ts(x.CreatedAt), ts(x.UpdatedAt), tsNull(x.DeletedAt)); err != nil {
 			return err
 		}
 	}

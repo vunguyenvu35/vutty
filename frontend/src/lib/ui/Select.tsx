@@ -19,6 +19,8 @@ interface Props {
   placeholder?: string
   className?: string
   disabled?: boolean
+  /** a box at the top of the menu that keeps only the options that contain what is typed (in the name or the small print under it): for a long list */
+  searchable?: boolean
 }
 
 /**
@@ -27,7 +29,7 @@ interface Props {
  * with fixed coordinates so scrolling containers (side panels) never clip it, and it flips upward
  * when there is no room below.
  */
-export function Select({label, value, onChange, options, placeholder, className = '', disabled}: Props) {
+export function Select({label, value, onChange, options, placeholder, className = '', disabled, searchable = false}: Props) {
   const t = useT()
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -37,11 +39,19 @@ export function Select({label, value, onChange, options, placeholder, className 
   const [active, setActive] = useState(0)
   const [pos, setPos] = useState<{left: number; width: number; top?: number; bottom?: number; maxHeight: number}>({left: 0, width: 0, maxHeight: 280})
 
+  const search = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
   const current = useMemo(() => options.find(o => o.value === value), [options, value])
-  const enabled = useMemo(() => options.map((o, i) => (o.disabled ? -1 : i)).filter(i => i >= 0), [options])
+  // what is in sight: all of it, or what matches the box (every word typed must be in the name or the small print)
+  const visible = useMemo(() => {
+    const words = searchable ? query.trim().toLowerCase().split(/\s+/).filter(Boolean) : []
+    return options.map((o, i) => i).filter(i => words.every(w => `${options[i].label} ${options[i].hint ?? ''}`.toLowerCase().includes(w)))
+  }, [options, query, searchable])
+  const enabled = useMemo(() => visible.filter(i => !options[i].disabled), [options, visible])
 
   const openMenu = () => {
     if (disabled) return
+    setQuery('')
     const sel = options.findIndex(o => o.value === value)
     setActive(sel >= 0 && !options[sel].disabled ? sel : (enabled[0] ?? 0))
     setOpen(true)
@@ -68,8 +78,9 @@ export function Select({label, value, onChange, options, placeholder, className 
       ...(up ? {bottom: window.innerHeight - r.top + 6} : {top: r.bottom + 6}),
       maxHeight: Math.max(120, Math.min(300, up ? above : below)),
     })
-    menu.current?.focus()
-  }, [open])
+    if (searchable) search.current?.focus()
+    else menu.current?.focus()
+  }, [open, searchable])
 
   useEffect(() => {
     if (!open) return
@@ -92,6 +103,9 @@ export function Select({label, value, onChange, options, placeholder, className 
     if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView?.({block: 'nearest'})
   }, [open, active, id])
 
+  // the first match is active as the box is typed in
+  useEffect(() => { if (open && searchable && active === -1) setActive(enabled[0] ?? -1) }, [open, searchable, active, enabled])
+
   const move = (dir: 1 | -1) => {
     const at = enabled.indexOf(active)
     const next = enabled[Math.max(0, Math.min(enabled.length - 1, (at < 0 ? 0 : at) + dir))]
@@ -106,13 +120,14 @@ export function Select({label, value, onChange, options, placeholder, className 
     switch (e.key) {
       case 'ArrowDown': e.preventDefault(); move(1); break
       case 'ArrowUp': e.preventDefault(); move(-1); break
-      case 'Home': e.preventDefault(); setActive(enabled[0] ?? 0); break
-      case 'End': e.preventDefault(); setActive(enabled[enabled.length - 1] ?? 0); break
-      case 'Enter': case ' ': e.preventDefault(); choose(active); break
+      case 'Home': if (!searchable) { e.preventDefault(); setActive(enabled[0] ?? 0) } break
+      case 'End': if (!searchable) { e.preventDefault(); setActive(enabled[enabled.length - 1] ?? 0) } break
+      case 'Enter': e.preventDefault(); choose(active); break
+      case ' ': if (!searchable) { e.preventDefault(); choose(active) } break // in the box a space is a letter
       case 'Escape': e.preventDefault(); e.stopPropagation(); close(); break // do not also close a panel behind
       case 'Tab': close(false); break
       default:
-        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        if (!searchable && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
           const now = Date.now()
           typed.current.text = (now - typed.current.at > 600 ? '' : typed.current.text) + e.key.toLowerCase()
           typed.current.at = now
@@ -137,10 +152,17 @@ export function Select({label, value, onChange, options, placeholder, className 
         {options.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
       </select>
       {open && createPortal(
-        <div ref={menu} id={id} className="select-menu" role="listbox" aria-label={label} tabIndex={-1}
-          aria-activedescendant={`${id}-${active}`} onKeyDown={onMenuKey}
+        <div ref={menu} id={id} className="select-menu" role={searchable ? undefined : 'listbox'} aria-label={searchable ? undefined : label} tabIndex={-1}
+          aria-activedescendant={searchable ? undefined : `${id}-${active}`} onKeyDown={onMenuKey}
           style={{left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight}}>
-          {options.map((o, i) => (
+          {searchable && (
+            <input ref={search} className="select-search" type="search" role="searchbox" aria-label={t('Search {name}', {name: label})} placeholder={t('Search…')} value={query} autoComplete="off" spellCheck={false}
+              aria-controls={`${id}-list`} aria-activedescendant={`${id}-${active}`}
+              onChange={e => { setQuery(e.target.value); setActive(-1) }} />
+          )}
+          <div id={searchable ? `${id}-list` : undefined} role={searchable ? 'listbox' : undefined} aria-label={searchable ? label : undefined}>
+          {searchable && visible.length === 0 && <div className="select-empty">{t('No match')}</div>}
+          {visible.map(i => ({o: options[i], i})).map(({o, i}) => (
             <div key={o.value} id={`${id}-${i}`} role="option" aria-selected={o.value === value} aria-disabled={o.disabled || undefined}
               className={'select-option' + (i === active ? ' active' : '') + (o.value === value ? ' selected' : '') + (o.disabled ? ' disabled' : '')}
               onMouseMove={() => !o.disabled && setActive(i)} onMouseDown={e => e.preventDefault()} onClick={() => choose(i)}>
@@ -150,6 +172,7 @@ export function Select({label, value, onChange, options, placeholder, className 
               )}
             </div>
           ))}
+          </div>
         </div>, document.body)}
     </div>
   )

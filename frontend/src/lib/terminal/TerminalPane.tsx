@@ -10,7 +10,7 @@ import {WebLinksAddon} from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import {useBackend} from '../backend'
 import {b64ToBytes, errMsg} from '../util'
-import {parseCwd, registerPane, registerSelection, setPaneCwd, setPaneSession, setPaneStatus} from './panes'
+import {parseCwd, registerPane, registerSelection, setPaneCwd, setPaneSession, setPaneStatus, writeToPane} from './panes'
 import {createHighlighter, HighlightTerm} from './highlight'
 import {attachGpu, type Gpu} from './gpu'
 import {matches} from '../shortcuts/shortcuts'
@@ -23,6 +23,8 @@ import {composedInput, followReplacements, imeColours, type ComposingTerm} from 
 
 /** how many parsed bytes are reported to the backend at once (flow control); a smaller rest is reported after 20 ms */
 const ACK_EVERY = 128 * 1024
+/** how long after the shell is ready an initial line is typed: the prompt is drawn by then */
+export const INITIAL_INPUT_DELAY = 300
 
 interface Props {
   hostId: string
@@ -66,6 +68,8 @@ interface Props {
   onShowLogs?(): void
   /** the Close button of the connecting screen */
   onCloseTab?(): void
+  /** a line typed and run once, a moment after the shell is connected (the Shell of a Kubernetes pod) */
+  initialInput?: string
   /** what the user typed in this pane (the Workspace sends it to the other panes while broadcasting) */
   onTyped?(data: string): void
   onFocus(): void
@@ -135,6 +139,18 @@ export function TerminalPane(p: Props) {
   const onTyped = useRef(p.onTyped)
   onTyped.current = p.onTyped
   onExit.current = p.onExit
+
+  // typed once, never again: after a reconnect the shell is a new one and the line would run unasked
+  const pendingInput = useRef(p.initialInput ?? '')
+  useEffect(() => {
+    if (state !== 'ready' || !pendingInput.current || !p.paneId) return
+    const id = window.setTimeout(() => {
+      const line = pendingInput.current
+      pendingInput.current = ''
+      if (line && p.paneId) writeToPane(p.paneId, line.replace(/[\r\n]+$/, '') + '\r')
+    }, INITIAL_INPUT_DELAY)
+    return () => window.clearTimeout(id)
+  }, [state, p.paneId])
 
   const setSt = (s: State) => { stateRef.current = s; setState(s) }
   // how far the connection got (events from the backend) and where the line stood when it failed

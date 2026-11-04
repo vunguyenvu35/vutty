@@ -134,6 +134,11 @@ func (s *SyncService) localEmpty() bool {
 			return false
 		}
 	}
+	for _, x := range d.Clusters {
+		if !x.Deleted() {
+			return false
+		}
+	}
 	for _, f := range d.Forwards {
 		if !f.Deleted() {
 			return false

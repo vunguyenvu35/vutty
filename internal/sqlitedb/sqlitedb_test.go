@@ -37,6 +37,8 @@ func sample() domain.Data {
 		},
 		Identities: []domain.Identity{{Meta: domain.Meta{ID: "i1", UpdatedAt: now}, Name: "k", Username: "ops", AuthType: domain.AuthKey, SecretRef: "s1", PublicKey: "ssh-ed25519 AAA"}},
 		Snippets:   []domain.Snippet{{Meta: domain.Meta{ID: "s1", UpdatedAt: now}, Label: "Docker clean", Description: "stop and prune", Script: "docker stop $(docker ps -aq)\ndocker system prune -af\n"}},
+		Clusters: []domain.Cluster{{Meta: domain.Meta{ID: "c1", UpdatedAt: now}, Label: "prod cluster", GroupID: "g1", Env: domain.EnvProd, SecretRef: "sec1",
+			Context: "prod", Server: "https://10.0.0.1:6443", ApprovedExec: []string{"aws eks get-token --cluster-name prod"}, CreatedAt: now}},
 		Forwards: []domain.PortForward{{Meta: domain.Meta{ID: "f1", UpdatedAt: now}, HostID: "h1", Type: domain.ForwardLocal, BindAddr: "127.0.0.1",
 			BindPort: 3306, DestHost: "db", DestPort: 3306, AutoStart: true, AllowPublicBind: true}},
 	}
@@ -62,7 +64,7 @@ func TestStoreDataRoundTripPreservesEverything(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("found=%v err=%v", found, err)
 	}
-	if !reflect.DeepEqual(in.Groups, out.Groups) || !reflect.DeepEqual(in.Snippets, out.Snippets) || !reflect.DeepEqual(in.Identities, out.Identities) || !reflect.DeepEqual(in.Forwards, out.Forwards) {
+	if !reflect.DeepEqual(in.Groups, out.Groups) || !reflect.DeepEqual(in.Snippets, out.Snippets) || !reflect.DeepEqual(in.Identities, out.Identities) || !reflect.DeepEqual(in.Forwards, out.Forwards) || !reflect.DeepEqual(in.Clusters, out.Clusters) {
 		t.Fatalf("mismatch\n in=%+v\nout=%+v", in, out)
 	}
 	if len(out.Hosts) != 2 || out.Hosts[0].Tags[1] != "b" || out.Hosts[1].DeletedAt == nil || !out.Hosts[1].DeletedAt.Equal(*in.Hosts[1].DeletedAt) {
@@ -272,6 +274,10 @@ func TestUpgradeFromSchemaV1KeepsData(t *testing.T) {
 	data.Snippets = []domain.Snippet{{Meta: domain.Meta{ID: "s", UpdatedAt: time.Now()}, Label: "x", Script: "ls"}}
 	if err := d.StorePersister().Save(data); err != nil {
 		t.Fatalf("snippets table unusable after upgrade: %v", err)
+	}
+	data.Clusters = []domain.Cluster{{Meta: domain.Meta{ID: "c", UpdatedAt: time.Now()}, Label: "k", CreatedAt: time.Now()}}
+	if err := d.StorePersister().Save(data); err != nil {
+		t.Fatalf("clusters table missing after upgrade: %v", err)
 	}
 }
 

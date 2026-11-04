@@ -399,3 +399,41 @@ func TestSetHostOSKeepsTheRestAndSurvivesAnEditWithoutIt(t *testing.T) {
 		t.Fatal("an unknown host must be refused")
 	}
 }
+
+func TestClustersCRUDSortingAndTombstones(t *testing.T) {
+	s, dir := open(t)
+	b, err := s.SaveCluster(domain.Cluster{Label: "b-staging", SecretRef: "sec-b", Env: domain.EnvStaging, ApprovedExec: []string{"aws eks get-token"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, _ := s.SaveCluster(domain.Cluster{Label: "A-prod", SecretRef: "sec-a", Env: domain.EnvProd, Context: "prod", Server: "https://10.0.0.1:6443"})
+	if b.CreatedAt.IsZero() || a.ID == "" {
+		t.Fatalf("defaults wrong: %+v", a)
+	}
+	if got := s.ListClusters(); len(got) != 2 || got[0].ID != a.ID || got[1].ID != b.ID {
+		t.Fatalf("not sorted case-insensitively: %+v", got)
+	}
+	a.Label = "A-production"
+	if _, err := s.SaveCluster(a); err != nil || len(s.ListClusters()) != 2 {
+		t.Fatalf("update created a duplicate: %v", err)
+	}
+	for name, c := range map[string]domain.Cluster{"no name": {Label: " "}, "bad env": {Label: "x", Env: "moon"}} {
+		if _, err := s.SaveCluster(c); err == nil {
+			t.Errorf("%s: invalid cluster saved", name)
+		}
+	}
+	if err := s.DeleteCluster(b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteCluster(b.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("double delete: %v", err)
+	}
+	if _, err := s.GetCluster(b.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a deleted cluster is still there: %v", err)
+	}
+	s2, _ := Open(dir)
+	got := s2.ListClusters()
+	if len(got) != 1 || got[0].Label != "A-production" || got[0].Server != "https://10.0.0.1:6443" {
+		t.Fatalf("not persisted: %+v", got)
+	}
+}

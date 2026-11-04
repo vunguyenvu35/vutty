@@ -452,4 +452,7 @@ export default {
   '{provider} cannot list its models, so it uses its default one.': '{provider} 无法列出它的模型，因此使用默认模型。',
   '{server} wants to run {tool}': '{server} 想要运行 {tool}',
   '☕ $3 – a cup of coffee · 🍜 $10 – a lunch · 🚀 $25 – fuel new features': '☕ $3 – 一杯咖啡 · 🍜 $10 – 一顿午餐 · 🚀 $25 – 为新功能助力',
-} as Record<string, string>
+  "Kubernetes clusters": "Kubernetes 集群",
+  "the clusters you added from a kubeconfig, with the kubeconfig of each (encrypted)": "你用 kubeconfig 添加的集群，以及每个集群的 kubeconfig（已加密）",
+  "the ones saved in Keychain; hosts that use one need it on the other machine (not the kubeconfigs: those go with the clusters)": "保存在密钥串中的内容；使用它们的主机在另一台电脑上也需要它们（不含 kubeconfig：它们随集群同步）",
+}

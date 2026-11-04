@@ -2,8 +2,9 @@ import {ReactNode} from 'react'
 import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
+import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
 import type {ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
-  CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool} from '../lib/types'
+  CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
   state: {
@@ -71,6 +72,12 @@ export interface Fake extends Backend {
       failAction: string
       openError: string
     }
+    /** the Kubernetes tab: the cluster the fake answers for (see fakeK8s.ts) */
+    k8s: K8sFake
+    /** the clusters reached with a kubeconfig; `preview` is what any kubeconfig the person picks holds, `previewError` makes the preview fail */
+    clusters: Cluster[]
+    preview: ClusterPreview
+    previewError: string
     /** the AI assistant */
     ai: {
       providers: AiProvider[]
@@ -194,6 +201,13 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       failAction: '',
       openError: '',
     },
+    k8s: makeK8s(),
+    clusters: [],
+    preview: {contexts: [
+      {name: 'prod', cluster: 'prod-cluster', server: 'https://10.0.0.11:6443', user: 'dev', current: true, auth: 'token'},
+      {name: 'eks', cluster: 'eks-prod', server: 'https://ABC.gr7.eu-west-1.eks.amazonaws.com', user: 'eks-user', current: false, auth: 'exec', exec: 'aws eks get-token --cluster-name prod'},
+    ], problems: {legacy: 'this kubeconfig reads a token from a file (tokenFile) of this computer and sends it to the server: ask for one with the token inside it'}},
+    previewError: '',
     ai: {
       providers: [{id: 'claude', name: 'Claude Code', status: {state: 'ready', version: '2.1.0', detail: '', hint: ''}, enabled: true, default: true, model: '', supports_mcp: true, supports_images: true, custom: false}],
       models: {claude: {models: [{id: '', name: 'Default (CLI decides)'}, {id: 'opus', name: 'Opus 5.5'}, {id: 'sonnet', name: 'Sonnet 5.5'}], error: '', can_list: true}},
@@ -589,6 +603,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         const err = state.server.fleetErrors[hostId]
         return err ? {host_id: hostId, error: err, overview: {...state.server.overview}, failed_units: 0, latency_ms: 0} : {host_id: hostId, error: '', overview: {...state.server.overview}, failed_units: 1, latency_ms: 42}
       },
+      ...k8sApi(() => state.k8s, rec),
     },
     local: {
       home: async () => '/Users/me',
@@ -645,6 +660,24 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         return upsert(state.snippets, s, 'sn')
       },
       remove: async i => { state.snippets = state.snippets.filter(x => x.id !== i) },
+    },
+    clusters: {
+      list: async () => [...state.clusters].sort((a, b) => a.label.localeCompare(b.label)),
+      preview: async (p, x) => { rec('clusters.preview', p, x); if (state.previewError) throw state.previewError; return JSON.parse(JSON.stringify(state.preview)) },
+      describe: async i => { rec('clusters.describe', i); return JSON.parse(JSON.stringify(state.preview)) },
+      add: async c => {
+        rec('clusters.add', c)
+        if (!c.path && !c.kubeconfig.trim()) throw 'choose a kubeconfig file or paste its text'
+        const ctx = state.preview.contexts.find(x => x.name === c.context) ?? state.preview.contexts.find(x => x.current) ?? state.preview.contexts[0]
+        const now = '2026-11-04T10:00:00Z'
+        return upsert(state.clusters, {label: c.label || ctx.cluster, group_id: c.group_id || undefined, env: c.env || undefined, context: ctx.name, server: ctx.server, created_at: now, updated_at: now}, 'cl')
+      },
+      update: async c => { rec('clusters.update', c); return upsert(state.clusters, {...state.clusters.find(x => x.id === c.id), label: c.label, group_id: c.group_id, env: c.env, context: c.context}, 'cl') },
+      replaceKubeconfig: async (i, p, x) => { rec('clusters.replaceKubeconfig', i, p, x); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = []; return {...c} },
+      revokeExec: async (i, cmd) => { rec('clusters.revokeExec', i, cmd); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = (c.approved_exec ?? []).filter(x => x !== cmd); return {...c} },
+      approveExec: async (i, cmd) => { rec('clusters.approveExec', i, cmd); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = [...(c.approved_exec ?? []), cmd]; return {...c} },
+      remove: async i => { rec('clusters.remove', i); state.clusters = state.clusters.filter(c => c.id !== i) },
+      open: async i => { rec('clusters.open', i); if (state.server.openError) throw state.server.openError; return {sid: 'kube1', host: state.clusters.find(c => c.id === i)?.label ?? i} },
     },
     system: {
       isFullscreen: async () => false,

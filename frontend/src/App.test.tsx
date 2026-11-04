@@ -8,9 +8,9 @@ vi.mock('./lib/terminal/TerminalPane', async () => {
   const {useEffect} = await import('react')
   const {registerPane} = await import('./lib/terminal/panes')
   return {
-    TerminalPane: (p: {hostId: string; paneId?: string; onExit(): void}) => {
+    TerminalPane: (p: {hostId: string; paneId?: string; initialInput?: string; onExit(): void}) => {
       useEffect(() => (p.paneId ? registerPane(p.paneId, t => { if (!typed.ready) return false; typed.text.push(t); return true }) : undefined), [p.paneId])
-      return <div data-testid="terminal" data-host={p.hostId}><button onClick={p.onExit}>exit-{p.hostId}</button></div>
+      return <div data-testid="terminal" data-host={p.hostId} data-initial={p.initialInput}><button onClick={p.onExit}>exit-{p.hostId}</button></div>
     },
   }
 })
@@ -260,6 +260,27 @@ describe('App navigation and quick connect', () => {
     expect(await screen.findByTestId('terminal')).toHaveAttribute('data-host', 'h1') // no protocol question: SSH straight away
     expect(screen.getByRole('tab', {name: /^switch$/, selected: true})).toBeInTheDocument()
     expect(screen.getByRole('tab', {name: /switch \(Panel\)/})).toBeInTheDocument()
+  })
+
+  it('Shell on a pod opens a new terminal tab on the same host that is to type the kubectl exec line', async () => {
+    localStorage.setItem('vutty.k8s.context.h1', 'prod-cluster')
+    const be = setup({hosts: [host({id: 'h1', label: 'switch', hostname: '10.0.0.2', telnet_enabled: true, telnet_port: 23} as never)]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('switch'))
+    await userEvent.click(screen.getByRole('radio', {name: /Panel/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    await screen.findByRole('region', {name: 'Server panel of switch'})
+    await screen.findByText(/up 41d 0h/)
+    await userEvent.click(screen.getByRole('tab', {name: 'Kubernetes'}))
+    await userEvent.click(await screen.findByRole('tab', {name: 'Pods'}))
+    const row = (await screen.findByText('redis-0')).closest('tr') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', {name: 'Shell'}))
+    const term = await screen.findByTestId('terminal')
+    expect(term).toHaveAttribute('data-host', 'h1')
+    expect(term).toHaveAttribute('data-initial', be.state.k8s.shell)
+    expect(screen.getByRole('tab', {name: /switch · redis-0/, selected: true})).toBeInTheDocument()
+    expect(screen.getByRole('tab', {name: /switch \(Panel\)/})).toBeInTheDocument() // the panel stays
+    localStorage.clear()
   })
 
   it('Close on the protocol screen closes the tab', async () => {

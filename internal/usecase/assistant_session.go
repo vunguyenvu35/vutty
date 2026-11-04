@@ -14,7 +14,7 @@ import (
 
 func (a *AssistantService) lookupHost(hostID string) (domain.Host, bool) {
 	id := strings.TrimPrefix(hostID, telnetPrefix)
-	if hostID == LocalHostID || strings.HasPrefix(hostID, serialPrefix) {
+	if hostID == LocalHostID || strings.HasPrefix(hostID, serialPrefix) || strings.HasPrefix(hostID, kubeExecPrefix) {
 		return domain.Host{}, false
 	}
 	h, err := a.c.Store.GetHost(id)

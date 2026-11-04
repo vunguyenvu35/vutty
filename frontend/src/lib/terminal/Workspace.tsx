@@ -2,6 +2,7 @@ import {draggingPane, draggingTab, isTerminalTab, leaves, PANE_DRAG, paneRects, 
 import {useState} from 'react'
 import {SftpBrowser} from '../sftp/SftpBrowser'
 import {ServerPanel} from '../server/ServerPanel'
+import {ClusterPanel} from '../server/ClusterPanel'
 import {writeToPane} from './panes'
 import {formatCombo} from '../shortcuts/shortcuts'
 import {OsIcon} from '../ui/OsIcon'
@@ -9,7 +10,7 @@ import {IconBroadcast, IconClose, IconGrip, IconMaximizePane, IconMinimizePane, 
 import {TerminalPane} from './TerminalPane'
 import {NewTabScreen} from '../shell/NewTabScreen'
 import {ProtocolScreen, type Protocol} from './ProtocolScreen'
-import type {Group, Host, Settings} from '../types'
+import type {Cluster, Group, Host, Settings} from '../types'
 import {resolveTerminalTheme} from './themes'
 import type {Appearance} from '../settings/appearance'
 import {useT} from '../i18n'
@@ -42,12 +43,17 @@ interface Props {
   onProtocol?(tabId: string, protocol: Protocol): void
   /** a Server tab's "Access host": a terminal on the same host in a new tab */
   onAccessHost?(host: Host): void
+  /** the Shell of a Kubernetes pod: a terminal tab on the same host that runs this line */
+  onShell?(host: Host, command: string, title: string): void
+  onPodShell?(hostId: string, title: string, prod: boolean): void
   /** a blank tab: a host was picked, or an open tab */
   onOpenFromNewTab?(tabId: string, h: Host): void
   onSelectTab?(id: string): void
   /** a blank tab becomes a terminal on this computer */
   onLocalFromNewTab?(tabId: string): void
   groups?: Group[]
+  /** the clusters reached with a kubeconfig: a cluster tab shows the one its leaf names */
+  clusters?: Cluster[]
   /** close a whole tab (the Close button of the connecting / protocol screens) */
   onCloseTab?(tabId: string): void
   /** the Show logs button of the connecting screen */
@@ -70,7 +76,8 @@ export function Workspace(p: Props) {
   }
   const hostOf = (hostId: string) => p.hosts?.find(h => h.id === (hostId.startsWith('telnet:') ? hostId.slice('telnet:'.length) : hostId))
   /** the name and the small print of a pane, for its header */
-  const describe = (hostId: string): {label: string; detail: string; os?: string} => {
+  const describe = (hostId: string, label = ''): {label: string; detail: string; os?: string} => {
+    if (hostId.startsWith('kubeexec:')) return {label: label || t('Pod shell'), detail: t('kubernetes')}
     if (hostId === 'local') return {label: t('This computer'), detail: t('local shell')}
     if (hostId.startsWith('serial:')) return {label: hostId.slice('serial:'.length).split('@')[0].replace(/^\/dev\//, ''), detail: t('serial')}
     const h = hostOf(hostId)
@@ -82,18 +89,19 @@ export function Workspace(p: Props) {
   const connectLine = (hostId: string) => {
     const h = hostOf(hostId)
     if (hostId === 'local') return t('local shell')
+    if (hostId.startsWith('kubeexec:')) return t('shell in a pod')
     if (!h) return hostId.startsWith('serial:') ? t('serial') : ''
     return hostId.startsWith('telnet:') ? `Telnet ${h.hostname}:${h.telnet_port || 23}` : `SSH ${h.hostname}:${h.port}`
   }
   const hint = (id: string) => (p.shortcuts[id] ? ' (' + formatCombo(p.shortcuts[id]) + ')' : '')
 
   /** One pane, placed at its box in the area. Every pane of every tab is a child of the same list, keyed by its id. */
-  const pane = (tab: Tab, leaf: {id: string; hostId: string}, box: Rect, shown: boolean): JSX.Element => {
+  const pane = (tab: Tab, leaf: {id: string; hostId: string; initialInput?: string; label?: string; prod?: boolean}, box: Rect, shown: boolean): JSX.Element => {
     const all = leaves(tab.root)
     const many = all.length > 1
     const zoom = tab.zoomPane
     const n = leaf
-    const d = describe(n.hostId)
+    const d = describe(n.hostId, n.label)
     const index = all.findIndex(l => l.id === n.id) + 1
     const zoomed = zoom === n.id
     const rect = zoomed ? {x: 0, y: 0, w: 100, h: 100} : box
@@ -135,7 +143,7 @@ export function Workspace(p: Props) {
           p.onDropTab(tab.id, n.id, from, side)
         }}>
         {dropAt?.pane === n.id && <div className={'drop-hint ' + dropAt.side} aria-hidden="true" data-side={dropAt.side} />}
-        <TerminalPane paneId={n.id} hostId={n.hostId} prod={hostOf(n.hostId)?.env === 'prod'} confirmProd={p.settings.confirm_prod} connect={{label: d.label, os: d.os, subtitle: connectLine(n.hostId)}} onShowLogs={p.onShowLogs} onCloseTab={() => p.onCloseTab?.(tab.id)} visible={!hidden} focused={tab.activePane === n.id}
+        <TerminalPane paneId={n.id} hostId={n.hostId} initialInput={n.initialInput} prod={n.prod ?? hostOf(n.hostId)?.env === 'prod'} confirmProd={p.settings.confirm_prod} connect={{label: d.label, os: d.os, subtitle: connectLine(n.hostId)}} onShowLogs={p.onShowLogs} onCloseTab={() => p.onCloseTab?.(tab.id)} visible={!hidden} focused={tab.activePane === n.id}
           fontSize={p.settings.font_size} fontFamily={p.settings.font_family} termTheme={themeFor(n.hostId)} searchCombo={p.shortcuts.terminal_search}
           highlight={p.settings.highlight} gpu={p.settings.gpu_renderer} copyOnSelect={p.settings.copy_on_select} rightClick={p.settings.right_click} copyCombo={p.shortcuts.terminal_copy} appCombos={[p.shortcuts.next_tab, p.shortcuts.prev_tab, p.shortcuts.toggle_suggest].filter(Boolean)} pasteCombo={p.shortcuts.terminal_paste}
           suggest={p.settings.suggest} suggestHost={p.settings.suggest_host} suggestCombo={p.shortcuts.suggest_popup}
@@ -183,7 +191,10 @@ export function Workspace(p: Props) {
       layer(p.renderSettings?.() ?? <></>)
     } else if (tb.kind === 'server') {
       const h = hostOf(leaves(tb.root)[0].hostId)
-      layer(h ? <ServerPanel host={h} visible={active} onAccess={p.onAccessHost ? () => p.onAccessHost!(h) : undefined} /> : <div className="side-empty">{t('This host no longer exists.')}</div>)
+      layer(h ? <ServerPanel host={h} visible={active} onAccess={p.onAccessHost ? () => p.onAccessHost!(h) : undefined} onShell={p.onShell} /> : <div className="side-empty">{t('This host no longer exists.')}</div>)
+    } else if (tb.kind === 'cluster') {
+      const c = (p.clusters ?? []).find(x => 'kube:' + x.id === leaves(tb.root)[0].hostId)
+      layer(c ? <ClusterPanel cluster={c} visible={active} onPodShell={p.onPodShell} /> : <div className="side-empty">{t('This cluster no longer exists.')}</div>)
     } else if (tb.kind === 'sftp') {
       layer(<SftpBrowser hostId={leaves(tb.root)[0].hostId} hostLabel={tb.sftpLabel ?? ''} nonce={tb.sftpNonce ?? 0} hosts={p.hosts} visible={active} />)
     } else {

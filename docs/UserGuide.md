@@ -265,6 +265,28 @@ _The screenshots use sample data, not a real server._
 - Process command lines and logs can hold secrets: take care before sharing a screenshot.
 - Linux with systemd is the target; on another system the parts that do not apply show the server's message.
 
+#### Kubernetes
+
+The **Kubernetes** tab (after Docker) runs `kubectl` on the host over the same SSH login, so it needs a host that has `kubectl` and a kubeconfig, usually the control-plane node or a bastion. It works with kubeadm, k3s (`k3s kubectl`), MicroK8s, EKS/GKE/AKS (their login plugin runs on the host) and kind or minikube. The full design, with every screen and the command behind every button, is in [KubernetesPanel.md](KubernetesPanel.md).
+
+- **Looking:** Overview, Pods (with a pod detail), Workloads, Network, Config and storage, Nodes, Events, YAML and the logs of a pod. Secrets show names and keys only.
+- **Changing:** Shell (a new terminal tab that runs `kubectl exec`), Port-forward, Scale, Restart, Pause, Roll back, Delete pod or job, CronJob run and suspend, Cordon and Drain. Each asks first, locks only its own button while it runs, and is written to the audit log. A button for something the login may not do stays locked, with the reason in the tooltip.
+- **Revealing a Secret key** asks first and shows one key for 30 seconds.
+- Not offered: `apply`, `edit` and `delete` of anything but a pod or job. Use the terminal for those.
+
+**A cluster from a kubeconfig, without a server.** If an administrator sent you a kubeconfig file, add it in **Kubernetes** (in the left menu): Vutty then talks to the cluster's API directly, so nothing has to be installed on your computer (no `kubectl`) and no SSH host is needed. The same screens open in a tab of their own.
+
+- The kubeconfig is stored **encrypted in the vault** and never shown. Add only a kubeconfig from someone you trust: it names the server your credentials go to.
+- A kubeconfig that reads a token from a file of your computer (`tokenFile`), or uses the removed `auth-provider`, is refused with the reason. Ask for one that has the token inside it or uses a login plugin.
+- A login plugin (`aws eks get-token`, `gke-gcloud-auth-plugin`, `kubelogin`, ...) runs on your computer with your own cloud login. The well-known ones run at once; any other program is shown to you and runs only after you approve that exact command.
+- **Shell** in a pod works too: it opens a terminal tab that talks to the cluster's API over a WebSocket (no `kubectl` anywhere), tries bash then sh, and keeps the PROD frame of a production cluster. It needs the right to `exec` in that namespace. Only **Port-forward** is not available for a cluster opened this way (it needs `kubectl` on a server). Everything else, including every change, is asked first and audited as for a host.
+- **A login that may not list the namespaces** (a member of one project of a Rancher cluster, for example) cannot ask for *All namespaces*, which is a question about the whole cluster. Add the namespaces you work in with **+** next to the namespace menu: they are remembered for that cluster, each can be chosen, and *All added namespaces* asks them one after the other and puts the answers together. A namespace that is refused is left out as long as another answers.
+- **Sync:** *Settings → Sync → What to sync* has its own switch, **Kubernetes clusters**, apart from *Keys and passwords*. A cluster goes with its kubeconfig (an encrypted secret of the vault); the kubeconfigs follow this switch and not the keys, so the two can be chosen separately. A cluster that is not ticked is neither sent nor taken: the ones on this machine stay, and the ones of the other machines do not come. The encrypted backup holds the clusters and their kubeconfigs; the plain export does not (a kubeconfig has no place in a file that is not encrypted).
+- **Where it is managed:** the *Kubernetes* page of the left menu. Each cluster has *Open*, *Edit*, *Replace kubeconfig* and *Delete*. *Edit* holds the name, group, environment and default context, shows what the stored kubeconfig contains (contexts, addresses, how each signs in; never a secret), has *Replace kubeconfig…* for a new file, and lists the login programs you approved, each with *Revoke*. What is synced is chosen in *Settings → Sync*.
+- **Groups** work as on the Hosts page, and are the same groups: group cards with a count, open one to see its clusters (with a path to come back), **New group** next to *Add cluster* (also from the Group menu of the cluster form: *New group…*), drag a cluster onto a group card, and a search looks in every group. Deleting a group keeps its clusters, which lose their group.
+- **A Deployment, StatefulSet or DaemonSet has the menu that Rancher offers** (the ⋮ of its row and of its page), as far as the login's rights go: *Execute shell* (choose a pod and a container), *Redeploy*, *Pause orchestration*, *Roll back*, *Show configuration*, *Edit config* (image, variables, requests and limits of a container), *Add sidecar*, *Edit YAML* (a preview of what changes, asked by the cluster as a dry run, before anything is applied) and *Download YAML*. The changes need a cluster opened with a kubeconfig; on a host use `kubectl` in a terminal. Each is asked first and audited by what was done (a variable's name, never its value).
+- **Pods** are grouped by node as in Rancher; *Group by* also offers namespace, workload or no groups, and a group can be closed. Menus with many entries (the pod of the Logs tab, the namespace) have a search box.
+
 ## 10. Port forwarding
 
 Open **Port Forwarding**, pick *New forward for host…*, and add one:

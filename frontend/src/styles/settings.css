@@ -77,3 +77,7 @@ html, body { overflow: hidden; }
 .select-wrap.control { width: 220px; }
 .select-wrap.fit { width: auto; min-width: 240px; }
 @media (prefers-reduced-motion: reduce) { .select-menu { animation: none; } }
+
+.select-search { position: sticky; top: 0; z-index: 1; width: 100%; box-sizing: border-box; margin: 0 0 6px; padding: 8px 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; color: var(--text); outline: none; }
+.select-search:focus { border-color: var(--accent); }
+.select-empty { padding: 10px; color: var(--muted); }

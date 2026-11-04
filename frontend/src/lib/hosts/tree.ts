@@ -57,6 +57,16 @@ export function countOpen(n: GroupNode, open: ReadonlyMap<string, unknown>): num
   return n.hosts.filter(h => open.has(h.id)).length + n.children.reduce((s, c) => s + countOpen(c, open), 0)
 }
 
+/** The group and every group below it. */
+export function groupAndBelow(groups: Group[], id: string): Set<string> {
+  const out = new Set([id])
+  for (let grew = true; grew;) {
+    grew = false
+    for (const g of groups) if (g.parent_id && out.has(g.parent_id) && !out.has(g.id)) { out.add(g.id); grew = true }
+  }
+  return out
+}
+
 /** What deleting a group takes with it: the group, the groups below it and the hosts in any of them. */
 export function groupContents(groups: Group[], hosts: Host[], id: string): {groups: number; hosts: Host[]} {
   const gone = new Set([id])

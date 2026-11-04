@@ -5,7 +5,7 @@ import {KeychainPage, KeyMode} from './lib/vault/KeychainPage'
 import {KeyPanel} from './lib/vault/KeyPanel'
 import {SerialPanel, portName} from './lib/hosts/SerialPanel'
 import {HostList, QuickConnect} from './lib/hosts/HostList'
-import {groupContents} from './lib/hosts/tree'
+import {groupAndBelow, groupContents} from './lib/hosts/tree'
 import {setLanguageSetting} from './lib/i18n/store'
 import {useT, useTn} from './lib/i18n'
 import {GroupForm, HostForm} from './lib/hosts/HostForm'
@@ -33,24 +33,27 @@ import {SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SidebarTab, TerminalSidebar} from './l
 import {DEFAULT_SETTINGS} from './lib/settings/defaults'
 import {Nav, Page} from './lib/shell/Nav'
 import {FleetPage} from './lib/server/FleetPage'
+import {ClustersPage} from './lib/server/ClustersPage'
+import {ClusterAddForm, ClusterEditForm} from './lib/server/ClusterForm'
 import {TopBar} from './lib/shell/TopBar'
 import {IconPlus, IconSerial, IconTerminal} from './lib/ui/Icons'
 import {recordRecent} from './lib/hosts/recent'
 import type {Protocol} from './lib/terminal/ProtocolScreen'
-import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
+import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newPodShellTab, newShellTab, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
 import {capture, effective, formatCombo, isChord, keyOf, matches, sameStep, stepMatches, stepsOf} from './lib/shortcuts/shortcuts'
 import {errMsg} from './lib/util'
 import {useToast} from './lib/ui/Toast'
 import {useConfirm} from './lib/ui/Confirm'
 import {DragBar} from './lib/ui/DragBar'
 import type {DropSide, Leaf} from './lib/layout'
-import type {ForwardType, Group, PortForward, Host, Identity, Settings, Snippet, SSHLink, VaultStatus} from './lib/types'
+import type {Cluster, ForwardType, Group, PortForward, Host, Identity, Settings, Snippet, SSHLink, VaultStatus} from './lib/types'
 
 type Dialog =
   | {k: 'host'; host?: Host; prefill?: QuickConnect}
   | {k: 'group'; group?: Group}
   | {k: 'forward'; forward?: PortForward; hostId?: string}
   | {k: 'snippet'; snippet?: Snippet}
+  | {k: 'cluster'; cluster?: Cluster; replace?: boolean}
   | {k: 'key'; mode: KeyMode; identity?: Identity}
   | {k: 'serial'}
   | {k: 'data'}
@@ -75,6 +78,7 @@ export default function App({initial}: {/** an app window opened for this place 
   const [hosts, setHosts] = useState<Host[]>([])
   const [identities, setIdentities] = useState<Identity[]>([])
   const [snippets, setSnippets] = useState<Snippet[]>([])
+  const [clusters, setClusters] = useState<Cluster[]>([])
   const [lastTerm, setLastTerm] = useState('') // most recently focused terminal tab
   // the SFTP tab is always there, right after Vaults
   const [tabs, setTabs] = useState<Tab[]>(() => [pinnedSftpTab()])
@@ -104,7 +108,8 @@ export default function App({initial}: {/** an app window opened for this place 
 
   const refreshVault = useCallback(async () => setVault(await be.vault.status()), [be])
   const refreshData = useCallback(async () => {
-    const [g, h, i, sn] = await Promise.all([be.hosts.listGroups(), be.hosts.listHosts({}), be.vault.listIdentities(), be.snippets.list()])
+    const [g, h, i, sn, cl] = await Promise.all([be.hosts.listGroups(), be.hosts.listHosts({}), be.vault.listIdentities(), be.snippets.list(), be.clusters.list().catch(() => [] as Cluster[])])
+    setClusters(cl ?? [])
     setGroups(g ?? [])
     setHosts(h ?? [])
     setIdentities(i ?? [])
@@ -296,6 +301,36 @@ export default function App({initial}: {/** an app window opened for this place 
     setTabs(ts => [...ts, {...t, title: uniqueTitle(ts, h.label)}])
     setActive(t.id)
   }
+  // "Shell" on a pod in the Kubernetes tab: an SSH terminal on the same host in a tab of its own, which types the kubectl exec line once connected
+  const shellInPod = (h: Host, command: string, title: string) => {
+    recordRecent(h.id)
+    const t = newShellTab(h.id, '', command)
+    setTabs(ts => [...ts, {...t, title: uniqueTitle(ts, title)}])
+    setActive(t.id)
+  }
+  // "Open" on a cluster: its Kubernetes tab, in a tab of its own (one tab for each cluster: opening it again shows that tab)
+  const openCluster = (c: Cluster) => {
+    const have = tabs.find(x => x.kind === 'cluster' && leaves(x.root)[0]?.hostId === 'kube:' + c.id)
+    if (have) { setActive(have.id); return }
+    const t = newTab('kube:' + c.id, '')
+    setTabs(ts => [...ts, {...t, kind: 'cluster' as const, title: uniqueTitle(ts, c.label)}])
+    setActive(t.id)
+  }
+  const delCluster = async (c: Cluster) => {
+    if (!(await confirm(t('Delete the cluster "{name}"? Its kubeconfig is removed from the vault.', {name: c.label}), {confirmLabel: t('Delete'), danger: true}))) return
+    try {
+      await be.clusters.remove(c.id)
+      const open = tabs.find(x => x.kind === 'cluster' && leaves(x.root)[0]?.hostId === 'kube:' + c.id)
+      if (open) setTabs(ts => ts.filter(x => x.id !== open.id))
+      await refreshData()
+    } catch (e) { toast.error(errMsg(e)) }
+  }
+  // "Shell" on a pod of a cluster opened with a kubeconfig: a terminal tab of its own that talks to the cluster's API (no host, no kubectl)
+  const openPodShell = (hostId: string, title: string, prod: boolean) => {
+    const t = newPodShellTab(hostId, '', title, prod)
+    setTabs(ts => [...ts, {...t, title: uniqueTitle(ts, title)}])
+    setActive(t.id)
+  }
   // "Open panel" in the Fleet page: the server dashboard of that host in a tab of its own
   const openPanel = (h: Host) => {
     recordRecent(h.id)
@@ -468,8 +503,22 @@ export default function App({initial}: {/** an app window opened for this place 
     const groupsText = inside.groups ? tn(inside.groups, '{n} group below it', '{n} groups below it') : ''
     const what = hostsText && groupsText ? t('{a} and {b}', {a: hostsText, b: groupsText}) : hostsText || groupsText
     const msg = what ? t('Delete group "{name}" with {what}? The hosts are deleted too, with their port forwards. This cannot be undone.', {name: g.name, what}) : t('Delete group "{name}"? It is empty.', {name: g.name})
-    if (!(await confirm(msg, {confirmLabel: t('Delete'), danger: true}))) return
-    try { await be.hosts.deleteGroup(g.id); await refreshData() } catch (e) { toast.error(errMsg(e)) }
+    // the clusters in it are not deleted: they are taken out of the group first
+    const ids = groupAndBelow(groups, g.id)
+    const kept = clusters.filter(c => c.group_id && ids.has(c.group_id))
+    const full = kept.length ? msg + ' ' + tn(kept.length, 'The {n} cluster in it is kept, without a group.', 'The {n} clusters in it are kept, without a group.') : msg
+    if (!(await confirm(full, {confirmLabel: t('Delete'), danger: true}))) return
+    try {
+      for (const c of kept) await be.clusters.update({...c, group_id: undefined})
+      await be.hosts.deleteGroup(g.id)
+      await refreshData()
+    } catch (e) { toast.error(errMsg(e)) }
+  }
+  // a cluster card dropped on a group card of the Kubernetes page
+  const moveCluster = (c: Cluster, groupId: string) => {
+    be.clusters.update({...c, group_id: groupId || undefined})
+      .then(() => { void refreshData(); toast.info(groupId ? t('Moved {name} to {group}', {name: c.label, group: groups.find(g => g.id === groupId)?.name ?? t('the group')}) : t('Moved {name} out of its group', {name: c.label})) })
+      .catch(e => toast.error(errMsg(e)))
   }
 
   const close = () => setDialog(null)
@@ -599,6 +648,9 @@ export default function App({initial}: {/** an app window opened for this place 
             {page === 'knownhosts' && <KnownHostsPage />}
             {page === 'logs' && <LogsPage />}
             {page === 'fleet' && <FleetPage hosts={hosts} onPanel={openPanel} />}
+            {page === 'clusters' && <ClustersPage clusters={clusters} groups={groups} onNew={() => setDialog({k: 'cluster'})} onOpen={openCluster}
+              onEdit={c => setDialog({k: 'cluster', cluster: c})} onReplace={c => setDialog({k: 'cluster', cluster: c, replace: true})} onDelete={delCluster}
+              onNewGroup={() => setDialog({k: 'group'})} onEditGroup={g => setDialog({k: 'group', group: g})} onDeleteGroup={delGroup} onMoveCluster={moveCluster} />}
 
             {page === 'forwards' && (
               <PortForwardsPage hosts={hosts} draft={dialog?.k === 'forward' && !dialog.forward ? fwDraft : undefined} reloadKey={fwTick}
@@ -620,9 +672,12 @@ export default function App({initial}: {/** an app window opened for this place 
           )}
           {dialog?.k === 'serial' && <SerialPanel onClose={close} onConnect={(path, baud) => { close(); openDevice(`serial:${path}@${baud}`, portName(path)) }} />}
           {dialog?.k === 'key' && <KeyPanel key={dialog.identity?.id ?? dialog.mode} mode={dialog.mode} identity={dialog.identity} onClose={close} onChanged={() => void refreshData()} onDraft={setDraft} />}
+          {dialog?.k === 'cluster' && (dialog.cluster && !dialog.replace
+            ? <ClusterEditForm key={dialog.cluster.id} cluster={dialog.cluster} groups={groups} onGroupCreated={() => void refreshData()} onReplace={() => setDialog({k: 'cluster', cluster: dialog.cluster, replace: true})} onChanged={() => void refreshData()} onClose={close} onSaved={() => { close(); void refreshData() }} />
+            : <ClusterAddForm key={dialog.cluster?.id ?? 'new'} groups={groups} onGroupCreated={() => void refreshData()} replace={dialog.cluster} onClose={close} onSaved={c => { close(); void refreshData(); toast.info(dialog.replace ? t('Kubeconfig replaced') : t('Added {name}', {name: c.label})) }} />)}
           {dialog?.k === 'snippet' && <SnippetForm key={dialog.snippet?.id ?? 'new'} snippet={dialog.snippet} onClose={close} onSaved={() => { close(); void refreshData() }} />}
         </div>
-        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onAccessHost={accessHost} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
+        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onAccessHost={accessHost} onShell={shellInPod} onPodShell={openPodShell} clusters={clusters} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
           renderSettings={() => vault && (
             <SettingsWindow page settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
               onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => void closeTab(SETTINGS_TAB_ID)} />

@@ -1,4 +1,4 @@
-import {closePane, hasPane, isTerminalTab, leaves, moveTab, movePane, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, splitPane} from './layout'
+import {closePane, duplicateOf, hasPane, isTerminalTab, leaves, moveTab, movePane, newPodShellTab, newShellTab, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, splitPane, type Tab} from './layout'
 
 describe('Settings tab', () => {
   it('is one closable tab that is not a terminal: it cannot be split or duplicated, and no pane can move into it', async () => {
@@ -223,5 +223,32 @@ describe('movePane (a pane dragged by its header)', () => {
     expect(out.find(t => t.id === 'tw')!.broadcast).toBeUndefined()
     expect(out.find(t => t.id === 'tw')!.zoomPane).toBeUndefined()
     expect(out.find(t => t.id === 'tb')!.zoomPane).toBeUndefined()
+  })
+})
+
+describe('a tab that runs a line', () => {
+  it('carries the line on its pane, and only there: splits and duplicates start empty', () => {
+    const t = newShellTab('h1', 'web · pod', 'kubectl exec -it x')
+    expect(isTerminalTab(t)).toBe(true)
+    expect(leaves(t.root)[0]).toMatchObject({hostId: 'h1', initialInput: 'kubectl exec -it x'})
+    const s = splitPane(t, t.activePane, 'row')
+    expect(leaves(s.root).filter(l => l.initialInput)).toHaveLength(1)
+    expect(leaves(newTab('h1', 'x').root)[0].initialInput).toBeUndefined()
+  })
+})
+
+describe('a shell in a pod of a cluster', () => {
+  it('keeps its name and its production frame when its pane is split or its tab is duplicated', () => {
+    const tab = newPodShellTab('kubeexec:1', 'prod · api-1', 'prod · api-1', true)
+    const leaf = (t: Tab) => leaves(t.root)
+    expect(leaf(tab)[0]).toMatchObject({hostId: 'kubeexec:1', label: 'prod · api-1', prod: true})
+    const split = splitPane(tab, leaf(tab)[0].id, 'row')
+    expect(leaf(split).map(l => [l.label, l.prod])).toEqual([['prod · api-1', true], ['prod · api-1', true]])
+    const copy = duplicateOf(tab, 'copy')!
+    expect(leaf(copy)[0]).toMatchObject({hostId: 'kubeexec:1', label: 'prod · api-1', prod: true})
+    // an ordinary host gets no such fields
+    const web = newTab('h1', 'web')
+    const plain = splitPane(web, leaves(web.root)[0].id, 'row')
+    expect(Object.keys(leaves(plain.root)[1])).not.toContain('prod')
   })
 })

@@ -49,7 +49,7 @@ vi.mock('./gpu', () => ({
   },
 }))
 
-import {TerminalPane} from './TerminalPane'
+import {INITIAL_INPUT_DELAY, TerminalPane} from './TerminalPane'
 
 const props = {hostId: 'h1', visible: true, focused: true, fontSize: 13, fontFamily: 'monospace', termTheme: {background: '#000000'}, cursorStyle: 'block' as const, cursorBlink: true, scrollback: 10000}
 
@@ -255,6 +255,37 @@ describe('TerminalPane snippet writer', () => {
     expect(be.state.calls).toContainEqual(['session.write', sid, 'ls\r'])
     view.unmount()
     expect(writeToPane('pane-x', 'x')).toBe(false)
+  })
+})
+
+describe('TerminalPane: initial input', () => {
+  beforeEach(() => { created.length = 0 })
+
+  it('types its line and presses Enter once, a moment after the shell is ready, and not again after a reconnect', async () => {
+    const be = makeFake()
+    render(<Providers be={be}><TerminalPane {...props} paneId="pane-i" initialInput="kubectl exec -it -n shop web -- sh" onFocus={vi.fn()} onExit={vi.fn()} /></Providers>)
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'session.attach')).toBe(true))
+    const sid = be.state.calls.find(c => c[0] === 'session.attach')![1] as string
+    const writes = () => be.state.calls.filter(c => c[0] === 'session.write')
+    await new Promise(r => setTimeout(r, INITIAL_INPUT_DELAY + 100))
+    expect(writes()).toHaveLength(0) // still connecting: nothing is typed
+    act(() => be.emit(`term:ready:${sid}`, {}))
+    expect(writes()).toHaveLength(0) // waits for the prompt
+    await waitFor(() => expect(writes()).toEqual([['session.write', sid, 'kubectl exec -it -n shop web -- sh\r']]))
+    act(() => be.emit(`term:closed:${sid}`, {reason: 'lost', clean: false}))
+    act(() => be.emit(`term:ready:${sid}`, {}))
+    await new Promise(r => setTimeout(r, INITIAL_INPUT_DELAY + 100))
+    expect(writes()).toHaveLength(1)
+  })
+
+  it('types nothing when there is no initial input', async () => {
+    const be = makeFake()
+    render(<Providers be={be}><TerminalPane {...props} paneId="pane-j" onFocus={vi.fn()} onExit={vi.fn()} /></Providers>)
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'session.attach')).toBe(true))
+    const sid = be.state.calls.find(c => c[0] === 'session.attach')![1] as string
+    act(() => be.emit(`term:ready:${sid}`, {}))
+    await new Promise(r => setTimeout(r, INITIAL_INPUT_DELAY + 100))
+    expect(be.state.calls.some(c => c[0] === 'session.write')).toBe(false)
   })
 })
 

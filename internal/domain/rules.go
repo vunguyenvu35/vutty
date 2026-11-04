@@ -190,3 +190,20 @@ func NormalizeActivity(e *ActivityEntry) error {
 	}
 	return nil
 }
+
+// NormalizeCluster validates a cluster record and trims its label.
+func NormalizeCluster(c *Cluster) error {
+	c.Label = strings.TrimSpace(c.Label)
+	if c.Label == "" {
+		return errors.New("cluster name is required")
+	}
+	if len(c.Label) > 100 {
+		return errors.New("cluster name is too long")
+	}
+	switch c.Env {
+	case "", EnvProd, EnvStaging, EnvDev:
+	default:
+		return errors.New("unknown environment")
+	}
+	return nil
+}

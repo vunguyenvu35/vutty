@@ -38,12 +38,22 @@ type serverSession struct {
 	prevAt  time.Time
 	rx, tx  uint64
 	hasPrev bool
+
+	k8s k8sState // what the Kubernetes tab learned about this host, and its port-forwards
+	// kube is set when the session is on a cluster reached with a kubeconfig: there is no SSH client then.
+	kube *kubeDirect
 }
 
 func (s *serverSession) close() {
 	s.once.Do(func() {
 		close(s.stop)
-		_ = s.client.Close()
+		s.k8s.stopAll() // the remote kubectl of a port-forward goes with the connection
+		if s.client != nil {
+			_ = s.client.Close()
+		}
+		if s.kube != nil {
+			s.kube.wipe()
+		}
 	})
 }
 
@@ -137,6 +147,9 @@ func (s *ServerService) runTimeout(sid, script string, limit time.Duration) (str
 	x, err := s.get(sid)
 	if err != nil {
 		return "", err
+	}
+	if x.client == nil {
+		return "", errors.New("this is a cluster reached with a kubeconfig: there is no server to run that on")
 	}
 	return runScript(x.client, script, limit)
 }

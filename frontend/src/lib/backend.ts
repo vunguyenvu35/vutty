@@ -1,5 +1,6 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
+import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
 import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
@@ -246,6 +247,53 @@ export interface Backend {
     fleetHost(hostId: string): Promise<ServerFleetHost>
     /** the TCP ports something listens on, with what the ufw firewall says about each (read only: the panel never changes the firewall) */
     ports(sid: string): Promise<ServerPorts>
+    /** The Kubernetes tab: kubectl on the host. ctx is the kubeconfig context, ns the namespace ('' = all, for lists). Every change asks first (the screen) and is audited (Go). */
+    k8sDetect(sid: string): Promise<K8sDetect>
+    k8sContexts(sid: string): Promise<K8sContexts>
+    k8sCheck(sid: string, ctx: string): Promise<K8sCheck>
+    k8sAccess(sid: string, ctx: string, ns: string): Promise<K8sAccess>
+    k8sNamespaces(sid: string, ctx: string): Promise<K8sNamespaces>
+    /** ns "" is every namespace; a login that may only look inside its own namespaces needs one */
+    k8sOverview(sid: string, ctx: string, ns?: string): Promise<K8sOverview>
+    k8sNodes(sid: string, ctx: string): Promise<K8sNode[]>
+    k8sPods(sid: string, ctx: string, ns: string): Promise<K8sPod[]>
+    k8sPod(sid: string, ctx: string, ns: string, name: string): Promise<K8sPodDetail>
+    k8sWorkloads(sid: string, ctx: string, ns: string): Promise<K8sWorkloads>
+    k8sDeployment(sid: string, ctx: string, ns: string, name: string): Promise<K8sDeployment>
+    k8sNetwork(sid: string, ctx: string, ns: string): Promise<K8sNetwork>
+    k8sConfig(sid: string, ctx: string, ns: string): Promise<K8sConfig>
+    k8sConfigMap(sid: string, ctx: string, ns: string, name: string): Promise<Record<string, string>>
+    k8sEvents(sid: string, ctx: string, ns: string): Promise<K8sEvent[]>
+    k8sLogs(sid: string, ctx: string, ns: string, pod: string, opts: K8sLogOpts): Promise<string>
+    k8sYAML(sid: string, ctx: string, kind: string, ns: string, name: string): Promise<string>
+    k8sDrainPlan(sid: string, ctx: string, node: string, opts: K8sDrainOpts): Promise<K8sDrainPlan>
+    k8sScale(sid: string, ctx: string, ns: string, name: string, replicas: number): Promise<void>
+    k8sRestart(sid: string, ctx: string, ns: string, kind: 'deployment' | 'statefulset' | 'daemonset', name: string): Promise<void>
+    k8sRolloutPause(sid: string, ctx: string, ns: string, name: string, pause: boolean): Promise<void>
+    k8sRollback(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<void>
+    k8sDeletePod(sid: string, ctx: string, ns: string, name: string): Promise<void>
+    k8sDeleteJob(sid: string, ctx: string, ns: string, name: string): Promise<void>
+    k8sCronJob(sid: string, ctx: string, ns: string, name: string, action: 'run' | 'suspend' | 'resume'): Promise<void>
+    k8sCordon(sid: string, ctx: string, node: string, on: boolean): Promise<void>
+    k8sDrain(sid: string, ctx: string, node: string, opts: K8sDrainOpts): Promise<void>
+    /** the line to type into a terminal tab on the same host (kubectl exec -it ...) */
+    k8sShellCommand(sid: string, ctx: string, ns: string, pod: string, container: string): Promise<string>
+    /** a shell in a pod of a cluster opened with a kubeconfig: the id of a terminal tab (host_id) that opens it, and a name for the tab */
+    k8sShellSession(sid: string, ctx: string, ns: string, pod: string, container: string): Promise<{host_id: string; title: string}>
+    /** the Rancher-style menu of a Deployment, StatefulSet or DaemonSet. Reading works for a host and a cluster; the changes (preview, apply, set container, sidecar) only for a cluster opened with a kubeconfig */
+    k8sWorkloadSpec(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string): Promise<K8sWorkloadSpec>
+    k8sEditable(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string): Promise<K8sEditable>
+    /** the path of the file written in the Downloads folder */
+    k8sSaveYAML(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string): Promise<string>
+    k8sEditPreview(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string, yaml: string): Promise<K8sEditPreview>
+    k8sEditApply(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string, yaml: string): Promise<void>
+    k8sSetContainer(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string, edit: K8sContainerEdit): Promise<void>
+    k8sAddSidecar(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string, sidecar: K8sSidecar): Promise<void>
+    k8sPortForwardStart(sid: string, ctx: string, ns: string, service: string, local: number, remote: number): Promise<K8sForward>
+    k8sPortForwardStop(sid: string, id: string): Promise<void>
+    k8sPortForwards(sid: string): Promise<K8sForward[]>
+    /** one key of a Secret, decoded; audited */
+    k8sSecretKey(sid: string, ctx: string, ns: string, name: string, key: string): Promise<string>
   }
   /** This computer's files (the Local pane of the SFTP screen). */
   local: {
@@ -266,6 +314,25 @@ export interface Backend {
     list(): Promise<Snippet[]>
     save(s: Partial<Snippet>): Promise<Snippet>
     remove(id: string): Promise<void>
+  }
+  /** Kubernetes clusters reached with a kubeconfig (no SSH host). The kubeconfig goes into the vault and never comes back. path is a file the person picked; text is the fallback when no dialog is available. */
+  clusters: {
+    list(): Promise<Cluster[]>
+    /** what a kubeconfig holds, before it is saved */
+    preview(path: string, text: string): Promise<ClusterPreview>
+    /** the contexts of a saved cluster */
+    describe(id: string): Promise<ClusterPreview>
+    add(c: ClusterInput): Promise<Cluster>
+    /** name, group, environment and context only */
+    update(c: Cluster): Promise<Cluster>
+    replaceKubeconfig(id: string, path: string, text: string): Promise<Cluster>
+    /** agrees that the login program of the kubeconfig (a command line shown to the person) may run */
+    approveExec(id: string, command: string): Promise<Cluster>
+    /** takes the approval of a login program back */
+    revokeExec(id: string, command: string): Promise<Cluster>
+    remove(id: string): Promise<void>
+    /** opens a session; its sid goes to the same server.k8s* calls, and server.close ends it */
+    open(id: string): Promise<ServerInfo>
   }
   system: {
     pickFile(title: string): Promise<string>
@@ -513,6 +580,53 @@ export function wailsBackend(): Backend {
       backup: (s, p) => u('ServerService', 'Backup', s, p),
       fleetHost: h => u('ServerService', 'FleetHost', h),
       ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },
+      k8sDetect: async s => { const r = await u<K8sDetect>('ServerService', 'K8sDetect', s); return {...r, tried: r.tried ?? []} },
+      k8sContexts: async s => { const r = await u<K8sContexts>('ServerService', 'K8sContexts', s); return {...r, contexts: r.contexts ?? []} },
+      k8sCheck: (s, c) => u('ServerService', 'K8sCheck', s, c),
+      k8sAccess: async (s, c, n) => { const r = await u<K8sAccess>('ServerService', 'K8sAccess', s, c, n); return {rights: r.rights ?? {}} },
+      k8sNamespaces: async (s, c) => { const r = await u<K8sNamespaces>('ServerService', 'K8sNamespaces', s, c); return {names: r.names ?? []} },
+      k8sOverview: async (s, c, n = '') => { const r = await u<K8sOverview>('ServerService', 'K8sOverviewIn', s, c, n); return {...r, namespaces: r.namespaces ?? [], attention: r.attention ?? []} },
+      k8sNodes: async (s, c) => (await u<K8sNode[]>('ServerService', 'K8sNodes', s, c)) ?? [],
+      k8sPods: async (s, c, n) => ((await u<K8sPod[]>('ServerService', 'K8sPods', s, c, n)) ?? []).map(p => ({...p, containers: p.containers ?? []})),
+      k8sPod: async (s, c, n, p) => { const r = await u<K8sPodDetail>('ServerService', 'K8sPod', s, c, n, p); return {...r, pod: {...r.pod, containers: r.pod.containers ?? []}, labels: r.labels ?? [], conditions: r.conditions ?? [], volumes: r.volumes ?? [], events: r.events ?? []} },
+      k8sWorkloads: async (s, c, n) => { const r = await u<K8sWorkloads>('ServerService', 'K8sWorkloads', s, c, n); return {items: r.items ?? []} },
+      k8sDeployment: async (s, c, n, d) => { const r = await u<K8sDeployment>('ServerService', 'K8sDeployment', s, c, n, d); return {...r, revisions: r.revisions ?? []} },
+      k8sNetwork: async (s, c, n) => { const r = await u<K8sNetwork>('ServerService', 'K8sNetwork', s, c, n); return {services: r.services ?? [], ingresses: r.ingresses ?? []} },
+      k8sConfig: async (s, c, n) => {
+        const r = await u<K8sConfig>('ServerService', 'K8sConfig', s, c, n)
+        const item = (x: K8sConfigItem) => ({...x, keys: x.keys ?? [], used_by: x.used_by ?? []})
+        return {configmaps: (r.configmaps ?? []).map(item), secrets: (r.secrets ?? []).map(item), volumes: (r.volumes ?? []).map(v => ({...v, used_by: v.used_by ?? []}))}
+      },
+      k8sConfigMap: async (s, c, n, m) => (await u<Record<string, string>>('ServerService', 'K8sConfigMap', s, c, n, m)) ?? {},
+      k8sEvents: async (s, c, n) => (await u<K8sEvent[]>('ServerService', 'K8sEvents', s, c, n)) ?? [],
+      k8sLogs: (s, c, n, p, o) => u('ServerService', 'K8sLogs', s, c, n, p, o),
+      k8sYAML: (s, c, k, n, m) => u('ServerService', 'K8sYAML', s, c, k, n, m),
+      k8sDrainPlan: async (s, c, n, o) => { const r = await u<K8sDrainPlan>('ServerService', 'K8sDrainPlan', s, c, n, o); return {...r, emptydir: r.emptydir ?? [], bare: r.bare ?? [], pdb: r.pdb ?? []} },
+      k8sScale: (s, c, n, d, r) => u('ServerService', 'K8sScale', s, c, n, d, r),
+      k8sRestart: (s, c, n, k, d) => u('ServerService', 'K8sRestart', s, c, n, k, d),
+      k8sRolloutPause: (s, c, n, d, p) => u('ServerService', 'K8sRolloutPause', s, c, n, d, p),
+      k8sRollback: (s, c, n, d, r) => u('ServerService', 'K8sRollback', s, c, n, d, r),
+      k8sDeletePod: (s, c, n, p) => u('ServerService', 'K8sDeletePod', s, c, n, p),
+      k8sDeleteJob: (s, c, n, j) => u('ServerService', 'K8sDeleteJob', s, c, n, j),
+      k8sCronJob: (s, c, n, j, a) => u('ServerService', 'K8sCronJob', s, c, n, j, a),
+      k8sCordon: (s, c, n, on) => u('ServerService', 'K8sCordon', s, c, n, on),
+      k8sDrain: (s, c, n, o) => u('ServerService', 'K8sDrain', s, c, n, o),
+      k8sShellCommand: (s, c, n, p, k) => u('ServerService', 'K8sShellCommand', s, c, n, p, k),
+      k8sShellSession: (s, c, n, p, k) => u('ServerService', 'K8sShellSession', s, c, n, p, k),
+      k8sWorkloadSpec: async (s, c, kind, n, name) => {
+        const r = await u<K8sWorkloadSpec>('ServerService', 'K8sWorkloadSpec', s, c, kind, n, name)
+        return {...r, containers: (r.containers ?? []).map(x => ({...x, command: x.command ?? [], args: x.args ?? [], ports: x.ports ?? [], env: x.env ?? [], env_from: x.env_from ?? [], requests: x.requests ?? {}, limits: x.limits ?? {}, mounts: x.mounts ?? []}))}
+      },
+      k8sEditable: (s, c, kind, n, name) => u('ServerService', 'K8sEditable', s, c, kind, n, name),
+      k8sSaveYAML: (s, c, kind, n, name) => u('ServerService', 'K8sSaveYAML', s, c, kind, n, name),
+      k8sEditPreview: async (s, c, kind, n, name, y) => { const r = await u<K8sEditPreview>('ServerService', 'K8sEditPreview', s, c, kind, n, name, y); return {...r, diff: r.diff ?? []} },
+      k8sEditApply: (s, c, kind, n, name, y) => u('ServerService', 'K8sEditApply', s, c, kind, n, name, y),
+      k8sSetContainer: (s, c, kind, n, name, e) => u('ServerService', 'K8sSetContainer', s, c, kind, n, name, e),
+      k8sAddSidecar: (s, c, kind, n, name, sc) => u('ServerService', 'K8sAddSidecar', s, c, kind, n, name, sc),
+      k8sPortForwardStart: (s, c, n, v, l, r) => u('ServerService', 'K8sPortForwardStart', s, c, n, v, l, r),
+      k8sPortForwardStop: (s, i) => u('ServerService', 'K8sPortForwardStop', s, i),
+      k8sPortForwards: async s => (await u<K8sForward[]>('ServerService', 'K8sPortForwards', s)) ?? [],
+      k8sSecretKey: (s, c, n, m, k) => u('ServerService', 'K8sSecretKey', s, c, n, m, k),
     },
     local: {
       home: () => call('usecase', 'LocalService', 'Home'),
@@ -529,6 +643,18 @@ export function wailsBackend(): Backend {
       list: async () => (await u<Snippet[]>('SnippetService', 'List')) ?? [],
       save: s => u('SnippetService', 'Save', s),
       remove: id => u('SnippetService', 'Delete', id),
+    },
+    clusters: {
+      list: async () => (await u<Cluster[]>('ClusterService', 'List')) ?? [],
+      preview: async (p, x) => { const r = await u<ClusterPreview>('ClusterService', 'Preview', p, x); return {contexts: r.contexts ?? [], problems: r.problems ?? {}} },
+      describe: async id => { const r = await u<ClusterPreview>('ClusterService', 'Describe', id); return {contexts: r.contexts ?? [], problems: r.problems ?? {}} },
+      add: c => u('ClusterService', 'Add', c),
+      update: c => u('ClusterService', 'Update', c),
+      replaceKubeconfig: (id, p, x) => u('ClusterService', 'ReplaceKubeconfig', id, p, x),
+      approveExec: (id, cmd) => u('ClusterService', 'ApproveExec', id, cmd),
+      revokeExec: (id, cmd) => u('ClusterService', 'RevokeExec', id, cmd),
+      remove: id => u('ClusterService', 'Delete', id),
+      open: id => u('ClusterService', 'Open', id),
     },
     system: {
       setMenuShortcuts: s => call('app', 'SystemService', 'SetMenuShortcuts', s),

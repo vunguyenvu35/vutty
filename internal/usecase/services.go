@@ -26,6 +26,7 @@ type Services struct {
 	Assistant *AssistantService
 	Exec      *ExecService
 	Server    *ServerService
+	Cluster   *ClusterService
 }
 
 // New builds every use case service.
@@ -36,6 +37,7 @@ func New(core *Core) *Services {
 	sess.OnClose = assist.ForgetSession
 	settings := NewSettingsService(core)
 	settings.OnClearCache = assist.ClearCache
+	server := NewServerService(core)
 	return &Services{
 		Core:      core,
 		Host:      NewHostService(core),
@@ -53,7 +55,8 @@ func New(core *Core) *Services {
 		Log:       NewLogService(core),
 		KnownHost: NewKnownHostsService(core),
 		Exec:      NewExecService(core),
-		Server:    NewServerService(core),
+		Server:    server,
+		Cluster:   NewClusterService(core, server),
 	}
 }
 

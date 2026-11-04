@@ -5,6 +5,11 @@ export interface Leaf {
   type: 'leaf'
   id: string
   hostId: string
+  /** typed into the shell once, as soon as it is connected, and run (the Shell of a Kubernetes pod); never again after a reconnect */
+  initialInput?: string
+  /** a shell in a pod of a cluster ("kubeexec:<id>") is not a saved host: its name and whether the cluster is production travel with the pane */
+  label?: string
+  prod?: boolean
 }
 
 export interface Split {
@@ -17,14 +22,14 @@ export interface Split {
 
 export type Node = Leaf | Split
 
-export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings' | 'server'
+export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings' | 'server' | 'cluster'
 
 export interface Tab {
   id: string
   title: string
   root: Node
   activePane: string
-  /** terminal (default), a server Panel (a single leaf that only carries the host id, like SFTP) or an SFTP file browser; an SFTP tab has a single leaf that only carries the host id */
+  /** terminal (default), a server Panel (a single leaf that only carries the host id, like SFTP), a cluster opened with a kubeconfig (a single leaf whose hostId is `kube:<cluster id>`) or an SFTP file browser; an SFTP tab has a single leaf that only carries the host id */
   kind?: TabKind
   /** a permanent tab (the SFTP tab next to Vaults): no close button, never removed */
   pinned?: boolean
@@ -45,6 +50,18 @@ export const uid = (p: string) => `${p}-${Date.now().toString(36)}-${(counter++)
 export function newTab(hostId: string, title: string): Tab {
   const leaf: Leaf = {type: 'leaf', id: uid('pane'), hostId}
   return {id: uid('tab'), title, root: leaf, activePane: leaf.id}
+}
+
+/** A terminal tab that runs one line as soon as its shell is there. */
+export function newShellTab(hostId: string, title: string, input: string): Tab {
+  const tab = newTab(hostId, title)
+  return {...tab, root: {...(tab.root as Leaf), initialInput: input}}
+}
+
+/** A terminal tab for a shell in a pod of a cluster opened with a kubeconfig. */
+export function newPodShellTab(hostId: string, title: string, label: string, prod: boolean): Tab {
+  const tab = newTab(hostId, title)
+  return {...tab, root: {...(tab.root as Leaf), label, prod}}
 }
 
 export function newSftpTab(hostId: string, title: string): Tab {
@@ -77,7 +94,7 @@ export const MAX_TAB_TITLE = 60
 
 export const isSftp = (t: Tab) => t.kind === 'sftp'
 /** a tab that runs sessions (not the file browser, not a blank new tab) */
-export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings' && t.kind !== 'server'
+export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings' && t.kind !== 'server' && t.kind !== 'cluster'
 
 /** A blank tab: search hosts and tabs, recent connections. It becomes a terminal when a host is picked. */
 export function newBlankTab(title: string): Tab {
@@ -101,7 +118,7 @@ export function splitPane(tab: Tab, paneId: string, dir: Dir): Tab {
   const walk = (n: Node): Node => {
     if (n.type === 'leaf') {
       if (n.id !== paneId) return n
-      const fresh: Leaf = {type: 'leaf', id: uid('pane'), hostId: n.hostId}
+      const fresh: Leaf = {type: 'leaf', id: uid('pane'), hostId: n.hostId, ...(n.label !== undefined && {label: n.label}), ...(n.prod !== undefined && {prod: n.prod})} // a pod shell keeps its name and its production frame
       created = fresh.id
       return {type: 'split', id: uid('split'), dir, a: n, b: fresh}
     }
@@ -152,7 +169,9 @@ export function toggleZoom(tab: Tab, paneId: string): Tab {
 export function duplicateOf(tab: Tab, title: string): Tab | null {
   if (!isTerminalTab(tab)) return null
   const leaf = leaves(tab.root).find(x => x.id === tab.activePane) ?? leaves(tab.root)[0]
-  return {...newTab(leaf.hostId, title)}
+  const copy = newTab(leaf.hostId, title)
+  if (leaf.label === undefined && leaf.prod === undefined) return copy
+  return {...copy, root: {...(copy.root as Leaf), label: leaf.label, prod: leaf.prod}} // a pod shell keeps its name and its production frame
 }
 
 export function hasPane(tab: Tab, paneId: string): boolean {

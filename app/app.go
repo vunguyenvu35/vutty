@@ -149,7 +149,7 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 		NewCustomAgent: func(p assistant.CustomProvider) usecase.Agent {
 			return &agentx.Custom{Cfg: agentx.CustomConfig{ID: p.ID, Name: p.Name, Command: p.Command, Args: p.Args, PromptVia: p.PromptVia}}
 		},
-		ToolGateway: mcpgw.New(), MCP: mcpgw.Connector{}})
+		ToolGateway: mcpgw.New(), MCP: mcpgw.Connector{}, Kube: kubeConnector{}})
 	if err != nil {
 		db.Close()
 		return nil, err

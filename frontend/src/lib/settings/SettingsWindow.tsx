@@ -28,9 +28,10 @@ const SyncPanel = lazy(loadSync)
 /** what can be synced; the ids are the backend's (usecase.allSyncWhat). Port forwards point at hosts, so they need Hosts. */
 const SYNC_DATA: {id: string; label(t: TFn): string; what(t: TFn): string}[] = [
   {id: 'hosts', label: t => t('Hosts and groups'), what: t => t('your servers and the folders they are in')},
-  {id: 'keys', label: t => t('Keys and passwords'), what: t => t('the ones saved in Keychain; hosts that use one need it on the other machine')},
+  {id: 'keys', label: t => t('Keys and passwords'), what: t => t('the ones saved in Keychain; hosts that use one need it on the other machine (not the kubeconfigs: those go with the clusters)')},
   {id: 'forwards', label: t => t('Port forwards'), what: t => t('they point at hosts, so they need Hosts and groups')},
   {id: 'snippets', label: t => t('Snippets'), what: t => t('your saved scripts')},
+  {id: 'clusters', label: t => t('Kubernetes clusters'), what: t => t('the clusters you added from a kubeconfig, with the kubeconfig of each (encrypted)')},
 ]
 const SYNC_PREFS: {id: string; label(t: TFn): string; what(t: TFn): string}[] = [
   {id: 'appearance', label: t => t('Appearance'), what: t => t('theme and terminal theme')},

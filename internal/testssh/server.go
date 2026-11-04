@@ -41,6 +41,10 @@ type Config struct {
 	// ExecFunc, when set, answers every `exec` request instead of ExecReply: it gets the command and returns what goes to
 	// standard output and to standard error and the exit status. It may block (a command that takes a while).
 	ExecFunc func(cmd string) (stdout, stderr string, status int)
+	// ExecStream answers the `exec` requests for which StreamMatch is true, and stays open while it talks (a
+	// port-forward): it gets the command, the standard input and the two outputs; its result is the exit status.
+	StreamMatch func(cmd string) bool
+	ExecStream  func(cmd string, stdin io.Reader, stdout, stderr io.Writer) int
 
 	// RefuseAgent makes the server answer no to an agent forwarding request.
 	RefuseAgent bool
@@ -412,6 +416,20 @@ func (s *Server) session(conn *ssh.ServerConn, ch ssh.Channel, reqs <-chan *ssh.
 				r.Reply(true, nil)
 				go s.probeAgent(conn)
 			case "exec":
+				if st := s.cfg.ExecStream; st != nil && s.cfg.StreamMatch != nil {
+					var p struct{ Command string }
+					ssh.Unmarshal(r.Payload, &p)
+					if s.cfg.StreamMatch(p.Command) {
+						r.Reply(true, nil)
+						go func() {
+							code := st(p.Command, ch, ch, ch.Stderr())
+							ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{uint32(code)}))
+							ch.CloseWrite()
+							ch.Close()
+						}()
+						continue
+					}
+				}
 				if f := s.cfg.ExecFunc; f != nil {
 					var p struct{ Command string }
 					ssh.Unmarshal(r.Payload, &p)

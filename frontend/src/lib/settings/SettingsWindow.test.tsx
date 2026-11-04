@@ -774,10 +774,10 @@ describe('SettingsWindow: What to sync', () => {
 })
 
 describe('SettingsWindow: What to sync, data', () => {
-  it('lists hosts, keys, port forwards and snippets ticked by default; unticking Hosts also takes Port forwards off', async () => {
+  it('lists hosts, keys, port forwards, snippets and Kubernetes clusters ticked by default; unticking Hosts also takes Port forwards off', async () => {
     const {be} = setup()
     await tab('Sync')
-    for (const n of [/^Hosts and groups/, /^Keys and passwords/, /^Port forwards/, /^Snippets/]) expect(await screen.findByRole('checkbox', {name: n})).toBeChecked()
+    for (const n of [/^Hosts and groups/, /^Keys and passwords/, /^Port forwards/, /^Snippets/, /^Kubernetes clusters/]) expect(await screen.findByRole('checkbox', {name: n})).toBeChecked()
     await userEvent.click(screen.getByRole('checkbox', {name: /^Hosts and groups/}))
     await waitFor(() => expect(be.state.settings.sync_what).not.toContain('hosts'))
     expect(be.state.settings.sync_what).not.toContain('forwards')
@@ -801,7 +801,7 @@ describe('SettingsWindow: What to sync can be folded', () => {
     await userEvent.click(head)
     expect(screen.queryByRole('checkbox', {name: /Language/})).not.toBeInTheDocument()
     expect(screen.getByRole('button', {name: /What to sync/})).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByText('10 of 10 selected')).toBeInTheDocument()
+    expect(screen.getByText('11 of 11 selected')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', {name: /What to sync/}))
     expect(await screen.findByRole('checkbox', {name: /Language/})).toBeChecked()
   })
@@ -854,5 +854,20 @@ describe('SettingsWindow: Suggest commands', () => {
     await userEvent.click(on)
     expect(be.state.settings.suggest).toBe(false)
     expect(screen.getByRole('switch', {name: "Suggest from the host's shell history"})).toBeDisabled()
+  })
+})
+
+describe('SettingsWindow: What to sync, Kubernetes clusters', () => {
+  it('ticks and unticks the clusters on their own, apart from the keys', async () => {
+    const {be} = setup()
+    await tab('Sync')
+    const clusters = await screen.findByRole('checkbox', {name: /^Kubernetes clusters/})
+    expect(clusters).toBeChecked()
+    await userEvent.click(clusters)
+    await waitFor(() => expect(be.state.settings.sync_what).not.toContain('clusters'))
+    expect(be.state.settings.sync_what).toContain('keys') // the keys are not taken off with them
+    expect(screen.getByRole('checkbox', {name: /^Keys and passwords/})).toBeChecked()
+    await userEvent.click(screen.getByRole('checkbox', {name: /^Kubernetes clusters/}))
+    await waitFor(() => expect(be.state.settings.sync_what).toContain('clusters'))
   })
 })
