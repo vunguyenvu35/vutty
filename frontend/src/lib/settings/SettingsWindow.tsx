@@ -391,7 +391,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                         <button aria-label={t('Zoom out')} disabled={s.zoom <= 80} onClick={() => update({zoom: Math.max(80, s.zoom - 10)})}>−</button>
                         <output aria-label={t('Zoom level')} className="zoom-level">{s.zoom}%</output>
                         <button aria-label={t('Zoom in')} disabled={s.zoom >= 160} onClick={() => update({zoom: Math.min(160, s.zoom + 10)})}>+</button>
-                        <button aria-label={t('Reset zoom')} disabled={s.zoom === 100} onClick={() => update({zoom: 100})}>{t('Reset')}</button>
+                        <button className="stepper-text" aria-label={t('Reset zoom')} disabled={s.zoom === 100} onClick={() => update({zoom: 100})}>{t('Reset')}</button>
                       </div>
                     </div>
                     <div className="setting-row">

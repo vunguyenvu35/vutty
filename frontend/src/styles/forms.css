@@ -79,6 +79,7 @@ input[type='color'] { width: 44px; height: 38px; padding: 3px; }
 .stepper { display: flex; align-items: center; gap: 6px; }
 .stepper input { width: 64px; text-align: center; }
 .stepper button { width: 34px; height: 38px; padding: 0; }
+.stepper button.stepper-text { width: auto; padding: 0 12px; white-space: nowrap; }
 .segmented { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; }
 .segmented button { background: transparent; border-radius: 7px; padding: 5px 14px; text-transform: capitalize; }
 .segmented button.on { background: var(--accent); color: #fff; }
