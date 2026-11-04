@@ -60,7 +60,7 @@ func main() {
 			OnUrlOpen: a.System.OpenSSHLink, // an ssh:// link: the window asks before it opens anything
 		},
 		Bind: []interface{}{
-			a.Host, a.Vault, a.Session, a.Forward, a.Sync, a.ImportExp, a.Settings, a.Snippet, a.Sftp, a.Local, a.Serial, a.Log, a.KnownHost, a.Assistant, a.Exec, a.System,
+			a.Host, a.Vault, a.Session, a.Forward, a.Sync, a.ImportExp, a.Settings, a.Snippet, a.Sftp, a.Local, a.Serial, a.Log, a.KnownHost, a.Assistant, a.Exec, a.Server, a.System,
 		},
 	})
 	if err != nil {

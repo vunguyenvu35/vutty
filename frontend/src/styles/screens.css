@@ -63,10 +63,13 @@
 .proto { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 14px 16px; background: var(--bg-3); border: 2px solid transparent; border-left: 5px solid #2f7bf5; border-radius: 10px; color: var(--text); }
 .proto.telnet { border-left-color: #7c5cd6; }
 .proto.ssh { border-left-color: #1f9d55; }
+.proto.panel { border-left-color: #e08a1e; }
+.proto.panel.on { border-color: #e08a1e; }
 .proto.on { border-color: #1f9d55; border-left-width: 5px; }
 .proto.telnet.on { border-color: #7c5cd6; }
 .proto-main { display: flex; flex-direction: column; gap: 3px; }
 .proto-main em { color: var(--muted); font-size: 12.5px; }
+.proto-port { white-space: nowrap; }
 .proto-port u { text-underline-offset: 3px; margin-left: 4px; }
 .topbar .tab-title { flex: 1 1 auto; }
 .topbar .tab .x { margin-left: auto; }

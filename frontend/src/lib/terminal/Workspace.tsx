@@ -1,6 +1,7 @@
 import {draggingPane, draggingTab, isTerminalTab, leaves, PANE_DRAG, paneRects, setDraggingPane, sideOf, TAB_DRAG, type DropSide, type Rect, type Tab} from '../layout'
 import {useState} from 'react'
 import {SftpBrowser} from '../sftp/SftpBrowser'
+import {ServerPanel} from '../server/ServerPanel'
 import {writeToPane} from './panes'
 import {formatCombo} from '../shortcuts/shortcuts'
 import {OsIcon} from '../ui/OsIcon'
@@ -39,6 +40,8 @@ interface Props {
   onMovePane?(fromTabId: string, paneId: string, toTabId: string, toPaneId: string, side: DropSide): void
   /** a tab that asked which protocol to use got its answer */
   onProtocol?(tabId: string, protocol: Protocol): void
+  /** a Server tab's "Access host": a terminal on the same host in a new tab */
+  onAccessHost?(host: Host): void
   /** a blank tab: a host was picked, or an open tab */
   onOpenFromNewTab?(tabId: string, h: Host): void
   onSelectTab?(id: string): void
@@ -178,6 +181,9 @@ export function Workspace(p: Props) {
       layer(<ProtocolScreen host={hostOf(leaves(tb.root)[0].hostId)!} onContinue={proto => p.onProtocol?.(tb.id, proto)} onClose={() => p.onCloseTab?.(tb.id)} />)
     } else if (tb.kind === 'settings') {
       layer(p.renderSettings?.() ?? <></>)
+    } else if (tb.kind === 'server') {
+      const h = hostOf(leaves(tb.root)[0].hostId)
+      layer(h ? <ServerPanel host={h} visible={active} onAccess={p.onAccessHost ? () => p.onAccessHost!(h) : undefined} /> : <div className="side-empty">{t('This host no longer exists.')}</div>)
     } else if (tb.kind === 'sftp') {
       layer(<SftpBrowser hostId={leaves(tb.root)[0].hostId} hostLabel={tb.sftpLabel ?? ''} nonce={tb.sftpNonce ?? 0} hosts={p.hosts} visible={active} />)
     } else {

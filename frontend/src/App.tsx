@@ -35,6 +35,7 @@ import {Nav, Page} from './lib/shell/Nav'
 import {TopBar} from './lib/shell/TopBar'
 import {IconPlus, IconSerial, IconTerminal} from './lib/ui/Icons'
 import {recordRecent} from './lib/hosts/recent'
+import type {Protocol} from './lib/terminal/ProtocolScreen'
 import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
 import {capture, effective, formatCombo, isChord, keyOf, matches, sameStep, stepMatches, stepsOf} from './lib/shortcuts/shortcuts'
 import {errMsg} from './lib/util'
@@ -287,10 +288,18 @@ export default function App({initial}: {/** an app window opened for this place 
       .then(() => { void refreshData(); toast.info(groupId ? t('Moved {name} to {group}', {name: h.label, group: groups.find(g => g.id === groupId)?.name ?? t('the group')}) : t('Moved {name} out of its group', {name: h.label})) })
       .catch(e => toast.error(errMsg(e)))
   }
+  // "Access host" in a server Panel: an SSH terminal on the same host, straight away, in a tab of its own
+  const accessHost = (h: Host) => {
+    recordRecent(h.id)
+    const t = newTab(h.id, '')
+    setTabs(ts => [...ts, {...t, title: uniqueTitle(ts, h.label)}])
+    setActive(t.id)
+  }
   // the answer of a tab that asked which protocol to use: the same tab goes on with it
-  const chooseProtocol = (tabId: string, proto: 'ssh' | 'telnet') => setTabs(ts => ts.map(t => {
+  const chooseProtocol = (tabId: string, proto: Protocol) => setTabs(ts => ts.map(t => {
     if (t.id !== tabId || t.root.type !== 'leaf') return t
     const h = hosts.find(x => x.id === (t.root as Leaf).hostId)
+    if (proto === 'panel') return {...t, choose: false, kind: 'server' as const, title: uniqueTitle(ts.filter(x => x.id !== tabId), (h?.label ?? t.title) + ' (Panel)')}
     const title = proto === 'telnet' && h ? uniqueTitle(ts.filter(x => x.id !== tabId), h.label + ' (Telnet)') : t.title
     return {...t, choose: false, title, root: proto === 'telnet' ? {...t.root, hostId: 'telnet:' + t.root.hostId} : t.root}
   }))
@@ -604,7 +613,7 @@ export default function App({initial}: {/** an app window opened for this place 
           {dialog?.k === 'key' && <KeyPanel key={dialog.identity?.id ?? dialog.mode} mode={dialog.mode} identity={dialog.identity} onClose={close} onChanged={() => void refreshData()} onDraft={setDraft} />}
           {dialog?.k === 'snippet' && <SnippetForm key={dialog.snippet?.id ?? 'new'} snippet={dialog.snippet} onClose={close} onSaved={() => { close(); void refreshData() }} />}
         </div>
-        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
+        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onAccessHost={accessHost} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
           renderSettings={() => vault && (
             <SettingsWindow page settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
               onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => void closeTab(SETTINGS_TAB_ID)} />

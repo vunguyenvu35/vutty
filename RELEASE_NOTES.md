@@ -4,6 +4,10 @@
 
 Release date: 2026-11-04 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
+## Unreleased
+
+- **Panel: a server dashboard in a tab.** On the protocol screen, **Panel** opens a dashboard of a Linux server instead of a terminal: Overview (CPU, memory, disk, network), Processes, systemd Services, Docker containers, Logs, and Ports & firewall (read only). Every change (end a process, start, restart or stop a service or container) asks first. It runs fixed commands over its own SSH connection and installs nothing. Verified against a real Ubuntu 24.04 for the overview, processes, ports and logs (the journal); the systemd and Docker parts are covered by tests with sample output only.
+
 ## What's new in 1.5.1
 
 - **The sidebar's Files section works for local terminals too.** A local terminal shows this computer's files (no SFTP connection, no queue). A button goes to the folder the terminal is in (the shell's OSC 7 when it reports one, else the shell's process: `lsof` on macOS, `/proc` on Linux, or the server's `/proc` over SSH). Right-click offers what the SFTP screen offers (open, open with, edit and save back, download, upload, copy path, rename, delete, new folder, permissions, select all), and dot files can be shown or hidden.

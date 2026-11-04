@@ -490,3 +490,68 @@ export interface McpImportItem {ref: string; source: string; name: string; type:
 
 /** One step of an answer: a tool the assistant used. */
 export interface AiStep {server: string; tool: string; state: string; note: string}
+
+/** The Server section: a look at a Linux server over SSH (see usecase.ServerService). */
+export interface ServerInfo {
+  sid: string
+  host: string
+}
+export interface ServerOverview {
+  os: string
+  kernel: string
+  cores: number
+  uptime_sec: number
+  /** percent, over about half a second */
+  cpu_pct: number
+  load: [number, number, number]
+  mem_total: number
+  mem_used: number
+  swap_total: number
+  swap_used: number
+  disk_total: number
+  disk_used: number
+  /** bytes per second; 0 on the first call */
+  net_rx: number
+  net_tx: number
+  /** the login is root: no sudo is needed */
+  root: boolean
+}
+export interface ServerProcess {
+  pid: number
+  user: string
+  cpu: number
+  mem: number
+  command: string
+}
+export interface ServerUnit {
+  name: string
+  description: string
+  active: string
+  sub: string
+  enabled: string
+}
+export interface ServerContainer {
+  id: string
+  name: string
+  image: string
+  state: string
+  status: string
+  ports: string
+}
+export interface ServerContainers {
+  installed: boolean
+  containers: ServerContainer[]
+}
+export interface ServerPort {
+  port: number
+  process: string
+  /** listens on the loopback address only */
+  local: boolean
+  /** the firewall lets it in (also true when there is no firewall to say otherwise) */
+  open: boolean
+}
+export interface ServerPorts {
+  /** ufw: 'active' or 'inactive'; 'unknown' when the server has none or the login may not ask */
+  firewall: 'active' | 'inactive' | 'unknown'
+  ports: ServerPort[]
+}

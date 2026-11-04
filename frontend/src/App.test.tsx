@@ -235,6 +235,33 @@ describe('App navigation and quick connect', () => {
     expect(screen.getByRole('tab', {name: /switch \(Telnet\)/, selected: true})).toBeInTheDocument()
   })
 
+  it('Panel on the protocol screen turns the tab into a server panel, with no terminal', async () => {
+    const be = setup({hosts: [host({id: 'h1', label: 'switch', hostname: '10.0.0.2', telnet_enabled: true, telnet_port: 23} as never)]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('switch'))
+    expect(screen.getByRole('radio', {name: /Panel/})).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', {name: /Panel/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    expect(await screen.findByRole('region', {name: 'Server panel of switch'})).toBeInTheDocument()
+    expect(screen.queryByTestId('terminal')).toBeNull()
+    expect(screen.getByRole('tab', {name: /switch \(Panel\)/, selected: true})).toBeInTheDocument()
+    expect(await screen.findByText(/up 41d 0h/)).toBeInTheDocument()
+    expect(be.state.calls.filter(c => c[0] === 'server.open')).toHaveLength(1)
+  })
+
+  it('Access host in a server panel opens a terminal on the same host in a new tab, and the panel stays', async () => {
+    const be = setup({hosts: [host({id: 'h1', label: 'switch', hostname: '10.0.0.2', telnet_enabled: true, telnet_port: 23} as never)]})
+    await unlock(be)
+    await userEvent.dblClick(hostCard('switch'))
+    await userEvent.click(screen.getByRole('radio', {name: /Panel/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    await screen.findByRole('region', {name: 'Server panel of switch'})
+    await userEvent.click(screen.getByRole('button', {name: /Access host/}))
+    expect(await screen.findByTestId('terminal')).toHaveAttribute('data-host', 'h1') // no protocol question: SSH straight away
+    expect(screen.getByRole('tab', {name: /^switch$/, selected: true})).toBeInTheDocument()
+    expect(screen.getByRole('tab', {name: /switch \(Panel\)/})).toBeInTheDocument()
+  })
+
   it('Close on the protocol screen closes the tab', async () => {
     const be = setup({hosts: [host({id: 'h1', label: 'switch', telnet_enabled: true} as never)]})
     await unlock(be)

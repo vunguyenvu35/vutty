@@ -200,6 +200,16 @@ The sidebar of a terminal has a **Files (SFTP)** section for the host of the foc
 - If the connection drops, a banner offers **Reconnect**.
 - **Limits:** transfers do not preserve the modification time of the files; stale `.vutty-part-…` files from a transfer you abandoned are not cleaned up by themselves (delete them by hand); no drag and drop of files from Finder into the window (use the buttons). Closing an SFTP tab asks first (see *Confirm before closing a tab*).
 
+### Panel: a server dashboard in a tab
+
+When a host asks which protocol to use (the **Ask which protocol to use** setting, or a host that also has Telnet), **Panel** is the fourth choice. It turns the tab into a dashboard of the Linux server, with no terminal: **Overview** (CPU with a short history, load, memory, swap, the root disk, network speed, and what needs attention), **Processes** (the busiest first, with a filter), **Services** (systemd, failed ones first), **Docker** (containers), **Logs** (the last 300 lines of the system journal, one service or one container; filter by text or by errors and warnings) and **Ports & firewall** (what listens, and what ufw says about it). Overview and Processes refresh every 5 seconds while the tab is shown; the others when you press refresh.
+
+- It runs fixed commands (`/proc`, `ps`, `systemctl`, `docker`, `journalctl`, `ss`, `ufw status`) over a connection of its own and installs nothing on the server. A name from the screen is checked before it goes into a command, and a process is only ever ended by number.
+- **Every change asks first**: ending a process, and starting, restarting or stopping a service or a container. The firewall is only shown: the panel never changes it.
+- Changes use `sudo -n` unless you log in as root, so a login that needs a password for sudo gets the server's own error.
+- Process command lines and logs can hold secrets: take care before sharing a screenshot.
+- Linux with systemd is the target; on another system the parts that do not apply show the server's message.
+
 ## 10. Port forwarding
 
 Open **Port Forwarding**, pick *New forward for host…*, and add one:

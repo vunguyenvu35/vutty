@@ -17,14 +17,14 @@ export interface Split {
 
 export type Node = Leaf | Split
 
-export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings'
+export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings' | 'server'
 
 export interface Tab {
   id: string
   title: string
   root: Node
   activePane: string
-  /** terminal (default) or an SFTP file browser; an SFTP tab has a single leaf that only carries the host id */
+  /** terminal (default), a server Panel (a single leaf that only carries the host id, like SFTP) or an SFTP file browser; an SFTP tab has a single leaf that only carries the host id */
   kind?: TabKind
   /** a permanent tab (the SFTP tab next to Vaults): no close button, never removed */
   pinned?: boolean
@@ -77,7 +77,7 @@ export const MAX_TAB_TITLE = 60
 
 export const isSftp = (t: Tab) => t.kind === 'sftp'
 /** a tab that runs sessions (not the file browser, not a blank new tab) */
-export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings'
+export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings' && t.kind !== 'server'
 
 /** A blank tab: search hosts and tabs, recent connections. It becomes a terminal when a host is picked. */
 export function newBlankTab(title: string): Tab {

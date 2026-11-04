@@ -2,7 +2,7 @@ import {ReactNode} from 'react'
 import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
-import type {ExecRun, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ExecRun, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -49,6 +49,17 @@ export interface Fake extends Backend {
     /** runs of a command on several hosts: a test moves them along by emitting `exec:update:<id>` */
     execRuns: Record<string, ExecRun>
     calls: Array<[string, ...unknown[]]>
+    /** the Server section: what the server answers; an action that is in failAction fails with that message */
+    server: {
+      overview: ServerOverview
+      processes: ServerProcess[]
+      units: ServerUnit[]
+      docker: ServerContainers
+      logs: string
+      ports: ServerPorts
+      failAction: string
+      openError: string
+    }
     /** the AI assistant */
     ai: {
       providers: AiProvider[]
@@ -79,6 +90,7 @@ export interface Fake extends Backend {
   jobs(sid: string): QueueJob[]
 }
 
+const GB = 1024 ** 3
 let n = 0
 
 type Tree = Record<string, {dir: boolean; size: number}>
@@ -150,6 +162,17 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
     testResult: {ok: true, message: 'Connected to 10.0.0.1 as root', server_version: 'SSH-2.0-OpenSSH_9.6', latency_ms: 42, hops: 1},
     calls: [],
     execRuns: {},
+    server: {
+      overview: {os: 'Ubuntu 24.04 LTS', kernel: '6.8.0-45-generic', cores: 4, uptime_sec: 3542400, cpu_pct: 31.5, load: [0.84, 0.71, 0.66], mem_total: 8 * GB, mem_used: 5 * GB, swap_total: 2 * GB, swap_used: GB / 4,
+        disk_total: 50 * GB, disk_used: 39 * GB, net_rx: 120000, net_tx: 45000, root: false},
+      processes: [{pid: 2210, user: 'app', cpu: 38.5, mem: 12.4, command: 'node server.js'}, {pid: 3011, user: 'redis', cpu: 1.3, mem: 2.6, command: 'redis-server *:6379'}],
+      units: [{name: 'app-worker', description: 'Job queue', active: 'failed', sub: 'failed', enabled: 'enabled'}, {name: 'nginx', description: 'Web server', active: 'active', sub: 'running', enabled: 'enabled'}],
+      docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: ''}]},
+      logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
+      ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}]},
+      failAction: '',
+      openError: '',
+    },
     ai: {
       providers: [{id: 'claude', name: 'Claude Code', status: {state: 'ready', version: '2.1.0', detail: '', hint: ''}, enabled: true, default: true, model: '', supports_mcp: true, supports_images: true, custom: false}],
       models: {claude: {models: [{id: '', name: 'Default (CLI decides)'}, {id: 'opus', name: 'Opus 5.5'}, {id: 'sonnet', name: 'Sonnet 5.5'}], error: '', can_list: true}},
@@ -493,6 +516,27 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       cancel: async id => { rec('exec.cancel', id) },
       get: async id => { const r = state.execRuns[id]; if (!r) throw 'that run is no longer kept'; return {...r, results: r.results.map(x => ({...x}))} },
       forget: async id => { rec('exec.forget', id); delete state.execRuns[id] },
+    },
+    server: {
+      open: async (h, k) => { rec('server.open', h, k); if (state.server.openError) throw state.server.openError; return {sid: 'srv1', host: state.hosts.find(x => x.id === h)?.label ?? h} },
+      close: async sid => { rec('server.close', sid) },
+      overview: async () => ({...state.server.overview}),
+      processes: async () => state.server.processes.map(p => ({...p})),
+      kill: async (sid, pid, sig) => { rec('server.kill', pid, sig); if (state.server.failAction) throw state.server.failAction; state.server.processes = state.server.processes.filter(p => p.pid !== pid) },
+      services: async () => state.server.units.map(u => ({...u})),
+      serviceAction: async (sid, name, action) => {
+        rec('server.serviceAction', name, action)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.units = state.server.units.map(u => (u.name === name ? {...u, active: action === 'stop' ? 'inactive' : 'active', sub: action === 'stop' ? 'dead' : 'running'} : u))
+      },
+      containers: async () => ({installed: state.server.docker.installed, containers: state.server.docker.containers.map(c => ({...c}))}),
+      containerAction: async (sid, name, action) => {
+        rec('server.containerAction', name, action)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.docker.containers = state.server.docker.containers.map(c => (c.name === name ? {...c, state: action === 'stop' ? 'exited' : 'running'} : c))
+      },
+      logs: async (sid, kind, name) => { rec('server.logs', kind, name); return state.server.logs },
+      ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),
     },
     local: {
       home: async () => '/Users/me',

@@ -4,7 +4,7 @@ import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth,
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool,
+  McpImportItem, McpServer, McpServerInput, McpTool, ServerContainers, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerUnit,
 } from './types'
 
 /**
@@ -206,6 +206,22 @@ export interface Backend {
     get(id: string): Promise<ExecRun>
     /** drops the run and what it printed */
     forget(id: string): Promise<void>
+  }
+  /** The Server section of the sidebar: fixed commands over SSH on a connection of its own, nothing installed on the server. */
+  server: {
+    open(hostId: string, promptKey: string): Promise<ServerInfo>
+    close(sid: string): Promise<void>
+    overview(sid: string): Promise<ServerOverview>
+    processes(sid: string): Promise<ServerProcess[]>
+    kill(sid: string, pid: number, signal: 'TERM' | 'KILL'): Promise<void>
+    services(sid: string): Promise<ServerUnit[]>
+    serviceAction(sid: string, name: string, action: 'start' | 'stop' | 'restart' | 'enable' | 'disable'): Promise<void>
+    containers(sid: string): Promise<ServerContainers>
+    containerAction(sid: string, name: string, action: 'start' | 'stop' | 'restart'): Promise<void>
+    /** the last lines of the journal: kind is '' (the whole system), 'service' or 'container' */
+    logs(sid: string, kind: '' | 'service' | 'container', name: string): Promise<string>
+    /** the TCP ports something listens on, with what the ufw firewall says about each (read only: the panel never changes the firewall) */
+    ports(sid: string): Promise<ServerPorts>
   }
   /** This computer's files (the Local pane of the SFTP screen). */
   local: {
@@ -443,6 +459,19 @@ export function wailsBackend(): Backend {
       cancel: id => u('ExecService', 'Cancel', id),
       get: async id => { const r = await u<ExecRun>('ExecService', 'Get', id); return {...r, results: r.results ?? []} },
       forget: id => u('ExecService', 'Forget', id),
+    },
+    server: {
+      open: (h, k) => u('ServerService', 'Open', h, k),
+      close: s => u('ServerService', 'Close', s),
+      overview: s => u('ServerService', 'Overview', s),
+      processes: async s => (await u<ServerProcess[]>('ServerService', 'Processes', s)) ?? [],
+      kill: (s, p, g) => u('ServerService', 'Kill', s, p, g),
+      services: async s => (await u<ServerUnit[]>('ServerService', 'Services', s)) ?? [],
+      serviceAction: (s, n, a) => u('ServerService', 'ServiceAction', s, n, a),
+      containers: async s => { const r = await u<ServerContainers>('ServerService', 'Containers', s); return {...r, containers: r.containers ?? []} },
+      containerAction: (s, n, a) => u('ServerService', 'ContainerAction', s, n, a),
+      logs: (s, k, n) => u('ServerService', 'Logs', s, k, n),
+      ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },
     },
     local: {
       home: () => call('usecase', 'LocalService', 'Home'),

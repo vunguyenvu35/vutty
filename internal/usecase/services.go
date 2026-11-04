@@ -25,6 +25,7 @@ type Services struct {
 	Settings  *SettingsService
 	Assistant *AssistantService
 	Exec      *ExecService
+	Server    *ServerService
 }
 
 // New builds every use case service.
@@ -52,6 +53,7 @@ func New(core *Core) *Services {
 		Log:       NewLogService(core),
 		KnownHost: NewKnownHostsService(core),
 		Exec:      NewExecService(core),
+		Server:    NewServerService(core),
 	}
 }
 
@@ -63,6 +65,7 @@ func (s *Services) Shutdown() {
 	s.Forward.StopAll()
 	s.Session.CloseAll()
 	s.Sftp.CloseAll()
+	s.Server.CloseAll()
 	s.Core.Vault.Lock()
 }
 
