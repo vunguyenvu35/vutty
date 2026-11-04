@@ -17,15 +17,14 @@ import (
 // SystemService offers native dialogs and app info. It is the only place that touches the
 // Wails runtime for dialogs.
 type SystemService struct {
-	ctx          context.Context
-	openSettings func() error
-	openWindow   func(hostID, title string) error
-	menuFor      func(shortcuts map[string]string, lang string) *menu.Menu
-	menuKeys     map[string]string
-	menuLang     string // en|vi|ja|zh
-	menuMu       sync.Mutex
-	links        sshLinks
-	updateDir    string // where an update is unpacked (inside the data folder)
+	ctx        context.Context
+	openWindow func(hostID, title string) error
+	menuFor    func(shortcuts map[string]string, lang string) *menu.Menu
+	menuKeys   map[string]string
+	menuLang   string // en|vi|ja|zh
+	menuMu     sync.Mutex
+	links      sshLinks
+	updateDir  string // where an update is unpacked (inside the data folder)
 }
 
 func NewSystemService() *SystemService { return &SystemService{} }
@@ -36,9 +35,6 @@ func (s *SystemService) SetContext(ctx context.Context) { s.ctx = ctx }
 type AppInfo struct {
 	Version string `json:"version"`
 }
-
-// SetSettingsOpener installs what OpenSettings runs (the launcher of the Settings window process).
-func (s *SystemService) SetSettingsOpener(f func() error) { s.openSettings = f }
 
 // SetMenuBuilder installs what makes this window's menu bar for a set of shortcuts and a language.
 func (s *SystemService) SetMenuBuilder(f func(shortcuts map[string]string, lang string) *menu.Menu) {
@@ -113,15 +109,6 @@ func (s *SystemService) SetLanguage(lang string) error {
 	}
 	s.applyMenu()
 	return nil
-}
-
-// OpenSettings opens the Settings window (a second native window), or raises it. It fails when there
-// is no native window to open, and the frontend then shows its in-app Settings window instead.
-func (s *SystemService) OpenSettings() error {
-	if s.noDialogs() || s.openSettings == nil {
-		return errNoDialog
-	}
-	return s.openSettings()
 }
 
 // SetWindowOpener installs what OpenWindow runs (the launcher of terminal window processes).

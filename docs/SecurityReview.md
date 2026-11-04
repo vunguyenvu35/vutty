@@ -24,7 +24,7 @@ No secret, key or credential was found in the repository. The vault, host-key ch
 - **Secrets in the repository:** none (private-key headers, cloud and token patterns, `deploy/env.*`, tracked database or vault files).
 - **Vault:** Argon2id (64 MiB, 3 passes), AES-GCM, key in the OS keychain behind Touch ID; the data folder and the bridge connection file are 0600; deleted secrets stay as tombstones for sync.
 - **SSH:** host keys are verified and trusted explicitly (`InsecureIgnoreHostKey` is never used); no weak randomness (`math/rand` is not used).
-- **Bridge and gateway:** loopback only, 256-bit random tokens, constant-time comparison, explicit allow-list for the Settings window (it cannot ask, run, insert, preview or confirm), session-scoped gateway with a cap on calls.
+- **Bridge and gateway:** loopback only, 256-bit random tokens, constant-time comparison, the app windows' bridge serves every use case but only to the app's own processes (Origin and Host checks, token), and the AI assistant's gateway cannot ask, run, insert, preview or confirm on its own, session-scoped gateway with a cap on calls.
 - **The assistant's boundaries:** the agent request type accepts only redacted text (`archtest` enforces it); redaction fails closed; the agent runs in an empty temporary folder with a cleaned environment; pictures need a confirmation and are the one thing that is not redacted.
 - **Front end:** answers are rendered as text (no HTML injection), CSP `script-src 'self'`, no inline scripts.
 - **Dependencies:** `npm audit --omit=dev` and the end-to-end project report none. `govulncheck` reports only the toolchain items above and one `golang.org/x/crypto` advisory (GO-2026-5932) that has no fix yet and is not called.

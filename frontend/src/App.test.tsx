@@ -437,17 +437,45 @@ describe('App: docked panels, connect from the form, settings page, theme', () =
     expect(screen.getAllByRole('tab', {selected: true})[0]).toHaveTextContent('web.example')
   })
 
-  it('Settings opens as its own window above the page, and closes again', async () => {
+  it('Settings is a page of the main window: it takes the place of the page, and another page leaves it', async () => {
     const be = setup()
     await unlock(be)
     await userEvent.click(screen.getByRole('button', {name: 'Settings'}))
-    const win = await screen.findByRole('dialog', {name: 'Settings'})
-    expect(win.closest('.win-back')).not.toBeNull()
+    const page = await screen.findByRole('region', {name: 'Settings'})
+    expect(page.closest('.win-back.page')).not.toBeNull()
+    expect(page.closest('main.settings-main')).not.toBeNull()
+    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull() // not a floating window
     expect(screen.getByRole('tab', {name: 'Terminal'})).toBeInTheDocument()
-    expect(screen.getByRole('list', {name: 'Hosts'})).toBeInTheDocument() // the page stays behind it
-    expect(screen.queryByRole('button', {name: /^Sync$/})).toBeNull() // Sync is inside the window
-    await userEvent.click(screen.getByRole('button', {name: 'Close settings'}))
-    await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull())
+    expect(screen.queryByRole('list', {name: 'Hosts'})).toBeNull() // it replaces the Hosts page
+    expect(screen.getByRole('button', {name: 'Settings'})).toHaveAttribute('aria-current', 'page')
+    await userEvent.click(screen.getByRole('button', {name: 'Hosts'}))
+    await waitFor(() => expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull())
+    expect(screen.getByRole('list', {name: 'Hosts'})).toBeInTheDocument()
+  })
+
+  const press = (init: KeyboardEventInit) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ...init})) })
+
+  it('Esc does not close the Settings page, and Mod+1 goes to the Hosts page, not to a category', async () => {
+    const be = setup()
+    await unlock(be)
+    await userEvent.click(screen.getByRole('button', {name: 'Keychain'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Settings'}))
+    await screen.findByRole('region', {name: 'Settings'})
+    press({key: 'Escape', code: 'Escape'})
+    expect(screen.getByRole('region', {name: 'Settings'})).toBeInTheDocument()
+    press({key: '1', code: 'Digit1', ctrlKey: true})
+    await waitFor(() => expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull())
+  })
+
+  it('the shortcut closes Settings back to the page it was opened from', async () => {
+    const be = setup()
+    await unlock(be)
+    await userEvent.click(screen.getByRole('button', {name: 'Keychain'}))
+    press({key: ',', code: 'Comma', ctrlKey: true})
+    await screen.findByRole('region', {name: 'Settings'})
+    press({key: ',', code: 'Comma', ctrlKey: true})
+    await waitFor(() => expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull())
+    expect(screen.getByRole('button', {name: 'Keychain'})).toHaveAttribute('aria-current', 'page')
   })
 
   it('Cmd/Ctrl+, toggles the Settings window from anywhere, including a terminal tab', async () => {
@@ -455,16 +483,16 @@ describe('App: docked panels, connect from the form, settings page, theme', () =
     await unlock(be)
     await userEvent.dblClick(hostCard('web-1'))
     await userEvent.keyboard('{Control>},{/Control}')
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
     await userEvent.keyboard('{Control>},{/Control}')
-    await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull())
   })
 
   it('the gear button in the title bar opens Settings', async () => {
     const be = setup()
     await unlock(be)
     await userEvent.click(screen.getByRole('button', {name: 'Open settings'}))
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
   })
 
   it('a terminal theme chosen in Settings is applied to the terminals', async () => {
@@ -692,7 +720,7 @@ describe('App: keyboard shortcuts', () => {
     press({key: 'k', code: 'KeyK', ctrlKey: true})
     expect(screen.getByRole('status')).toHaveTextContent('Waiting for the next key')
     press({key: 's', code: 'KeyS'})
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
     expect(screen.queryByText(/Waiting for the next key/)).toBeNull()
     press({key: ',', code: 'Comma', ctrlKey: true}) // the old default is gone: nothing happens
     press({key: 'k', code: 'KeyK', ctrlKey: true})
@@ -707,18 +735,18 @@ describe('App: keyboard shortcuts', () => {
     const be = setup()
     await unlock(be)
     press({key: ',', code: 'Comma', ctrlKey: true})
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
     press({key: ',', code: 'Comma', ctrlKey: true})
-    await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull())
   })
 
   it('a customised combo works and the old one no longer does', async () => {
     const be = setup({settings: {...DEFAULT_SETTINGS, font_family: 'monospace', shortcuts: {open_settings: 'Alt+S'}}})
     await unlock(be)
     press({key: ',', code: 'Comma', ctrlKey: true})
-    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull()
+    expect(screen.queryByRole('region', {name: 'Settings'})).toBeNull()
     press({key: 's', code: 'KeyS', altKey: true})
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
   })
 
   it('lock vault returns to the unlock screen', async () => {
@@ -781,27 +809,9 @@ describe('App: keyboard shortcuts', () => {
   })
 })
 
-describe('App: Settings as a native window', () => {
-  it('opens the native window (no in-app window) from the navigation, the gear and the shortcut', async () => {
-    const be = setup({nativeSettings: true})
-    await unlock(be)
-    await userEvent.click(screen.getByRole('button', {name: 'Settings'}))
-    await userEvent.click(screen.getByRole('button', {name: 'Open settings'}))
-    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', {key: ',', code: 'Comma', ctrlKey: true, bubbles: true, cancelable: true})) })
-    await waitFor(() => expect(be.state.calls.filter(c => c[0] === 'system.openSettings')).toHaveLength(3))
-    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull()
-  })
-
-  it('falls back to the in-app window when there is no native window', async () => {
-    const be = setup({nativeSettings: false})
-    await unlock(be)
-    await userEvent.click(screen.getByRole('button', {name: 'Settings'}))
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
-    expect(be.state.calls.filter(c => c[0] === 'system.openSettings')).toHaveLength(1)
-  })
-
-  it('picks up settings saved in the Settings window (zoom, theme)', async () => {
-    const be = setup({nativeSettings: true})
+describe('App: settings saved by another window', () => {
+  it('picks up settings saved by another window (zoom, theme)', async () => {
+    const be = setup()
     await unlock(be)
     const zoom = vi.spyOn(document.documentElement.style, 'setProperty') // jsdom drops the zoom property itself
     be.state.settings = {...be.state.settings, zoom: 130}
@@ -810,8 +820,8 @@ describe('App: Settings as a native window', () => {
     zoom.mockRestore()
   })
 
-  it('reloads the data after the Settings window changed the vault or sync', async () => {
-    const be = setup({nativeSettings: true})
+  it('reloads the data after another window changed the vault or sync', async () => {
+    const be = setup()
     await unlock(be)
     expect(screen.queryByText('synced-host', {selector: '.label'})).toBeNull()
     be.state.hosts.push(host({id: 'h9', label: 'synced-host'}))
@@ -1247,9 +1257,9 @@ describe('App: the application menu bar', () => {
     const be = setup()
     await unlock(be)
     menu(be, 'open_settings')
-    expect(await screen.findByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(await screen.findByRole('region', {name: 'Settings'})).toBeInTheDocument()
     menu(be, 'open_settings')
-    expect(screen.getByRole('dialog', {name: 'Settings'})).toBeInTheDocument()
+    expect(screen.getByRole('region', {name: 'Settings'})).toBeInTheDocument()
     menu(be, 'lock_vault')
     expect(await screen.findByRole('form', {name: 'Unlock vault'})).toBeInTheDocument()
   })

@@ -11,9 +11,9 @@ import {stylesheet} from '../../test/stylesheet'
 
 const vaultSt: VaultStatus = {exists: true, unlocked: true, keychain_enabled: false, auto_lock_minutes: 15}
 
-function Harness({be, vault = vaultSt, onVault = vi.fn(), onClose}: {be: ReturnType<typeof makeFake>; vault?: VaultStatus; onVault?: () => void; onClose: () => void}) {
+function Harness({be, vault = vaultSt, onVault = vi.fn(), onClose, page = false}: {be: ReturnType<typeof makeFake>; vault?: VaultStatus; onVault?: () => void; onClose: () => void; page?: boolean}) {
   const [s, setS] = useState<Settings>(be.state.settings)
-  return <SettingsWindow settings={s} appearance="dark" vault={vault} onSettings={setS} onVault={onVault} onChanged={vi.fn()} onClose={onClose} />
+  return <SettingsWindow page={page} settings={s} appearance="dark" vault={vault} onSettings={setS} onVault={onVault} onChanged={vi.fn()} onClose={onClose} />
 }
 
 function setup(over: Partial<Settings> = {}, vault = vaultSt) {
@@ -331,6 +331,41 @@ describe('SettingsWindow', () => {
     await userEvent.keyboard('{Escape}') // closes the dialog, not the whole Settings window
     expect(screen.queryByRole('dialog', {name: 'Support Vutty'})).toBeNull()
     expect(screen.getByRole('navigation', {name: 'Settings menu'})).toBeInTheDocument()
+  })
+})
+
+describe('SettingsWindow: as a page of the main window', () => {
+  function setupPage() {
+    const be = makeFake()
+    const onClose = vi.fn()
+    render(<Providers be={be}><Harness be={be} onClose={onClose} page /></Providers>)
+    return {be, onClose}
+  }
+
+  it('is a region with a heading, without the floating window\'s title bar, dots or category keys', () => {
+    setupPage()
+    const region = screen.getByRole('region', {name: 'Settings'})
+    expect(region).toHaveClass('page')
+    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull()
+    expect(within(region).getByRole('heading', {name: 'Settings'})).toBeInTheDocument()
+    expect(document.querySelector('.win-title')).toBeNull()
+    expect(document.querySelector('.win-dots')).toBeNull()
+    expect(document.querySelector('.settings-key')).toBeNull() // Mod+digits belong to the pages of the app here
+  })
+
+  it('Esc does not close it, and Mod+2 does not jump to a category', async () => {
+    const {onClose} = setupPage()
+    fireEvent.keyDown(window, {key: 'Escape'})
+    fireEvent.keyDown(window, {key: '2', ctrlKey: true, metaKey: true})
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('tab', {name: 'General', selected: true})).toBeInTheDocument()
+  })
+
+  it('Ctrl+Tab still goes to the next category', async () => {
+    setupPage()
+    expect(screen.getByRole('tab', {name: 'General'})).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(window, {key: 'Tab', ctrlKey: true})
+    await waitFor(() => expect(screen.getByRole('tab', {name: 'General'})).toHaveAttribute('aria-selected', 'false'))
   })
 })
 

@@ -14,9 +14,6 @@
 - TestNativeDialogsCanBeDisabledByEnvironment
 - TestClipboardNeedsANativeWindow
 - TestOpenPathRefusesFilesThatRunPrograms
-- TestSettingsExecutableUsesTheDocklessHelperWhenBuilt
-- TestSameProgram
-- TestPrepareSettingsHelperLinksThePlistAndRefreshesOnRebuild
 - TestAdoptLegacyDirMovesTheOldFolderOnce
 - TestAdoptLegacyDirPrefersTheNewestOldName
 - TestAdoptLegacyDBRenamesTheOldDatabase
@@ -25,21 +22,13 @@
 - TestOldDataDirEnvironmentVariableStillWorks
 - TestBridgeConnectionFileIsPrivateAndRemovedOnClose
 - TestBridgeRefusesAWindowOfAnotherVersion
-- TestBridgeCallsSettingsAndNotifiesTheMainWindow
+- TestBridgeCallsUseCasesAndNotifiesTheMainWindowOfChanges
 - TestBridgePassesUseCaseErrorsThrough
-- TestBridgeOnlyExposesTheAllowList
 - TestBridgeChecksArgumentCountAndTypes
 - TestBridgeRejectsAWrongToken
-- TestBridgeFocusRequestWakesTheSettingsWindow
 - TestConnectBridgeExplainsWhenTheMainAppIsNotRunning
-- TestSettingsLauncherOpensOnceAndRaisesAfterwards
-- TestOpenSettingsFallsBackWithoutNativeWindows
-- TestLockingTheVaultClosesTheSettingsWindow
-- TestSettingsWindowCanConfigureTheAssistantButNotUseIt
-- TestSettingsWindowIsRaisedAfterItStartsAndWhenAskedAgain
 - TestBridgeRefusesBrowserOriginsAndForeignHostNames
 - TestReadOnlyCallAssistantPolling
-- TestBridgeAllowsResetAndClearCacheFromSettings
 - TestEveryMenuLabelIsTranslated
 - TestMenuLangChangesLabels
 - TestSetLanguageValidates
@@ -84,7 +73,6 @@
 - TestOpenWindowFallsBackWithoutNativeWindows
 - TestBridgeRelaysTheSessionsAWindowOpenedAndEveryOtherEvent
 - TestBridgeWakesAWaitingWindowAndBoundsWhatItKeeps
-- TestBridgeAllowsSessionCallsButNotSessionTestsOrOtherServices
 - TestMenuItemsOfOtherWindowsAreDoneByTheMainWindow
 - TestAnAppWindowMayCallAnyUseCaseButOnlyThose
 - TestAskingWhereTheEventsAreNowDoesNotWait
@@ -668,7 +656,7 @@
 - Terminal on this computer: a real shell, highlighting, numbered and renamed tabs
 - Find, filter and quick connect
 - Known Hosts: every key you trusted is listed
-- Settings opens as its own window: theme, terminal theme, security, sync
+- Settings is a page of the main window: theme, terminal theme, security, sync
 - Connection loss: banner, no automatic reconnect
 - Host key changed: the connection is blocked with no override
 - Lock and unlock

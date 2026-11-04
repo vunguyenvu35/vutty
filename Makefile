@@ -22,7 +22,6 @@ dev:
 
 build:
 	$(WAILS) build -ldflags "-X vutty/app.Version=$(VERSION)"
-	@if [ "$$(uname)" = Darwin ]; then ./scripts/macos-settings-helper.sh build/bin/vutty.app; fi
 	@if [ "$$(uname)" = Darwin ]; then cp THIRD_PARTY_NOTICES.md LICENSE build/bin/vutty.app/Contents/Resources/; fi
 	@if [ "$$(uname)" = Darwin ]; then codesign --force --deep --sign - build/bin/vutty.app; fi
 

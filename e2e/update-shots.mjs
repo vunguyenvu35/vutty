@@ -34,7 +34,7 @@ try {
 
   // Settings: the switch, and the Donate card
   await page.getByRole('button', {name: 'Open settings'}).click()
-  const win = page.getByRole('dialog', {name: 'Settings'})
+  const win = page.getByRole('region', {name: 'Settings'})
   await win.getByRole('switch', {name: 'Check for updates automatically'}).waitFor()
   await shot('settings-auto-update')
   await win.getByRole('tab', {name: 'Account'}).click()

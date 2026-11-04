@@ -116,19 +116,6 @@ func TestBridgeWakesAWaitingWindowAndBoundsWhatItKeeps(t *testing.T) {
 	}
 }
 
-func TestBridgeAllowsSessionCallsButNotSessionTestsOrOtherServices(t *testing.T) {
-	_, b, _, _ := newBridgeApp(t)
-	if _, err := b.Dispatch("SessionService", "TestConnection", nil); err == nil || !strings.Contains(err.Error(), "not available") {
-		t.Fatalf("TestConnection must stay in the main window: %v", err)
-	}
-	if _, err := b.Dispatch("VaultService", "Unlock", nil); err == nil {
-		t.Fatal("the vault cannot be unlocked from a window")
-	}
-	if _, err := b.Dispatch("HostService", "DeleteHost", []json.RawMessage{json.RawMessage(`"x"`)}); err == nil {
-		t.Fatal("a window only reads hosts")
-	}
-}
-
 func TestMenuItemsOfOtherWindowsAreDoneByTheMainWindow(t *testing.T) {
 	_, b, _, dir := newBridgeApp(t)
 	var got []string

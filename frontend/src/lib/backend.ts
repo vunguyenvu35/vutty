@@ -239,7 +239,6 @@ export interface Backend {
     /** downloads the latest release, checks its signature and checksum, replaces this app with it and restarts: returns only when that failed (with the reason) */
     installUpdate(): Promise<void>
     /** Opens the Settings window (a second native window). Rejects where none exists: the UI then shows its in-app window. */
-    openSettings(): Promise<void>
     /** the window is in full screen (the macOS window buttons are gone then) */
     isFullscreen(): Promise<boolean>
     /** tells the native menu bar the effective shortcuts, so each menu item shows its key (macOS) */
@@ -475,7 +474,6 @@ export function wailsBackend(): Backend {
       checkUpdate: () => call('app', 'SystemService', 'CheckUpdate'),
       selfUpdateStatus: async () => { try { return await call<SelfUpdateStatus>('app', 'SystemService', 'SelfUpdateStatus') } catch { return {supported: false} } },
       installUpdate: () => call('app', 'SystemService', 'InstallUpdate'),
-      openSettings: () => call('app', 'SystemService', 'OpenSettings'),
       openWindow: (h, t) => call('app', 'SystemService', 'OpenWindow', h, t),
       openPath: p => call('app', 'SystemService', 'OpenPath', p),
       openPathWith: (p, a) => call('app', 'SystemService', 'OpenPathWith', p, a),
@@ -499,78 +497,6 @@ export function wailsBackend(): Backend {
       if (!rt) return () => {}
       return rt.EventsOn(event, (...d: any[]) => cb(d[0]))
     },
-  }
-}
-
-/** True in the Settings window process, which has no use cases of its own (only the bridge). */
-export const inSettingsWindow = () => !!window.go?.app?.SettingsBridge
-
-/**
- * Backend of the Settings window: settings, vault security options and sync are forwarded to the main
- * window's process through the Go bridge; help links and the version are local.
- */
-export function bridgeBackend(): Backend {
-  const base = wailsBackend()
-  const rpc = async <T,>(service: string, method: string, ...args: unknown[]): Promise<T> => {
-    const text: string = await window.go!.app.SettingsBridge.Call(service, method, JSON.stringify(args))
-    return (text ? JSON.parse(text) : undefined) as T
-  }
-  const unavailable = () => Promise.reject(new Error(t('not available in the settings window')))
-  return {
-    ...base,
-    vault: {
-      ...base.vault,
-      status: () => rpc('VaultService', 'Status'),
-      changePassword: (o, n) => rpc('VaultService', 'ChangePassword', o, n),
-      setAutoLock: m => rpc('VaultService', 'SetAutoLock', m),
-      setHint: h => rpc('VaultService', 'SetHint', h),
-      enableBiometric: () => rpc('VaultService', 'EnableBiometric'),
-      disableBiometric: () => rpc('VaultService', 'DisableBiometric'),
-      resetVault: c => rpc('VaultService', 'ResetVault', c),
-    },
-    settings: {
-      get: () => rpc('SettingsService', 'Get'),
-      save: s => rpc('SettingsService', 'Save', s),
-      reset: () => rpc('SettingsService', 'ResetSettings'),
-      clearCache: () => rpc('SettingsService', 'ClearCache'),
-      sessionLogFolder: () => rpc('SettingsService', 'SessionLogFolder'),
-    },
-    // the host list (for choosing where an MCP server is offered) is read from the main process
-    hosts: {...base.hosts, listHosts: async f => (await rpc<Host[]>('HostService', 'ListHosts', {query: '', group_id: '', env: '', tag: '', ...f})) ?? []},
-    sync: {
-      configure: url => rpc('SyncService', 'Configure', url),
-      configureFolder: dir => rpc('SyncService', 'ConfigureFolder', dir),
-      syncNow: () => rpc('SyncService', 'SyncNow'),
-      join: pw => rpc('SyncService', 'JoinExisting', pw),
-      joinRemoteVault: pw => rpc('SyncService', 'JoinRemoteVault', pw),
-      replaceRemote: () => rpc('SyncService', 'ReplaceRemote'),
-      status: () => rpc('SyncService', 'Status'),
-    },
-    // the AI page of Settings: providers, models, options and MCP servers; never a terminal
-    assistant: {
-      ...base.assistant,
-      providers: async () => (await rpc<AiProvider[]>('AssistantService', 'Providers')) ?? [],
-      refreshProviders: async () => (await rpc<AiProvider[]>('AssistantService', 'RefreshProviders')) ?? [],
-      setProviderEnabled: (id, on) => rpc('AssistantService', 'SetProviderEnabled', id, on),
-      setDefaultProvider: id => rpc('AssistantService', 'SetDefaultProvider', id),
-      setProviderModel: (id, m) => rpc('AssistantService', 'SetProviderModel', id, m),
-      models: async (id, r) => { const l = await rpc<AiModelList>('AssistantService', 'Models', id, r); return {...l, models: l?.models ?? []} },
-      settings: async () => { const s = await rpc<AiSettings>('AssistantService', 'Settings'); return {...s, patterns: s?.patterns ?? []} },
-      saveSettings: async s => { const r = await rpc<AiSettings>('AssistantService', 'SaveSettings', s); return {...r, patterns: r?.patterns ?? []} },
-      saveCustomProvider: p => rpc('AssistantService', 'SaveCustomProvider', p),
-      deleteCustomProvider: id => rpc('AssistantService', 'DeleteCustomProvider', id),
-      mcp: {
-        list: async () => (await rpc<McpServer[]>('AssistantService', 'McpServers')) ?? [],
-        save: s => rpc('AssistantService', 'SaveMcpServer', s),
-        remove: id => rpc('AssistantService', 'DeleteMcpServer', id),
-        test: async id => (await rpc<McpTool[]>('AssistantService', 'TestMcpServer', id)) ?? [],
-        setTool: (s, t, m) => rpc('AssistantService', 'SetMcpTool', s, t, m),
-        approveNew: id => rpc('AssistantService', 'ApproveNewTools', id),
-        importable: async () => (await rpc<McpImportItem[]>('AssistantService', 'ImportableMcpServers')) ?? [],
-        import: ref => rpc('AssistantService', 'ImportMcpServer', ref),
-      },
-    },
-    system: {...base.system, openSettings: unavailable, openWindow: unavailable, setMenuShortcuts: async () => {}},
   }
 }
 

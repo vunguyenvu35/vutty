@@ -110,7 +110,7 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 
 ## ADR-0006: Settings is a second process with its own native window
 
-- **Status**: accepted.
+- **Status**: superseded for Settings by ADR-0007 (the bridge and the app windows below remain).
 - **Context**: Wails v2 creates one native window per process. Settings should be a real window (own title bar, macOS full screen, movable outside the main window), not a popup layer.
 - **Decision**: `vutty --settings` starts a second process of the same binary. It opens no database and no vault. The main process runs a `Bridge` (`app/bridge.go`): HTTP on `127.0.0.1` with a random token in a `0600` file (`settings-ipc.json`), exposing an explicit allow-list of use case methods (`SettingsService`, the security methods of `VaultService`, `SyncService`). After a change it emits `bridge:changed` so the main window reloads. The Settings process quits when the main process quits (the launcher kills it on shutdown; a heartbeat covers a crash). Where there is no native window (browser mode, E2E) the frontend falls back to the in-app Settings window.
 - **Consequences**: use cases stay in one process (no second SQLite or vault writer); the bridge is a new local attack surface, kept small by the token, loopback binding and the allow-list; the Settings process is hidden from the Dock, so no second icon appears.
@@ -118,3 +118,10 @@ Implement `store.Persister` and `vault.Persister`, then pass them to `store.Open
 ### ADR-0006 addendum: app windows (Duplicate in new window)
 
 The same bridge now carries a second kind of client: an **app window** (`vutty --window`), the whole UI in another process. The delivery layer stays thin: `Bridge.DispatchApp` reflects over the existing use case services (no new use case, no new port), `/events` hands the main process's emitted events to the window (terminal and SFTP events only for sessions the window opened, found through `Bridge.watch`), and in the window the frontend's `window.go.usecase` is a proxy to `/appcall`. Dependencies still point inward: `internal/domain ← usecase ← adapters`, and only `app/` knows about processes, ports and tokens. `archtest` is unchanged and still green.
+
+## ADR-0007: Settings is a page of the main window
+
+- **Status**: accepted.
+- **Context**: ADR-0006 made Settings a second process so it could be a real window. That cost a launcher, a Dock-less helper bundle on macOS, a window-raising workaround, a second allow-list on the bridge and a copy of the data flow (a backend that forwarded every call). Other SSH clients also keep their settings inside the main window, and the terminal's own colours and font are changeable from the terminal sidebar.
+- **Decision**: Settings is a page of the main window next to Hosts, Keychain and the others (`page === 'settings'`, `SettingsWindow` in `page` mode: no title bar, no floating window, Esc does not close it, Mod+digits stay the pages' keys). It calls the use case services like every other page. `vutty --settings`, `SettingsLauncher`, `SettingsBridge`, the `/call` and `/focus` endpoints, `bridgeBackend` and `scripts/macos-settings-helper.sh` are removed. The bridge stays for the app windows (`/appcall`, `/events`, `/menu`).
+- **Consequences**: one process less for Settings and a smaller local attack surface (no allow-listed endpoint); Settings cannot be dragged out of the main window or put on a second screen, and it replaces the current page instead of floating over it. The floating-window mode of `SettingsWindow` is no longer used by the app and can be deleted.

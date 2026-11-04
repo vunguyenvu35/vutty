@@ -80,7 +80,7 @@ export default function App({initial}: {/** an app window opened for this place 
   const [page, setPage] = useState<Page>('hosts')
   const [openGroupId, setOpenGroupId] = useState('') // the group open on the hosts page: new hosts and groups start in it
   const [hostsReset, setHostsReset] = useState(0) // bumped when Hosts is pressed while already on it
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const previousPage = useRef<Page>('hosts') // where Settings returns to
   // the panel on the right of a terminal (hosts, snippets, history, themes): open or closed is remembered
   const [sidebarOpen, setSidebarOpen] = useState(() => { try { return localStorage.getItem('vutty.sidebar') !== 'closed' } catch { return true } })
   const [sidebarTab, setSidebarTabState] = useState<SidebarTab>(() => {
@@ -135,7 +135,7 @@ export default function App({initial}: {/** an app window opened for this place 
     void be.settings.get().then(setSettings).catch(() => {})
     // the vault auto-locked (idle): drop back to the unlock screen
     const offLocked = be.on('vault:locked', () => { void refreshVault() })
-    // the Settings window (its own process) changed something here: pick it up
+    // another window of this app (Duplicate in new window) changed something here: pick it up
     const offBridge = be.on('bridge:changed', (service: string) => {
       if (service === 'SettingsService') void be.settings.get().then(setSettings).catch(() => {})
       else void refreshVault().then(() => refreshDataRef.current())
@@ -467,8 +467,12 @@ export default function App({initial}: {/** an app window opened for this place 
       .then(setSettings)
       .catch(e => { toast.error(errMsg(e)); setSettings(settings) })
   }
-  // Settings opens as its own native window; where there is none (browser mode) the in-app window is used
-  const openSettings = (toggle = false) => { void be.system.openSettings().catch(() => setSettingsOpen(o => (toggle ? !o : true))) }
+  // Settings is a page of the main window; the key toggles it, and leaving it goes back to the page it was opened from
+  const openSettings = (toggle = false) => {
+    if (page === 'settings' && onHome) return toggle ? goHome(previousPage.current) : undefined
+    if (page !== 'settings') previousPage.current = page
+    goHome('settings')
+  }
   const zoomBy = (delta: number) => saveSettings({zoom: Math.max(80, Math.min(160, settings.zoom + delta))})
   const cycle = (dir: 1 | -1) => {
     const ids = ['home', ...tabs.map(t => t.id)]
@@ -535,8 +539,8 @@ export default function App({initial}: {/** an app window opened for this place 
       {chordHint && <div className="chord-hint" role="status"><kbd className="keycap">{chordHint}</kbd> was pressed. Waiting for the next key… (Esc to cancel)</div>}
       <div className="body">
         <div className="home" style={{display: onHome ? 'flex' : 'none'}}>
-          <Nav page={page} onPage={p => { if (p === 'hosts' && page === 'hosts') { setHostsReset(n => n + 1); setDialog(null) } else changePage(p) }} shortcuts={bindings} onData={() => setDialog({k: 'data'})} settingsOpen={settingsOpen} onSettings={() => openSettings()} onLock={() => { void be.vault.lock().then(refreshVault) }} />
-          <main className="main">
+          <Nav page={page} onPage={p => { if (p === 'hosts' && page === 'hosts') { setHostsReset(n => n + 1); setDialog(null) } else changePage(p) }} shortcuts={bindings} onData={() => setDialog({k: 'data'})} onSettings={() => openSettings()} onLock={() => { void be.vault.lock().then(refreshVault) }} />
+          <main className={'main' + (page === 'settings' ? ' settings-main' : '')}>
             {page === 'hosts' && (
               <HostList resetKey={hostsReset} onGroupChange={setOpenGroupId} groups={groups} hosts={hosts} onMoveHost={moveHost} draft={dialog?.k === 'host' && !dialog.host?.id ? draft : undefined}
                 toolbar={<>
@@ -561,6 +565,10 @@ export default function App({initial}: {/** an app window opened for this place 
             )}
             {page === 'knownhosts' && <KnownHostsPage />}
             {page === 'logs' && <LogsPage />}
+            {page === 'settings' && vault && (
+              <SettingsWindow page settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
+                onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => goHome(previousPage.current)} />
+            )}
             {page === 'forwards' && (
               <PortForwardsPage hosts={hosts} draft={dialog?.k === 'forward' && !dialog.forward ? fwDraft : undefined} reloadKey={fwTick}
                 onNew={() => { setFwDraft({label: '', type: 'local'}); setDialog({k: 'forward'}) }} onEdit={f => setDialog({k: 'forward', forward: f})} />
@@ -591,10 +599,6 @@ export default function App({initial}: {/** an app window opened for this place 
         )}
       </div>
 
-      {settingsOpen && (
-        <SettingsWindow settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
-          onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => setSettingsOpen(false)} />
-      )}
       {fill && (
         <FillVariables title={fill.execute ? t('Run “{name}”', {name: fill.snippet.label}) : t('Paste “{name}”', {name: fill.snippet.label})} variables={parseVariables(fill.snippet.script)} verb={fill.execute ? t('Run') : t('Paste')}
           onClose={() => setFill(null)}

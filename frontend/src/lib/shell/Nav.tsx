@@ -4,14 +4,12 @@ import {useT} from '../i18n'
 import {Brand} from '../ui/Brand'
 import {IconBraces, IconClock, IconData, IconFingerprint, IconForward, IconGear, IconKey, IconLock, IconServer} from '../ui/Icons'
 
-export type Page = 'hosts' | 'keychain' | 'forwards' | 'snippets' | 'knownhosts' | 'logs'
+export type Page = 'hosts' | 'keychain' | 'forwards' | 'snippets' | 'knownhosts' | 'logs' | 'settings'
 
 interface Props {
   page: Page
   onPage(p: Page): void
   onData(): void
-  /** the Settings window is open */
-  settingsOpen?: boolean
   onSettings(): void
   onLock(): void
   /** the key of every action (see lib/shortcuts): shown at the right of an item while the pointer is on it */
@@ -41,7 +39,7 @@ function Item(p: {icon: ReactNode; label: string; active?: boolean; combo?: stri
   )
 }
 
-/** Left navigation. Pages switch the main area; Import/Export, Sync and Settings open panels. */
+/** Left navigation. Pages (Settings among them) switch the main area; Import/Export opens a panel. */
 export function Nav(p: Props) {
   const t = useT()
   const k = p.shortcuts ?? {}
@@ -59,7 +57,7 @@ export function Nav(p: Props) {
       </div>
       <div className="nav-group bottom">
         <Item icon={<IconData />} label={t('Import / Export')} iconsOnly={iconsOnly} onClick={p.onData} />
-        <Item icon={<IconGear />} label={t('Settings')} iconsOnly={iconsOnly} combo={k.open_settings} active={!!p.settingsOpen} onClick={p.onSettings} />
+        <Item icon={<IconGear />} label={t('Settings')} iconsOnly={iconsOnly} combo={k.open_settings} active={p.page === 'settings'} onClick={p.onSettings} />
         <Item icon={<IconLock />} label={t('Lock vault')} iconsOnly={iconsOnly} combo={k.lock_vault} onClick={p.onLock} />
       </div>
     </nav>

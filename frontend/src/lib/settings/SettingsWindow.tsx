@@ -75,8 +75,8 @@ interface Props {
   onVault(): void
   onChanged(): void
   onClose(): void
-  /** Rendered inside its own native window (the Settings process): no floating chrome, the OS provides it. */
-  native?: boolean
+  /** A page of the main window (like Hosts or Keychain): no floating window, no title bar, no Esc to close; Mod+digits stay the pages' keys. */
+  page?: boolean
   /** false while the saved settings are still being fetched (the window is already up): the menu works, the pages wait */
   ready?: boolean
   /** true while the values shown are the ones remembered from last time: they show, but nothing is saved over the real ones yet */
@@ -90,7 +90,7 @@ interface Props {
  * title bar to move it and the bottom-right corner to resize. Wails v2 can only create one OS window, so
  * this is an in-app window layer rather than a second native window. Changes apply immediately.
  */
-export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, native = false, ready = true, stale = false}: Props) {
+export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, page = false, ready = true, stale = false}: Props) {
   const be = useBackend()
   const toast = useToast()
   const confirm = useConfirm()
@@ -133,17 +133,17 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   useEffect(() => { if (ready && s.session_log !== 'off') void be.settings.sessionLogFolder().then(setLogFolder).catch(() => {}) }, [be, ready, s.session_log, s.session_log_dir])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !document.querySelector('.select-menu') && !document.querySelector('.key-capture') && !document.querySelector('.modal')) onClose() // a dropdown or a recording eats its own Esc
+      if (!page && e.key === 'Escape' && !document.querySelector('.select-menu') && !document.querySelector('.key-capture') && !document.querySelector('.modal')) onClose() // a dropdown or a recording eats its own Esc
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, native])
+  }, [onClose, page])
   // Mod+1…8 jump to a category, Ctrl+Tab / Ctrl+Shift+Tab go to the next / previous one (not while a shortcut is being recorded)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (capture.active) return
       const go = (i: number) => { e.preventDefault(); setCat(CATS[(i + CATS.length) % CATS.length].id); setErr('') }
-      const n = CATS.findIndex((_, i) => matches(e, 'Mod+' + (i + 1)))
+      const n = page ? -1 : CATS.findIndex((_, i) => matches(e, 'Mod+' + (i + 1))) // on a page Mod+digits go to the pages
       if (n >= 0) return go(n)
       const at = CATS.findIndex(c => c.id === catRef.current)
       if (matches(e, 'Ctrl+Tab')) go(at + 1)
@@ -209,12 +209,12 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const initial = (s.account_name.trim() || s.account_email.trim() || '?')[0].toUpperCase()
 
   return (
-    <div className={'win-back' + (maximized ? ' maximized' : '') + (native ? ' native' : '')} role="presentation">
-      <div className={'win' + (maximized ? ' max' : '') + (rolledUp ? ' rolled' : '') + (native ? ' native' : '')} role="dialog" aria-label={t('Settings')}
-        style={maximized || native ? undefined : {transform: `translate(${offset.x}px, ${offset.y}px)`}}>
-        <div className="win-title" {...(native ? {onDoubleClick: (e: React.MouseEvent) => { if (!(e.target as HTMLElement).closest('button')) void be.system.toggleMaximise() }} : {onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag, onDoubleClick: toggleMax})}>
+    <div className={'win-back' + (maximized ? ' maximized' : '') + (page ? ' page' : '')} role="presentation">
+      <div className={'win' + (maximized ? ' max' : '') + (rolledUp ? ' rolled' : '') + (page ? ' page' : '')} role={page ? 'region' : 'dialog'} aria-label={t('Settings')}
+        style={maximized ? undefined : {transform: `translate(${offset.x}px, ${offset.y}px)`}}>
+        {!page && <div className="win-title" {...({onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag, onDoubleClick: toggleMax})}>
           {/* maximised, the window covers the app and the native macOS buttons sit at the top left: the in-app dots give way to Restore / Close on the right */}
-          {!maximized && !native && <span className="win-dots">
+          {!maximized && <span className="win-dots">
             <button className="dot close" aria-label={t('Close settings')} title={t('Close')} onClick={onClose} />
             <button className="dot min" aria-label={rolledUp ? t('Unroll settings') : t('Minimize settings')} title={rolledUp ? t('Show') : t('Minimize')} onClick={() => setRolledUp(r => !r)} />
             <button className="dot max" aria-label={maximized ? t('Restore settings') : t('Maximize settings')} title={maximized ? t('Restore') : t('Maximize')} onClick={toggleMax} />
@@ -230,11 +230,12 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
               </button>
             </span>
           )}
-        </div>
+        </div>}
 
         {!rolledUp && (
           <div className="win-body">
             <nav className="win-nav" aria-label={t('Settings menu')}>
+              {page && <h2 className="win-heading">{t('Settings')}</h2>}
               <div role="tablist" aria-orientation="vertical" className="win-tabs">
                 {CATS.map((c, i) => (
                   <Fragment key={c.id}>
@@ -242,7 +243,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                     <button role="tab" aria-selected={cat === c.id} className={'settings-tab' + (cat === c.id ? ' active' : '')} onClick={() => { setCat(c.id); setErr('') }}>
                       <i className="tab-ico" aria-hidden="true">{c.icon()}</i>
                       <span className="tab-name">{c.label}</span>
-                      <kbd className="settings-key" aria-hidden="true">{formatCombo('Mod+' + (i + 1))}</kbd>
+                      {!page && <kbd className="settings-key" aria-hidden="true">{formatCombo('Mod+' + (i + 1))}</kbd>}
                     </button>
                   </Fragment>
                 ))}

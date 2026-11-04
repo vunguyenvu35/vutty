@@ -1,4 +1,3 @@
-import {bridgeBackend, inSettingsWindow} from './backend'
 
 type Call = [string, string, string]
 
@@ -15,67 +14,6 @@ function install(reply: (c: Call) => string | Promise<string>) {
 }
 
 afterEach(() => { delete (window as any).go })
-
-describe('Settings window backend (bridge)', () => {
-  it('is recognised only where the bridge is bound', () => {
-    expect(inSettingsWindow()).toBe(false)
-    install(() => 'null')
-    expect(inSettingsWindow()).toBe(true)
-  })
-
-  it('forwards settings, vault security and sync calls as JSON through the bridge', async () => {
-    const calls = install(c => (c[1] === 'Get' ? '{"zoom":110}' : c[1] === 'Status' ? '{"exists":true}' : 'null'))
-    const be = bridgeBackend()
-    expect(await be.settings.get()).toEqual({zoom: 110})
-    await be.settings.save({zoom: 120} as never)
-    await be.vault.setAutoLock(5)
-    await be.vault.changePassword('old', 'new')
-    await be.vault.enableBiometric()
-    await be.vault.resetVault('RESET')
-    expect(await be.vault.status()).toEqual({exists: true})
-    await be.sync.configure('git://x')
-    await be.sync.join('pw')
-    expect(calls).toEqual([
-      ['SettingsService', 'Get', '[]'],
-      ['SettingsService', 'Save', '[{"zoom":120}]'],
-      ['VaultService', 'SetAutoLock', '[5]'],
-      ['VaultService', 'ChangePassword', '["old","new"]'],
-      ['VaultService', 'EnableBiometric', '[]'],
-      ['VaultService', 'ResetVault', '["RESET"]'],
-      ['VaultService', 'Status', '[]'],
-      ['SyncService', 'Configure', '["git://x"]'],
-      ['SyncService', 'JoinExisting', '["pw"]'],
-    ])
-  })
-
-  it('an empty result is undefined, and errors from the main process reject', async () => {
-    install(c => { if (c[1] === 'Save') throw 'zoom must be between 80 and 160'; return '' })
-    const be = bridgeBackend()
-    expect(await be.vault.setAutoLock(1)).toBeUndefined()
-    await expect(be.settings.save({} as never)).rejects.toMatch(/zoom/)
-  })
-
-  it('reads the host list through the bridge too, and says in plain words when the backend is not reachable', async () => {
-    const calls = install(c => (c[1] === 'ListHosts' ? '[{"id":"h1","label":"web-1"}]' : 'null'))
-    const be = bridgeBackend()
-    expect(await be.hosts.listHosts({})).toEqual([{id: 'h1', label: 'web-1'}])
-    expect(calls[0][0]).toBe('HostService')
-    expect(JSON.parse(calls[0][2])[0]).toMatchObject({query: '', group_id: '', env: '', tag: ''})
-    // a call that has no binding in this window gets a message a person can act on, not a service name
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const missing = async () => be.hosts.listGroups()
-    await expect(missing()).rejects.toThrow(/cannot reach its backend.*open it again/i)
-    await expect(missing()).rejects.not.toThrow(/usecase\./)
-    expect(warn).toHaveBeenCalled()
-  })
-
-  it('keeps the version and help links local, and cannot open another Settings window', async () => {
-    install(() => 'null')
-    const be = bridgeBackend()
-    expect(await be.system.info()).toEqual({version: '9.9.9'})
-    await expect(be.system.openSettings()).rejects.toThrow()
-  })
-})
 
 describe('toggleMaximise', () => {
   afterEach(() => { delete (window as any).runtime })

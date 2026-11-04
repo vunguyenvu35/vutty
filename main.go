@@ -26,11 +26,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("data dir: %v", err)
 	}
-	app.RaiseProcess = raiseProcess // the Settings window is brought in front of the main one (macOS)
-	if len(os.Args) > 1 && os.Args[1] == app.SettingsFlag {
-		runSettings(dir)
-		return
-	}
 	if len(os.Args) > 3 && os.Args[1] == app.WindowFlag {
 		runTerminalWindow(dir, os.Args[2], os.Args[3])
 		return
@@ -67,34 +62,6 @@ func main() {
 		Bind: []interface{}{
 			a.Host, a.Vault, a.Session, a.Forward, a.Sync, a.ImportExp, a.Settings, a.Snippet, a.Sftp, a.Local, a.Serial, a.Log, a.KnownHost, a.Assistant, a.Exec, a.System,
 		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// runSettings is the Settings window: a second process with its own native window. It opens no database
-// and no vault; everything it shows comes from the main process through the bridge.
-func runSettings(dir string) {
-	w, err := app.NewSettingsWindow(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	hideFromDockOnLaunch() // no Dock icon flashing up while the window opens
-	err = wails.Run(&options.App{
-		Title:       "Settings",
-		Width:       1040,
-		Height:      720,
-		MinWidth:    720,
-		MinHeight:   480,
-		AssetServer: &assetserver.Options{Assets: assets},
-		// Opaque (A is 0 to 255, not a fraction): the webview below is transparent so it does not flash white, which
-		// makes this colour the whole window until the page has painted. With A: 1 the window was see-through then.
-		BackgroundColour: &options.RGBA{R: 17, G: 19, B: 24, A: 255},
-		OnStartup:        func(ctx context.Context) { w.Startup(ctx); hideFromDock() },
-		Menu:             w.Menu(),
-		Mac:              &mac.Options{TitleBar: mac.TitleBarHiddenInset(), WebviewIsTransparent: true},
-		Bind:             []interface{}{w.Bridge, w.System},
 	})
 	if err != nil {
 		log.Fatal(err)

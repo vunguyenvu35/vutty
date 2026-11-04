@@ -19,13 +19,12 @@ import (
 	"vutty/internal/usecase"
 )
 
-// The Settings window is a second native window. Wails v2 can only create one window per process, so it
-// is a second Vutty process that holds no data of its own: every read and write goes through this bridge
-// to the main process, which owns the vault and the database. The bridge listens on loopback only, needs
-// a random token that is stored in a 0600 file inside the data directory, and exposes an explicit
-// allow-list of use case methods.
+// An app window (Duplicate in new window) is a second native window. Wails v2 can only create one window per
+// process, so it is a second Vutty process that holds no data of its own: every read and write goes through this
+// bridge to the main process, which owns the vault and the database. The bridge listens on loopback only and
+// needs a random token that is stored in a 0600 file inside the data directory.
 
-// bridgeFile is the connection file the Settings process reads.
+// bridgeFile is the connection file the app windows read (it kept the name of the Settings window that once used it too).
 const bridgeFile = "settings-ipc.json"
 
 type bridgeInfo struct {
@@ -37,18 +36,11 @@ type bridgeInfo struct {
 // app in another process and needs all of them, as the main window does.
 type appTarget struct{ obj any }
 
-type bridgeTarget struct {
-	obj     any
-	allowed map[string]bool
-}
-
-// Bridge serves the allow-listed use cases to the Settings process.
+// Bridge serves the use cases to the app windows.
 type Bridge struct {
 	token    string
-	targets  map[string]bridgeTarget
 	app      map[string]any
 	onChange func(service string)
-	focus    chan struct{}
 	srv      *http.Server
 	ln       net.Listener
 	file     string
@@ -72,19 +64,10 @@ type BridgedEvent struct {
 // maxBridgedEvents bounds what a window that stopped reading can make the main process hold.
 const maxBridgedEvents = 4096
 
-func allow(names ...string) map[string]bool {
-	m := map[string]bool{}
-	for _, n := range names {
-		m[n] = true
-	}
-	return m
-}
-
-// NewBridge exposes what the Settings window needs: settings, vault security options and Git sync.
+// NewBridge exposes every use case service of the app to the app windows.
 func NewBridge(a *App, onChange func(service string)) *Bridge {
 	return &Bridge{
 		onChange: onChange,
-		focus:    make(chan struct{}, 1),
 		watched:  map[string]bool{},
 		app: map[string]any{
 			"HostService": a.Host, "VaultService": a.Vault, "SessionService": a.Session, "ForwardService": a.Forward,
@@ -93,33 +76,12 @@ func NewBridge(a *App, onChange func(service string)) *Bridge {
 			"ExecService": a.Exec,
 		},
 		wake: make(chan struct{}),
-		targets: map[string]bridgeTarget{
-			"SettingsService": {a.Settings, allow("Get", "Save", "ResetSettings", "ClearCache", "SessionLogFolder")},
-			"VaultService":    {a.Vault, allow("Status", "ChangePassword", "SetAutoLock", "EnableBiometric", "DisableBiometric", "ResetVault", "SetHint")},
-			"SyncService":     {a.Sync, allow("Configure", "ConfigureFolder", "SyncNow", "JoinExisting", "JoinRemoteVault", "ReplaceRemote", "Status")},
-			// a terminal window drives its own session and reads the hosts for their names and themes
-			"SessionService": {a.Session, allow("Open", "Attach", "Write", "Resize", "Reconnect", "Close", "TrustHostKey", "AnswerAuth")},
-			"HostService":    {a.Host, allow("ListHosts")},
-			// the AI assistant page of Settings: providers, models, redaction options and MCP servers (never a terminal)
-			"AssistantService": {a.Assistant, allow("Providers", "RefreshProviders", "SetProviderEnabled", "SetDefaultProvider", "SetProviderModel",
-				"Models", "Settings", "SaveSettings", "SaveCustomProvider", "DeleteCustomProvider", "McpServers", "SaveMcpServer", "DeleteMcpServer",
-				"TestMcpServer", "SetMcpTool", "ApproveNewTools", "ImportableMcpServers", "ImportMcpServer")},
-		},
 	}
 }
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
-// Dispatch calls an allow-listed method with JSON arguments and returns its JSON result.
-func (b *Bridge) Dispatch(service, method string, args []json.RawMessage) (json.RawMessage, error) {
-	t, ok := b.targets[service]
-	if !ok || !t.allowed[method] {
-		return nil, fmt.Errorf("%s.%s is not available from the settings window", service, method)
-	}
-	return b.invoke(t.obj, service, method, args)
-}
-
-// DispatchApp is Dispatch for an app window: every method of every use case service.
+// DispatchApp calls a method of a use case service with JSON arguments and returns its JSON result (for an app window: every method of every service).
 func (b *Bridge) DispatchApp(service, method string, args []json.RawMessage) (json.RawMessage, error) {
 	obj, ok := b.app[service]
 	if !ok || method == "" || method[0] < 'A' || method[0] > 'Z' {
@@ -252,14 +214,6 @@ func readOnlyCall(service, method string) bool {
 	return false
 }
 
-// RequestFocus asks the open Settings window to come to the front.
-func (b *Bridge) RequestFocus() {
-	select {
-	case b.focus <- struct{}{}:
-	default:
-	}
-}
-
 func (b *Bridge) authorised(r *http.Request) bool {
 	got := r.Header.Get("Authorization")
 	want := "Bearer " + b.token
@@ -298,24 +252,6 @@ func (b *Bridge) handler() http.Handler {
 	mux.HandleFunc("/ping", guard(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(versionHeader, version)
 		w.WriteHeader(http.StatusNoContent)
-	}))
-	mux.HandleFunc("/call", guard(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "POST only", http.StatusMethodNotAllowed)
-			return
-		}
-		var req callRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
-		}
-		res, err := b.Dispatch(req.Service, req.Method, req.Args)
-		resp := callResponse{Result: res}
-		if err != nil {
-			resp = callResponse{Error: err.Error()}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	mux.HandleFunc("/appcall", guard(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -361,17 +297,6 @@ func (b *Bridge) handler() http.Handler {
 		evs, last := b.eventsAfter(r.Context(), after)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"events": evs, "last": last})
-	}))
-	// long poll: answers true when the main window wants the Settings window in front
-	mux.HandleFunc("/focus", guard(func(w http.ResponseWriter, r *http.Request) {
-		got := false
-		select {
-		case <-b.focus:
-			got = true
-		case <-time.After(20 * time.Second):
-		case <-r.Context().Done():
-		}
-		_ = json.NewEncoder(w).Encode(map[string]bool{"focus": got})
 	}))
 	return mux
 }

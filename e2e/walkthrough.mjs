@@ -559,21 +559,14 @@ try {
   assert.match(await known.textContent(), /ssh-ed25519 · SHA256:/)
   await shot(page, 'known-hosts')
 
-  step('Settings opens as its own window: theme, terminal theme, security, sync')
+  step('Settings is a page of the main window: theme, terminal theme, security, sync')
   await nav('Settings').click()
-  const win = page.getByRole('dialog', {name: 'Settings'})
+  const win = page.getByRole('region', {name: 'Settings'})
   await win.waitFor()
-  assert.equal(await win.evaluate(el => !!el.closest('.win-back')), true, 'a floating window above the page')
+  assert.equal(await win.evaluate(el => !!el.closest('main.settings-main')), true, 'a page of the main area, not a floating window')
+  assert.equal(await page.getByRole('dialog', {name: 'Settings'}).count(), 0)
   await win.getByTestId('app-version').waitFor()
 
-  // it can be dragged by its title bar
-  const before = await win.boundingBox()
-  await page.mouse.move(before.x + 400, before.y + 22)
-  await page.mouse.down()
-  await page.mouse.move(before.x + 480, before.y + 62, {steps: 5})
-  await page.mouse.up()
-  const after = await win.boundingBox()
-  assert.ok(Math.abs(after.x - before.x - 80) <= 2 && Math.abs(after.y - before.y - 40) <= 2, 'window dragged: ' + JSON.stringify({before, after}))
   await shot(page, 'settings-general')
 
   // General: zoom the whole interface, and the other switches are there
@@ -599,18 +592,10 @@ try {
   await page.getByText('You are on the latest version').waitFor()
   await shot(page, 'settings-account')
 
-  // the window can be maximised, restored, and rolled up
-  await win.getByRole('button', {name: 'Maximize settings'}).click()
-  await page.waitForFunction(() => document.querySelector('[role=dialog][aria-label=Settings]')?.classList.contains('max'))
+  // the page fills the whole area beside the navigation
   const big = await win.boundingBox()
-  assert.ok(big.width > 1200 && big.height > 700, 'maximised: ' + JSON.stringify(big))
-  await shot(page, 'settings-maximized')
-  await win.getByRole('button', {name: 'Restore settings'}).click()
-  await page.waitForFunction(() => !document.querySelector('[role=dialog][aria-label=Settings]')?.classList.contains('max'))
-  await win.getByRole('button', {name: 'Minimize settings'}).click()
-  await win.getByRole('tablist').waitFor({state: 'hidden'})
-  await win.getByRole('button', {name: 'Unroll settings'}).click()
-  await win.getByRole('tablist').waitFor()
+  assert.ok(big.width > 900 && big.height > 500, 'the page fills the area: ' + JSON.stringify(big))
+  await shot(page, 'settings-page-layout')
 
   await win.getByRole('tab', {name: 'Terminal'}).click()
   await win.getByRole('radio', {name: 'Dracula'}).click()
@@ -649,15 +634,16 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await win.getByRole('radio', {name: /Match app theme/}).click()
 
-  // Esc closes an open dropdown first, then the window
+  // Esc closes an open dropdown and never the page; the shortcut and the navigation leave it
   await win.getByRole('combobox', {name: /^Font family,/}).click()
   await page.keyboard.press('Escape')
-  assert.equal(await win.count(), 1, 'Esc closed only the dropdown')
   await page.keyboard.press('Escape')
+  assert.equal(await win.count(), 1, 'Esc does not close the Settings page')
+  await page.keyboard.press('ControlOrMeta+Comma') // back to the page it was opened from
   await win.waitFor({state: 'hidden'})
-  await page.keyboard.press('ControlOrMeta+Comma') // the shortcut opens it again
+  await page.keyboard.press('ControlOrMeta+Comma') // and again
   await win.waitFor()
-  await win.getByRole('button', {name: 'Close settings'}).click()
+  await nav('Hosts').click()
   await win.waitFor({state: 'hidden'})
 
   step('Connection loss: banner, no automatic reconnect')

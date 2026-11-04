@@ -35,10 +35,9 @@ type App struct {
 	db     *sqlitedb.DB
 	dir    string
 
-	bridge   *Bridge
-	launcher *SettingsLauncher
-	windows  *WindowLauncher
-	ctx      context.Context
+	bridge  *Bridge
+	windows *WindowLauncher
+	ctx     context.Context
 }
 
 // DataDir resolves where user data lives: $VUTTY_DATA_DIR, else the OS config dir
@@ -168,16 +167,14 @@ func (a *App) Startup(ctx context.Context) {
 		if a.bridge != nil {
 			a.bridge.Publish(event, data)
 		}
-		a.closeSettingsWhenLocked(event)
 	})
 	a.startSleepLock(ctx) // the vault locks when the computer sleeps
 	a.System.updateDir = filepath.Join(a.dir, "updates")
 	CleanUpAfterUpdate(a.System.updateDir) // what the last update left behind
 	// The AI tools are looked for when something first asks for them (the assistant panel, Settings → AI assistant): starting
-	// each CLI takes seconds of CPU, which would compete with a Settings window opened right after the app started.
+	// each CLI takes seconds of CPU, which would compete with the page that was opened right after the app started.
 
-	// The Settings window is a second process that talks to this one. Without the bridge the frontend
-	// falls back to its in-app Settings window.
+	// An app window (Duplicate in new window) is another process that talks to this one through the bridge.
 	a.bridge = NewBridge(a, func(service string) {
 		runtime.EventsEmit(ctx, "bridge:changed", service)
 		a.bridge.Publish("bridge:changed", []any{service}) // the other app windows too
@@ -188,8 +185,6 @@ func (a *App) Startup(ctx context.Context) {
 		runtime.EventsEmit(ctx, MenuEvent, action)
 	})
 	if err := a.bridge.Start(a.dir); err == nil {
-		a.launcher = NewSettingsLauncher(a.bridge)
-		a.System.SetSettingsOpener(a.launcher.Open)
 		a.windows = NewWindowLauncher()
 		a.System.SetWindowOpener(a.windows.Open)
 	}
@@ -197,9 +192,6 @@ func (a *App) Startup(ctx context.Context) {
 
 // Shutdown is the Wails OnShutdown hook.
 func (a *App) Shutdown(ctx context.Context) {
-	if a.launcher != nil {
-		a.launcher.Close()
-	}
 	if a.windows != nil {
 		a.windows.Close()
 	}
@@ -250,16 +242,7 @@ func (a *App) menuWith(shortcuts map[string]string, lang string) *menu.Menu {
 	})
 }
 
-// closeSettingsWhenLocked ends the Settings window when the vault locks (by hand or by the inactivity timer): it
-// shows security options and the AI assistant's providers, and it must not stay open on a locked app. The Settings
-// process holds no data, so ending it loses nothing; it opens again from the main window after unlocking.
-func (a *App) closeSettingsWhenLocked(event string) {
-	if event == "vault:locked" && a.launcher != nil {
-		a.launcher.Close()
-	}
-}
-
-// cacheDir is where the app keeps files it can make again (the Settings helper on macOS); empty when the OS has none.
+// cacheDir is where the app keeps files it can make again; empty when the OS has none.
 func cacheDir() string {
 	base, err := os.UserCacheDir()
 	if err != nil {

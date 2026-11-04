@@ -15,8 +15,6 @@ For people who want to build, test or change Vutty. End users should read the [R
 ```bash
 make dev          # hot-reload development mode (wails dev)
 make build        # build/bin/vutty.app
-                  # (on macOS this also adds the Dock-less Settings helper, see scripts/macos-settings-helper.sh;
-                  # under make dev the app makes the same helper itself in ~/Library/Caches/vutty)
 make test         # go vet + go test -race + frontend typecheck + vitest
 ./e2e/run.sh      # the walkthrough: also regenerates docs/screenshots and then runs scripts/check-doc-links.sh
 make e2e          # end-to-end walkthrough on the real backend; refreshes docs/screenshots
@@ -37,7 +35,7 @@ The version comes from the `VERSION` file (single source of truth).
 | `internal/sqlitedb`, `store`, `vault`, `sshx`, `forward`, `importer`, `exporter`, `syncgit` | infrastructure adapters |
 | `app/` | Wails delivery layer and composition root (`app.Build`) |
 | `frontend/` | React + TypeScript + xterm.js UI |
-| `app/bridge.go`, `app/settings_window.go` | the Settings window process (`vutty --settings`) and its bridge to the main process |
+| `app/bridge.go`, `app/terminal_window.go`, `app/window_process.go` | the app windows (`vutty --window`, Duplicate in new window): other processes and their bridge to the main process |
 | `cmd/demoserver` | demo SSH server (used by Docker and the E2E walkthrough) |
 | `e2e/` | Playwright walkthrough |
 | `deploy/`, `scripts/` | deploy configuration and scripts |
@@ -123,8 +121,8 @@ Notes:
 
 ## Windows, bridge and screenshots
 
-- **Second processes.** Wails v2 has one window per process, so the Settings window (`vutty --settings`) and an app window (`vutty --window <host id> <title>`, Duplicate in new window) are other processes of the same binary. They hold no data: `app/bridge.go` (loopback HTTP, random token in `settings-ipc.json`, mode 0600) serves `/call` (a short allow-list for Settings) and `/appcall` (every use case service, for an app window), `/events` (what the main process emits, kept only for terminal and SFTP sessions a window opened) and `/menu`. In an app window the frontend gets a `window.go.usecase` proxy (`installWindowBridge`), so the whole UI runs unchanged.
-- **Stale Settings window.** The Settings window is a process of its own and runs the program (and the frontend embedded in it) it was started from. A build puts a hard link to its executable in `Contents/Helpers`; when the executable is built again (`make dev`) or the app is replaced by a newer one, that link is a different program. `settingsExecutable` therefore uses the bundled helper only when it is byte for byte the running program, and otherwise makes one in the cache (`sameProgram`). `make dev` also builds `frontend/dist` first, because these other processes do not use the Vite dev server. A window left open by another version is refused by `/ping` (the version is compared) and quits.
+- **Second processes.** Wails v2 has one window per process, so an app window (`vutty --window <host id> <title>`, Duplicate in new window) is another process of the same binary (Settings is a page of the main window, no longer a process). It holds no data: `app/bridge.go` (loopback HTTP, random token in `settings-ipc.json`, mode 0600) serves `/appcall` (every use case service), `/events` (what the main process emits, kept only for terminal and SFTP sessions a window opened) and `/menu`. In an app window the frontend gets a `window.go.usecase` proxy (`installWindowBridge`), so the whole UI runs unchanged.
+- **Stale app window.** An app window is a process of its own and runs the program (and the frontend embedded in it) it was started from. `make dev` builds `frontend/dist` first, because these other processes do not use the Vite dev server. A window left open by another version is refused by `/ping` (the version is compared) and quits.
 - **Panes.** `Workspace` draws every pane of every tab in one flat, keyed list placed by `paneRects` (layout.ts); never nest panes again, or moving one would rebuild it and end its session.
 - **Screenshots.** The E2E run numbers them, so adding a step shifts the numbers; `scripts/check-doc-links.sh` lists links that no longer point to a file (README and docs).
 - **While the E2E run is going, do not edit files**: `wails dev` reloads and a reconnect overlay covers the page.

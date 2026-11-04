@@ -52,33 +52,6 @@ func (c *BridgeClient) do(ctx context.Context, method, path string, body []byte)
 	return c.hc.Do(req)
 }
 
-// Call forwards one use case call; args is a JSON array and the result is JSON text.
-func (c *BridgeClient) Call(service, method, argsJSON string) (string, error) {
-	var args []json.RawMessage
-	if argsJSON != "" {
-		if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-			return "", fmt.Errorf("bad arguments: %w", err)
-		}
-	}
-	body, _ := json.Marshal(callRequest{Service: service, Method: method, Args: args})
-	resp, err := c.do(context.Background(), http.MethodPost, "/call", body)
-	if err != nil {
-		return "", errors.New("Vutty is not running")
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("the main window refused the request (%s)", resp.Status)
-	}
-	var out callResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
-	}
-	if out.Error != "" {
-		return "", errors.New(out.Error)
-	}
-	return string(out.Result), nil
-}
-
 // versionHeader carries the app's version on /ping, so a window of another version can tell.
 const versionHeader = "X-Vutty-Version"
 
@@ -100,20 +73,6 @@ func (c *BridgeClient) Ping() error {
 		return fmt.Errorf("this window is Vutty %s but the app is %s: close it and open it again", Version, v)
 	}
 	return nil
-}
-
-// WaitFocus blocks until the main window asks for the Settings window to be raised (or ~20 s pass).
-func (c *BridgeClient) WaitFocus(ctx context.Context) (bool, error) {
-	resp, err := c.do(ctx, http.MethodGet, "/focus", nil)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-	var out map[string]bool
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return false, err
-	}
-	return out["focus"], nil
 }
 
 // Events blocks until the main process has terminal events after seq (or ~20 s pass) and returns them with

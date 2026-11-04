@@ -22,8 +22,6 @@ export interface Fake extends Backend {
     remote: Record<string, {dir: boolean; size: number}>
     /** this computer's files for the Local pane: path -> entry */
     local: Record<string, {dir: boolean; size: number}>
-    /** true: openSettings succeeds like the real app (a native window opens); false: it rejects (browser mode) */
-    nativeSettings: boolean
     /** what the shell history of the server holds */
     hostHistory: string[]
     /** what Clear cache reports */
@@ -139,7 +137,6 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       '/': {dir: true, size: 0}, '/Users': {dir: true, size: 0}, '/Users/me': {dir: true, size: 0}, '/Users/me/Documents': {dir: true, size: 0},
       '/Users/me/notes.txt': {dir: false, size: 300}, '/Users/me/.zshrc': {dir: false, size: 120}, '/Users/me/Documents/cv.pdf': {dir: false, size: 40960},
     },
-    nativeSettings: false,
     holdQueue: false,
     hostHistory: [],
     cache: {files: 3, bytes: 5120},
@@ -568,10 +565,6 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       openWindow: async (h, t) => { rec('system.openWindow', h, t) },
       openPath: async p => { rec('system.openPath', p) },
       openPathWith: async (p, a) => { rec('system.openPathWith', p, a) },
-      openSettings: async () => {
-        rec('system.openSettings')
-        if (!state.nativeSettings) throw new Error('native windows are not available')
-      },
     },
     finishJob: (sid, jobId, patch = {}) => patchJob(sid, jobId, {state: 'done', done: 100, total: 100, ...patch}),
     jobs: sid => (queues[sid] ?? []).map(j => ({...j})),
