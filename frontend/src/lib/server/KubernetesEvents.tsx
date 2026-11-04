@@ -19,7 +19,7 @@ export function Events() {
   const {th, apply} = useSort<EventSort>(['reason', 'object'])
   const recent = [...(data ?? [])].filter(e => e.age_sec <= HOUR && ((warnings && e.type === 'Warning') || (normal && e.type === 'Normal')) && matches(filter, e.reason, e.object, e.message, e.namespace)).sort((a, b) => a.age_sec - b.age_sec)
   const rows = apply(recent, (e, key) => key === 'age' ? e.age_sec : key === 'reason' ? e.reason : key === 'object' ? e.object : e.count)
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading events…')} /></div>
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}>

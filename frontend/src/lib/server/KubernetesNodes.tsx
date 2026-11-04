@@ -29,7 +29,7 @@ export function Nodes() {
   const {th, apply} = useSort<NodeSort>(['name', 'status', 'role'])
   const rows = apply(data ?? [], (n, key) => key === 'name' ? n.name : key === 'status' ? n.status : key === 'role' ? n.roles : key === 'cpu' ? (n.cpu_pct ?? -1) : key === 'mem' ? (n.mem_pct ?? -1) : key === 'pods' ? n.pods : n.age_sec)
   const noMetrics = !!data && data.length > 0 && data.every(n => n.cpu_pct === null && n.mem_pct === null)
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading nodes…')} /></div>
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}><span className="sp-note">{noMetrics ? t('No metrics: metrics-server is not installed.') : t('CPU and memory come from metrics-server.')}</span></Toolbar>

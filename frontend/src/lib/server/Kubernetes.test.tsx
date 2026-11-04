@@ -860,23 +860,23 @@ describe('Loading', () => {
     return {be, go}
   }
 
-  it('shows the shapes of the Overview, not a word, until the answer comes', async () => {
+  it('shows a ring and what is being loaded in the middle of the screen, until the answer comes', async () => {
     const {be, go} = held('k8sOverview')
     await openKubernetes({remember: CTX, be})
     const wait = await screen.findByRole('status')
-    expect(wait).toHaveClass('sk-overview')
+    expect(wait).toHaveClass('ld')
     expect(wait).toHaveAttribute('aria-busy', 'true')
-    expect(within(wait).getByText('Loading…')).toHaveClass('sr-only') // read out, not drawn
+    expect(within(wait).getByText('Loading the overview…')).toBeInTheDocument()
     expect(screen.queryByRole('heading', {name: 'Capacity'})).toBeNull()
     go()
     expect(await screen.findByRole('heading', {name: 'Capacity'})).toBeInTheDocument()
     expect(screen.queryByRole('status', {busy: true})).toBeNull()
   })
 
-  it('shows rows where a list will be, and the list replaces them', async () => {
+  it('says which list is being loaded, and the list replaces it', async () => {
     const {be, go} = held('k8sPods')
     await openOn('Pods', {be})
-    expect(await screen.findByRole('status')).toHaveClass('sk-table')
+    expect(await within(await screen.findByRole('status')).findByText('Loading pods…')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', {name: 'Filter pods'})).toBeNull()
     go()
     expect(await screen.findByText('redis-0')).toBeInTheDocument()

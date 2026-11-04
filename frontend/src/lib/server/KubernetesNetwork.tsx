@@ -81,7 +81,7 @@ export function KubernetesNetwork() {
   const services = (data?.services ?? []).filter(s => matches(fs, s.name, s.namespace, s.type, s.cluster_ip, s.ports))
   const ingresses = (data?.ingresses ?? []).filter(i => matches(fi, i.host, i.path, i.service, i.class, i.namespace, i.tls_secret))
   const counted = (shown: number, all: number, q: string) => (q.trim() ? `${shown} / ${all}` : all)
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading services and ingress…')} /></div>
   return (
     <div className="sp-view">
       <Err error={error} />

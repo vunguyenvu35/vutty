@@ -104,7 +104,7 @@ export function Workloads() {
   }[kind]
   const result = (w: K8sWorkload) => <td><Pill tone={w.tone}>{w.suspended ? t('Suspended') : w.result === 'Failed' ? t('Failed') : w.result === 'Completed' ? t('Completed') : w.result || '–'}</Pill>{w.note && <> <span className="sp-note">{w.note}</span></>}</td>
   const last = (w: K8sWorkload) => <td>{w.last_run_sec === null ? t('never') : t('{time} ago', {time: age(w.last_run_sec)})}</td>
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading workloads…')} /></div>
   return (
     <div className="sp-view">
       <div className="sp-tabs k8s-sub" role="tablist" aria-label={t('Kind of workload')}>

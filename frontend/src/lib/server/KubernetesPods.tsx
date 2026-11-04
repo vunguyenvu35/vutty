@@ -137,7 +137,7 @@ export function KubernetesPods({seed}: {seed: string}) {
       </div></td>
     </tr>
   )
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading pods…')} /></div>
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}>

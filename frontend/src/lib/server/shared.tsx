@@ -167,38 +167,17 @@ export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): 
 }
 
 /**
- * What a screen shows while its first answer is on the way: grey shapes in the place and the size of what will come (cards, bars, rows),
- * with a soft shimmer (still when the person asked for less motion), not a word on an empty page.
+ * What a screen shows while its first answer is on the way: a small ring turning in the middle and a line that says what is being loaded.
+ * It fades in after a moment, so an answer that comes at once is not preceded by a flash; the ring stands still for a person who asked
+ * for less motion. `lines` is the small form, in the line, for a dialog.
  */
-export function Loading({kind = 'table', rows = 7}: {kind?: 'table' | 'overview' | 'detail' | 'lines'; rows?: number}) {
+export function Loading({kind = 'table', what}: {kind?: 'table' | 'overview' | 'detail' | 'lines'; what?: string}) {
   const t = useT()
-  const row = (n: number, i: number) => <i key={i} className="sk-row" style={{opacity: 1 - i * 0.07, width: [96, 92, 98, 90, 94, 88, 96][i % 7] + '%'}} aria-hidden="true" data-n={n} />
-  const card = (i: number) => <div key={i} className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" /><i className="sk-line sk-big" /><i className="sk-line sk-w60" /></div>
+  const text = what ?? (kind === 'overview' ? t('Loading the overview…') : kind === 'detail' ? t('Loading the details…') : t('Loading…'))
   return (
-    <div className={'sk sk-' + kind} role="status" aria-busy="true">
-      {kind === 'overview' && (
-        <>
-          <div className="sk-grid">{[0, 1].map(card)}</div>
-          <i className="sk-line sk-title" aria-hidden="true" />
-          <div className="sk-grid sk-grid3">{[0, 1, 2].map(i => <div key={i} className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" /><i className="sk-line sk-w60" /><i className="sk-bar" /><i className="sk-line sk-w60" /><i className="sk-bar" /></div>)}</div>
-          <div className="sk-grid sk-grid2">{[0, 1].map(i => <div key={i} className="sk-card sk-tall" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 5}, row.bind(null, i))}</div>)}</div>
-        </>
-      )}
-      {kind === 'detail' && (
-        <>
-          <i className="sk-line sk-title" aria-hidden="true" />
-          <div className="sk-grid sk-grid2">{[0, 1].map(i => <div key={i} className="sk-card sk-tall" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 5}, row.bind(null, i))}</div>)}</div>
-          <div className="sk-card" aria-hidden="true"><i className="sk-line sk-w30" />{Array.from({length: 3}, row.bind(null, 0))}</div>
-        </>
-      )}
-      {kind === 'table' && (
-        <>
-          <i className="sk-head" aria-hidden="true" />
-          {Array.from({length: rows}, row.bind(null, 0))}
-        </>
-      )}
-      {kind === 'lines' && Array.from({length: 4}, row.bind(null, 0))}
-      <span className="sr-only">{t('Loading…')}</span>
+    <div className={'ld' + (kind === 'lines' ? ' ld-inline' : '')} role="status" aria-busy="true" aria-live="polite" data-kind={kind}>
+      <span className="ld-ring" aria-hidden="true" />
+      <span className="ld-text">{text}</span>
     </div>
   )
 }

@@ -62,7 +62,7 @@ export function KubernetesConfig() {
   const secrets = (data?.secrets ?? []).filter(s => matches(fsec, s.name, s.namespace, s.type, ...s.keys, ...s.used_by))
   const volumes = (data?.volumes ?? []).filter(v => matches(fv, v.name, v.namespace, v.status, v.storage_class, ...v.used_by))
   const counted = (shown: number, all: number, q: string) => (q.trim() ? `${shown} / ${all}` : all)
-  if (!data && !error) return <div className="sp-view"><Loading kind="table" /></div>
+  if (!data && !error) return <div className="sp-view"><Loading kind="table" what={t('Loading config and storage…')} /></div>
   return (
     <div className="sp-view">
       <Err error={error} />

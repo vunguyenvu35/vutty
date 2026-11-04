@@ -77,7 +77,7 @@ export function ClusterPanel({cluster, visible, onPodShell}: {cluster: Cluster; 
         </>
       ) : (
         <div className="sp-notice">
-          {phase === 'connecting' && <><div className="sk-caption"><span className="sk-dot" aria-hidden="true" />{t('Opening {name}…', {name: cluster.label})}</div><Loading kind="overview" /></>}
+          {phase === 'connecting' && <Loading kind="overview" what={t('Opening {name}…', {name: cluster.label})} />}
           {phase === 'closed' && (
             <div className="side-empty" role="alert">
               <div>{reason || t('Disconnected.')}</div>

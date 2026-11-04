@@ -456,4 +456,12 @@ export default {
   "The nodes did not say what they can hold.": "ノードが収容できる量を返しませんでした。",
   "Pods and reserved amounts are those of the namespaces shown; the capacity is the whole cluster’s.": "Pod と予約量は表示中の名前空間の分で、容量はクラスター全体のものです。",
   "What is used now needs a metrics-server, which this cluster does not have (or this login may not read).": "現在の使用量には metrics-server が必要ですが、このクラスターにはありません（またはこのログインでは読み取れません）。",
+  "Loading the overview…": "概要を読み込み中…",
+  "Loading the details…": "詳細を読み込み中…",
+  "Loading pods…": "Pod を読み込み中…",
+  "Loading workloads…": "ワークロードを読み込み中…",
+  "Loading services and ingress…": "Service と Ingress を読み込み中…",
+  "Loading config and storage…": "設定とストレージを読み込み中…",
+  "Loading events…": "イベントを読み込み中…",
+  "Loading nodes…": "ノードを読み込み中…",
 }

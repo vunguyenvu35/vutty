@@ -456,4 +456,12 @@ export default {
   "The nodes did not say what they can hold.": "Các node không cho biết chúng chứa được bao nhiêu.",
   "Pods and reserved amounts are those of the namespaces shown; the capacity is the whole cluster’s.": "Số pod và lượng đặt trước là của các namespace đang xem; dung lượng là của cả cluster.",
   "What is used now needs a metrics-server, which this cluster does not have (or this login may not read).": "Lượng đang dùng cần metrics-server, cluster này không có (hoặc tài khoản này không được đọc).",
+  "Loading the overview…": "Đang tải tổng quan…",
+  "Loading the details…": "Đang tải chi tiết…",
+  "Loading pods…": "Đang tải pod…",
+  "Loading workloads…": "Đang tải workload…",
+  "Loading services and ingress…": "Đang tải service và ingress…",
+  "Loading config and storage…": "Đang tải cấu hình và lưu trữ…",
+  "Loading events…": "Đang tải sự kiện…",
+  "Loading nodes…": "Đang tải node…",
 }

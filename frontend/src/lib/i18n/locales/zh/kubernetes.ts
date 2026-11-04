@@ -456,4 +456,12 @@ export default {
   "The nodes did not say what they can hold.": "节点没有说明它们能容纳多少。",
   "Pods and reserved amounts are those of the namespaces shown; the capacity is the whole cluster’s.": "Pod 数和预留量是所显示命名空间的，容量是整个集群的。",
   "What is used now needs a metrics-server, which this cluster does not have (or this login may not read).": "当前使用量需要 metrics-server，此集群没有（或此登录无权读取）。",
+  "Loading the overview…": "正在加载概览…",
+  "Loading the details…": "正在加载详情…",
+  "Loading pods…": "正在加载 Pod…",
+  "Loading workloads…": "正在加载工作负载…",
+  "Loading services and ingress…": "正在加载 Service 和 Ingress…",
+  "Loading config and storage…": "正在加载配置和存储…",
+  "Loading events…": "正在加载事件…",
+  "Loading nodes…": "正在加载节点…",
 }
