@@ -1,11 +1,14 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.5.0
+# Vutty 1.5.1
 
 Release date: 2026-11-04 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.5.1
 
+- **The sidebar's Files section works for local terminals too.** A local terminal shows this computer's files (no SFTP connection, no queue). A button goes to the folder the terminal is in (the shell's OSC 7 when it reports one, else the shell's process: `lsof` on macOS, `/proc` on Linux, or the server's `/proc` over SSH). Right-click offers what the SFTP screen offers (open, open with, edit and save back, download, upload, copy path, rename, delete, new folder, permissions, select all), and dot files can be shown or hidden.
+- **Go to folder** in that right-click menu types `cd` into the terminal and runs it: a folder goes to itself, a file to the folder it is in. Paths with quotes, spaces or `[brackets]` are quoted; a Windows path (drive letter or UNC) gets PowerShell's `cd -LiteralPath`. Not for `cmd.exe`.
+- **The quick unlock key goes into a Keychain item guarded by Touch ID** where macOS allows it; the old item is the fallback.
 - **Choose what to sync.** *Settings → Sync → What to sync* (a box you can fold) has a tick for each kind of data (Hosts and groups, Keys and passwords, Port forwards, Snippets) and for each group of preferences (Appearance, Terminal, Language, Keyboard shortcuts, Behaviour, Account name and email). All are ticked by default, so nothing changes until you untick something. An unticked item is neither sent nor taken: this machine keeps what it has and the repository keeps what the other machines put there. Port forwards need Hosts. The preferences travel in the same encrypted bundle as the data, each group with its own date (the newest change wins), and a new Mac that restores from the repository takes them. Zoom, folders, auto-lock, Touch ID and the other settings of one machine stay local. A copy of Vutty from before this drops the preferences when it syncs; the next newer copy puts them back. Not yet tried between two real Macs.
 - **Fast drawing (WebGL)** for the terminal that has the focus: see *Known issues* 6.
 
