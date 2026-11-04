@@ -4,6 +4,11 @@
 
 Release date: 2026-11-04 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
+## Unreleased
+
+- **Preferences sync between machines.** *Settings → Sync → What to sync* has a tick for each group: Appearance, Terminal, Language, Keyboard shortcuts, Behaviour and Account (name and email). All are ticked by default; they travel in the same encrypted bundle as hosts and keys, each group with its own date (the newest change wins), and a new Mac that restores from the repository takes them. Zoom, folders, auto-lock, Touch ID and the other settings of one machine stay local. A copy of Vutty from before this drops the preferences when it syncs; the next newer copy puts them back. Not yet tried between two real Macs.
+- **Fast drawing (WebGL)** for the terminal that has the focus: see *Known issues* 6.
+
 ## What's new in 1.5.0
 
 - **Settings is a popup over the window, like VS Code's.** The gear, the navigation, the menu and Cmd/Ctrl+`,` open it; Esc, a click outside it and the × close it. It opens at a size taken from the window you are in (nearly all of it, at most 1280 × 880) and sits below the top bar, so it never covers the macOS window buttons. Drag its title bar to move it (it stays inside the window), drag its edges and corners to make it larger or smaller (it remembers the size as a share of the window; a double click on an edge restores the default), or Maximize it. The button before Maximize, *Open in a tab*, moves it into a Settings tab next to your terminals; while that tab exists, the gear and the shortcut show it.

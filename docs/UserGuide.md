@@ -300,6 +300,8 @@ When Vutty opens it also looks by itself, at most once a day (switch it off with
 
 Open **Settings → Sync**.
 
+**What is synced.** Hosts, groups, saved keys and passwords, port forwards and snippets are always synced. Under **What to sync** (the same page) you tick which of your *preferences* travel with them: **Appearance** (theme and terminal theme), **Terminal** (font, cursor, scrollback), **Language**, **Keyboard shortcuts** (the ones you changed), **Behaviour** (Highlight output, Suggest commands) and **Account** (name and email). All are ticked by default. They go inside the same encrypted bundle, each group has its own date, and the newest change of a group wins; a group you untick is neither sent nor taken. A machine that has never changed a group, or a new Mac that joins, does not outvote the others with its defaults. Zoom, folders, auto-lock, Touch ID, *Fast drawing* and the other settings of one machine never leave it. A copy of Vutty from before this feature ignores the preferences and, when it syncs, drops them from the repository until a newer copy puts them back.
+
 1. Create an empty **private** Git repository and make sure `git` can push to it (ssh-agent or a credential helper).
 2. **Repository URL → Save repository → Sync now.**
 3. On a new Mac open **Settings → Sync**, enter the URL, and choose **Restore from repository** with the master password of the synced vault (only before a local vault exists).

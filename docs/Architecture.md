@@ -143,7 +143,7 @@ data/
   hosts.json        # groups, hosts, port forwards, identity metadata
   vault.json        # encrypted secrets + KDF header
   known_hosts       # OpenSSH format
-  settings.json     # theme, font, shortcuts (not synced)
+  settings.json     # theme, font, shortcuts (the preference groups the user ticks are synced; the rest is not)
 sync/               # Git working copy, holds encrypted files only
 ```
 
@@ -302,7 +302,7 @@ Ciphertext cannot be merged by Git, so the app merges at record level:
 - A tombstone newer than an edit → delete; an edit newer than the tombstone → restore.
 - Clock skew between machines can give the wrong order; this is accepted in the MVP because one person rarely edits the same host on two machines at the same time.
 
-`settings.json` and `known_hosts` are not synced in the MVP.
+`known_hosts` is not synced. Of `settings.json`, only the preference groups the user ticks (appearance, terminal, language, shortcuts, behaviour, account) are synced, as `Bundle.Prefs` with a date per group (`internal/usecase/preferences.go`); the rest of it is never synced.
 
 ---
 

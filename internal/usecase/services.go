@@ -91,6 +91,7 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	}
 	s.c.setMu.Lock()
 	defer s.c.setMu.Unlock()
+	before := s.c.settings
 	s.c.settings.Theme = in.Theme
 	s.c.settings.TerminalTheme = in.TerminalTheme
 	s.c.settings.FontSize = in.FontSize
@@ -126,6 +127,8 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	if in.FontFamily != "" {
 		s.c.settings.FontFamily = in.FontFamily
 	}
+	s.c.settings.SyncItems = cleanSyncItems(in.SyncItems)
+	s.c.stampPrefs(before)
 	return s.c.settings, s.c.saveSettings()
 }
 

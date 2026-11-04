@@ -198,7 +198,7 @@ func (s *SyncService) doSync() error {
 	if err != nil {
 		return err
 	}
-	local := syncgit.Bundle{Data: s.c.Store.Snapshot(), Secrets: s.c.Vault.Secrets()}
+	local := syncgit.Bundle{Data: s.c.Store.Snapshot(), Secrets: s.c.Vault.Secrets(), Prefs: s.c.outgoingPrefs()}
 	var res syncgit.Result
 	if f, ok := s.folder(); ok {
 		res, err = f.Sync(local, hdr, s.c.Vault)
@@ -215,7 +215,11 @@ func (s *SyncService) doSync() error {
 	if err = s.c.Store.Replace(res.Merged.Data); err != nil {
 		return err
 	}
-	return s.c.Vault.ReplaceSecrets(res.Merged.Secrets)
+	if err = s.c.Vault.ReplaceSecrets(res.Merged.Secrets); err != nil {
+		return err
+	}
+	s.c.applyPrefs(res.Merged.Prefs)
+	return nil
 }
 
 // remote reads the header and the encrypted bundle that the repository or folder holds (nothing is changed).
@@ -303,7 +307,7 @@ func (s *SyncService) ReplaceRemote() (err error) {
 			return fmt.Errorf("could not save a copy of what the repository holds first, nothing was changed: %w", err)
 		}
 	}
-	local := syncgit.Bundle{Data: s.c.Store.Snapshot(), Secrets: s.c.Vault.Secrets()}
+	local := syncgit.Bundle{Data: s.c.Store.Snapshot(), Secrets: s.c.Vault.Secrets(), Prefs: s.c.outgoingPrefs()}
 	if f, ok := s.folder(); ok {
 		return f.Replace(local, hdr, s.c.Vault)
 	}
@@ -406,5 +410,9 @@ func (s *SyncService) JoinExisting(masterPassword string) (err error) {
 	if err = s.c.Store.Replace(b.Data); err != nil {
 		return err
 	}
-	return s.c.Vault.ReplaceSecrets(b.Secrets)
+	if err = s.c.Vault.ReplaceSecrets(b.Secrets); err != nil {
+		return err
+	}
+	s.c.applyPrefs(b.Prefs) // a new machine takes the look and the shortcuts of the others
+	return nil
 }

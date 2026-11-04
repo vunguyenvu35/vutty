@@ -124,6 +124,8 @@ export interface Settings {
   highlight: boolean
   /** draw the terminal that has the focus with WebGL (falls back to the DOM renderer by itself) */
   gpu_renderer: boolean
+  /** the groups of preferences that travel with the sync bundle (backend ids: appearance, terminal, language, shortcuts, behaviour, account) */
+  sync_items: string[]
   reduce_motion: boolean
   /** look for a newer release when the app opens (at most once a day) */
   auto_update_check: boolean

@@ -17,7 +17,7 @@ import (
 	"vutty/internal/sshx"
 )
 
-// Settings is persisted in settings.json and never synced.
+// Settings is persisted in settings.json. Only the part listed in domain.Preferences is synced, and only while SyncPreferences is on.
 type Settings struct {
 	Theme         string `json:"theme"`          // app appearance: auto | light | dark
 	TerminalTheme string `json:"terminal_theme"` // "auto" (follow the app) or a theme id from the UI catalogue
@@ -69,12 +69,18 @@ type Settings struct {
 	// Shortcuts holds only the user's overrides (action id -> combo such as "Mod+Shift+K"); an action
 	// without an entry uses its default, which lives with the UI that implements it.
 	Shortcuts map[string]string `json:"shortcuts"`
+
+	// SyncItems are the preference groups the user chose to sync (all by default; see prefGroups): their values go into the sync
+	// bundle and newer ones are taken from it. PrefsUpdated is when each group was last changed here or taken from the bundle;
+	// the UI cannot set it.
+	SyncItems    []string             `json:"sync_items"`
+	PrefsUpdated map[string]time.Time `json:"prefs_updated"`
 }
 
 func defaultSettings() Settings {
 	return Settings{Theme: "dark", TerminalTheme: "auto", FontSize: 13, FontFamily: "Menlo, Monaco, 'Courier New', monospace",
 		CursorStyle: "block", CursorBlink: true, CopyOnSelect: true, RightClick: "paste", Scrollback: 10000, AutoLockMinutes: 15,
-		Language: "auto", Zoom: 100, ConfirmProd: true, LockOnSleep: true, SessionLog: SessionLogOff, Highlight: true, GpuRenderer: true, AskProtocol: true, BiometricOnOpen: true, AutoUpdateCheck: true, Suggest: true, Shortcuts: map[string]string{}}
+		Language: "auto", Zoom: 100, ConfirmProd: true, LockOnSleep: true, SessionLog: SessionLogOff, Highlight: true, GpuRenderer: true, AskProtocol: true, BiometricOnOpen: true, AutoUpdateCheck: true, Suggest: true, SyncItems: allPrefGroups(), Shortcuts: map[string]string{}}
 }
 
 // Core wires the packages together; the services below share one instance.

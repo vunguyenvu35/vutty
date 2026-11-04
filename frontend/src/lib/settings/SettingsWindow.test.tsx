@@ -754,6 +754,19 @@ describe('SettingsWindow: Fast drawing', () => {
     expect(sw).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(sw)
     await waitFor(() => expect(be.state.settings.gpu_renderer).toBe(false))
+describe('SettingsWindow: What to sync', () => {
+  it('lists the groups of preferences, all ticked by default, and saves what is ticked and unticked', async () => {
+    const {be} = setup()
+    await tab('Sync')
+    const language = await screen.findByRole('checkbox', {name: /Language/})
+    const account = screen.getByRole('checkbox', {name: /Account/})
+    expect(language).toBeChecked()
+    expect(account).toBeChecked()
+    await userEvent.click(account)
+    await waitFor(() => expect(be.state.settings.sync_items).not.toContain('account'))
+    expect(be.state.settings.sync_items).toContain('language')
+    await userEvent.click(screen.getByRole('checkbox', {name: /Account/}))
+    await waitFor(() => expect(be.state.settings.sync_items).toContain('account'))
   })
 })
 

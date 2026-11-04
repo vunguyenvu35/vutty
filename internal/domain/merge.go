@@ -6,6 +6,9 @@ import "time"
 type Bundle struct {
 	Data    Data     `json:"data"`
 	Secrets []Secret `json:"secrets"`
+	// Prefs are the settings that follow the user (see Preferences); empty when this side sends none. A client from before
+	// they existed drops them when it merges, and the next machine that has them puts them back.
+	Prefs Preferences `json:"prefs,omitempty"`
 }
 
 // pick returns true when b should replace a (last-write-wins; on a tie a tombstone wins,
@@ -54,6 +57,7 @@ func Merge(local, remote Bundle) Bundle {
 	out.Data.Identities = mergeSlice(local.Data.Identities, remote.Data.Identities, func(x Identity) Meta { return x.Meta })
 	out.Data.Snippets = mergeSlice(local.Data.Snippets, remote.Data.Snippets, func(x Snippet) Meta { return x.Meta })
 	out.Secrets = mergeSlice(local.Secrets, remote.Secrets, func(s Secret) Meta { return s.Meta })
+	out.Prefs = mergePrefs(local.Prefs, remote.Prefs)
 	return out
 }
 
@@ -63,6 +67,7 @@ func PurgeTombstones(b Bundle, cutoff time.Time) Bundle {
 	keep := func(m Meta) bool { return m.DeletedAt == nil || m.DeletedAt.After(cutoff) }
 	var o Bundle
 	o.Data.Version = b.Data.Version
+	o.Prefs = b.Prefs
 	for _, x := range b.Data.Groups {
 		if keep(x.Meta) {
 			o.Data.Groups = append(o.Data.Groups, x)

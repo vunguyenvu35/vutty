@@ -24,6 +24,16 @@ const loadSync = () => import('../panels/SyncPanel').then(m => ({default: m.Sync
 const loadAssistant = () => import('./AssistantSettings').then(m => ({default: m.AssistantSettings}))
 const SupportPanel = lazy(loadSupport)
 const SyncPanel = lazy(loadSync)
+
+/** the groups of preferences that can be synced; the ids are the backend's (usecase.prefGroups) */
+const SYNC_GROUPS: {id: string; label(t: TFn): string; what(t: TFn): string}[] = [
+  {id: 'appearance', label: t => t('Appearance'), what: t => t('theme and terminal theme')},
+  {id: 'terminal', label: t => t('Terminal'), what: t => t('font, cursor and scrollback')},
+  {id: 'language', label: t => t('Language'), what: t => t('language of the interface')},
+  {id: 'shortcuts', label: t => t('Keyboard shortcuts'), what: t => t('the ones you changed')},
+  {id: 'behaviour', label: t => t('Behaviour'), what: t => t('Highlight output and Suggest commands')},
+  {id: 'account', label: t => t('Account'), what: t => t('name and email')},
+]
 const AssistantSettings = lazy(loadAssistant)
 /**
  * The popup is sized from the window it opens in: nearly all of it (an inset around it shows the app behind, and it sits below
@@ -589,7 +599,22 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
 
               {cat === 'assistant' && <Suspense fallback={<Loading />}><AssistantSettings /></Suspense>}
 
-              {cat === 'sync' && <Suspense fallback={<Loading />}><SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} /></Suspense>}
+              {cat === 'sync' && (
+                <>
+                  <Suspense fallback={<Loading />}><SyncPanel page vault={vault} onClose={() => {}} onChanged={onChanged} /></Suspense>
+                  <section className="card-section" aria-label={t('What to sync')}>
+                    <h4>{t('What to sync')}</h4>
+                    <p className="muted">{t('Hosts, groups, keys, port forwards and snippets are always synced. Choose which of your preferences travel with them, inside the same encrypted bundle; the newest change of each group wins. Zoom, folders, auto-lock, Touch ID and the other settings of one machine never leave it.')}</p>
+                    {SYNC_GROUPS.map(g => (
+                      <label key={g.id} className="check" style={{alignItems: 'flex-start', margin: '6px 0'}}>
+                        <input type="checkbox" checked={s.sync_items.includes(g.id)}
+                          onChange={e => update({sync_items: e.target.checked ? [...s.sync_items, g.id] : s.sync_items.filter(x => x !== g.id)})} />
+                        <span><b>{g.label(t)}</b><span className="muted"> — {g.what(t)}</span></span>
+                      </label>
+                    ))}
+                  </section>
+                </>
+              )}
 
               {cat === 'shortcuts' && <ShortcutsEditor overrides={s.shortcuts ?? {}} onChange={shortcuts => update({shortcuts})} />}
 

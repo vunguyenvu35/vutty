@@ -142,9 +142,11 @@ export default function App({initial}: {/** an app window opened for this place 
       else void refreshVault().then(() => refreshDataRef.current())
     })
     // the first connection to a host revealed its server type (ubuntu, debian…): the icon changes
+    // a sync brought newer preferences (theme, font, shortcuts, language…)
+    const offSettings = be.on('settings:changed', () => { void be.settings.get().then(setSettings).catch(() => {}) })
     const offHosts = be.on('hosts:changed', () => { void refreshDataRef.current() })
     const offMenu = be.on('menu:action', (action: string) => menuHandler.current(action))
-    return () => { offLocked(); offBridge(); offHosts(); offMenu() }
+    return () => { offLocked(); offBridge(); offSettings(); offHosts(); offMenu() }
   }, [be, refreshVault])
 
   useEffect(() => {
