@@ -408,6 +408,8 @@ func TestServerToolsRefuseWhatIsNotCheckedBeforeAnyCommand(t *testing.T) {
 		"logs stack":    func() error { _, e := s.Logs("x", "stack", "Shop; id"); return e }(),
 		"logs web":      func() error { _, e := s.Logs("x", "web", "apache"); return e }(),
 		"logs kind":     func() error { _, e := s.Logs("x", "file", "syslog"); return e }(),
+		"logs lines":    func() error { _, e := s.LogsFor("x", "", "", 7, ""); return e }(),
+		"logs since":    func() error { _, e := s.LogsFor("x", "", "", 100, "1h; id"); return e }(),
 	}
 	for name, err := range cases {
 		if err == nil || strings.Contains(err.Error(), "connection to the server is closed") {

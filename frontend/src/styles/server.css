@@ -85,3 +85,6 @@ button.icon[aria-busy=true] { pointer-events: none; opacity: .7; }
 button[aria-busy=true]:not(.icon):not(:has(> svg))::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp-spin .8s linear infinite; }
 [data-motion=reduced] button[aria-busy=true]:not(.icon)::before { animation: none; }
 button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
+.sp-pick { width: auto; min-width: 150px; }
+.sp-log-line mark { background: color-mix(in srgb, var(--warn) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.sp-filter[aria-invalid=true] { border-color: var(--danger); }

@@ -290,25 +290,52 @@ func (s *ServerService) ContainerAction(sid, name, action string) error {
 // Compose project (kind "stack") or of the web server (kind "web", name nginx or caddy);
 // with an empty name and kind, of the whole system.
 func (s *ServerService) Logs(sid, kind, name string) (string, error) {
+	return s.LogsFor(sid, kind, name, serverLogLines, "")
+}
+
+// serverLogSince maps the time ranges the screen offers to what each tool takes: journalctl, and docker (also compose).
+var serverLogSince = map[string][2]string{
+	"15m": {"15 min ago", "15m"},
+	"1h":  {"1 hour ago", "1h"},
+	"24h": {"24 hours ago", "24h"},
+}
+
+// LogsFor is Logs for the last `lines` lines (100, 300, 1000 or 5000) and, when since is 15m, 1h or 24h, only of that time.
+// Nothing else is accepted, so nothing but a number and a fixed word reaches the command. The nginx error file has no
+// time to ask for: it is cut by lines only.
+func (s *ServerService) LogsFor(sid, kind, name string, lines int, since string) (string, error) {
+	switch lines {
+	case 100, 300, 1000, 5000:
+	default:
+		return "", errors.New("that is not a number of lines the log can show")
+	}
+	var jSince, dSince string
+	if since != "" {
+		w, ok := serverLogSince[since]
+		if !ok {
+			return "", errors.New("that is not a time the log can show")
+		}
+		jSince, dSince = fmt.Sprintf(" --since %q", w[0]), " --since "+w[1]
+	}
 	var cmd string
 	switch {
 	case name == "" && kind == "":
-		cmd = fmt.Sprintf("journalctl -n %d --no-pager -o short-iso 2>&1", serverLogLines)
+		cmd = fmt.Sprintf("journalctl -n %d%s --no-pager -o short-iso 2>&1", lines, jSince)
 	case !nameRe.MatchString(name):
 		return "", errors.New("that is not a valid name")
 	case kind == "service":
-		cmd = fmt.Sprintf("journalctl -u %s.service -n %d --no-pager -o short-iso 2>&1", name, serverLogLines)
+		cmd = fmt.Sprintf("journalctl -u %s.service -n %d%s --no-pager -o short-iso 2>&1", name, lines, jSince)
 	case kind == "stack":
 		if !composeNameRe.MatchString(name) {
 			return "", errors.New("that is not a Compose project name")
 		}
-		cmd = composeScript(name, fmt.Sprintf("logs --tail %d --timestamps --no-color", serverLogLines))
+		cmd = composeScript(name, fmt.Sprintf("logs --tail %d%s --timestamps --no-color", lines, dSince))
 	case kind == "web":
-		if cmd = webLogCommand(name); cmd == "" {
+		if cmd = webLogCommand(name, lines, jSince); cmd == "" {
 			return "", errors.New("that is not a web server")
 		}
 	case kind == "container":
-		cmd = fmt.Sprintf("(docker logs --tail %[1]d --timestamps %[2]s 2>&1 || $SUDO docker logs --tail %[1]d --timestamps %[2]s 2>&1)", serverLogLines, name)
+		cmd = fmt.Sprintf("(docker logs --tail %[1]d%[3]s --timestamps %[2]s 2>&1 || $SUDO docker logs --tail %[1]d%[3]s --timestamps %[2]s 2>&1)", lines, name, dSince)
 	default:
 		return "", errors.New("unknown kind of log")
 	}

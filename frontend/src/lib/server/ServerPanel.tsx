@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {useBackend} from '../backend'
-import {useT, useTn} from '../i18n'
+import {useT, useTn, type TFn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {IconTerminal} from '../ui/Icons'
+import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
 import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction} from './shared'
@@ -380,37 +381,106 @@ function Docker({sid, onLogs}: {sid: string; onLogs(s: LogSource): void}) {
   )
 }
 
+const sourceKey = (s: LogSource) => (s.name ? s.kind + ':' + s.name : '')
+const parseSource = (v: string): LogSource => {
+  const i = v.indexOf(':')
+  return i < 0 ? {kind: '', name: ''} : {kind: v.slice(0, i) as LogSource['kind'], name: v.slice(i + 1)}
+}
+
+/** every log the panel can read, by kind: the whole system first, then what the server runs; the one open is always among them */
+function logSources(t: TFn, units: ServerUnit[], boxes: ServerContainer[], now: LogSource) {
+  const group = (label: string, kind: LogSource['kind'], names: string[]) => names.map(n => ({value: kind + ':' + n, label: n, hint: label}))
+  const list = [
+    {value: '', label: t('Whole system')},
+    ...group(t('Web server'), 'web', ['nginx', 'caddy']),
+    ...group(t('Services'), 'service', units.map(u => u.name)),
+    ...group(t('Containers'), 'container', boxes.map(c => c.name)),
+    ...group(t('Stacks'), 'stack', [...new Set(boxes.map(c => c.project).filter(Boolean))]),
+  ]
+  const key = sourceKey(now)
+  return list.some(o => o.value === key) ? list : [...list, {value: key, label: now.name, hint: now.kind}]
+}
+
+/** the filter as a test on a line, and as the pattern to mark in it: plain text is found anywhere and in any case */
+function lineMatcher(filter: string, regex: boolean): {test: ((l: string) => boolean) | null; mark: RegExp | null; bad: boolean} {
+  const q = filter.trim()
+  if (!q) return {test: null, mark: null, bad: false}
+  try {
+    const mark = new RegExp(regex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    return {test: l => { mark.lastIndex = 0; return mark.test(l) }, mark, bad: false}
+  } catch {
+    return {test: () => false, mark: null, bad: true}
+  }
+}
+
+/** a line with what matched in <mark>; a pattern that can match nothing marks nothing */
+function highlight(line: string, re: RegExp): ReactNode {
+  const out: ReactNode[] = []
+  let at = 0
+  re.lastIndex = 0
+  for (let m = re.exec(line); m; m = re.exec(line)) {
+    if (m[0] === '') { re.lastIndex++; continue }
+    if (m.index > at) out.push(line.slice(at, m.index))
+    out.push(<mark key={m.index}>{m[0]}</mark>)
+    at = m.index + m[0].length
+  }
+  if (at === 0) return line
+  if (at < line.length) out.push(line.slice(at))
+  return out
+}
+
 function Logs({sid, visible, source, onSource}: {sid: string; visible: boolean; source: LogSource; onSource(s: LogSource): void}) {
   const be = useBackend()
   const t = useT()
   const [filter, setFilter] = useState('')
   const [lv, setLv] = useState<'all' | 'err' | 'warn' | 'info'>('all')
   const [follow, setFollow] = useState(false)
+  const [regex, setRegex] = useState(false)
+  const [lineCount, setLineCount] = useState('300')
+  const [since, setSince] = useState<'' | '15m' | '1h' | '24h'>('')
   const boxRef = useRef<HTMLDivElement>(null)
   const stuck = useRef(true) // the view is at the bottom: new lines scroll into sight, but never pull away from what is being read
-  const load = useCallback(() => be.server.logs(sid, source.kind, source.name), [be, sid, source.kind, source.name])
+  // what the source list offers: asked once, and left out quietly when the login cannot ask
+  const loadUnits = useCallback(() => be.server.services(sid), [be, sid])
+  const {data: units} = useLoad<ServerUnit[]>(loadUnits, null)
+  const loadBoxes = useCallback(() => be.server.containers(sid), [be, sid])
+  const {data: boxes} = useLoad<ServerContainers>(loadBoxes, null)
+  const sources = useMemo(() => logSources(t, units ?? [], boxes?.containers ?? [], source), [t, units, boxes, source])
+  const opts = lineCount === '300' && since === '' ? undefined : {lines: Number(lineCount), since}
+  const load = useCallback(() => be.server.logs(sid, source.kind, source.name, opts), [be, sid, source.kind, source.name, lineCount, since]) // eslint-disable-line react-hooks/exhaustive-deps
   const {data, error, busy, reload} = useLoad<string>(load, follow && visible ? FOLLOW_MS : null)
-  const lines = useMemo(() => {
-    const q = filter.trim().toLowerCase()
-    return (data ?? '').split('\n').filter(l => l && (!q || l.toLowerCase().includes(q)) && (lv === 'all' || (lv === 'info' ? logLevel(l) === '' : logLevel(l) === lv)))
-  }, [data, filter, lv])
+  // useLoad reads again by itself only on a timer: another source, number of lines or time is asked for here
+  const asked = useRef(`${source.kind}:${source.name}:${lineCount}:${since}`)
+  useEffect(() => {
+    const now = `${source.kind}:${source.name}:${lineCount}:${since}`
+    if (asked.current !== now) { asked.current = now; reload() }
+  }, [source.kind, source.name, lineCount, since, reload])
+  const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
+  const all = useMemo(() => (data ?? '').split('\n').filter(Boolean), [data])
+  const lines = useMemo(
+    () => all.filter(l => (!matcher.test || matcher.test(l)) && (lv === 'all' || (lv === 'info' ? logLevel(l) === '' : logLevel(l) === lv))),
+    [all, matcher, lv])
   useEffect(() => { const b = boxRef.current; if (b && stuck.current) b.scrollTop = b.scrollHeight }, [lines])
   const onScroll = () => { const b = boxRef.current; if (b) stuck.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40 }
   const levels: ['all' | 'err' | 'warn' | 'info', string][] = [['all', t('All')], ['err', t('Errors')], ['warn', t('Warnings')], ['info', t('Info')]]
   return (
     <div className="sp-view fill">
       <Bar2 busy={busy} onReload={reload}>
-        <input className="sp-filter" aria-label={t('Filter log lines')} placeholder={t('Filter log lines')} value={filter} onChange={e => setFilter(e.target.value)} />
+        <input className="sp-filter" aria-label={t('Filter log lines')} placeholder={t('Filter log lines')} aria-invalid={matcher.bad} value={filter} onChange={e => setFilter(e.target.value)} />
+        <button aria-pressed={regex} className={regex ? 'primary' : ''} title={matcher.bad ? t('Not a valid regular expression') : t('Treat the filter as a regular expression')} onClick={() => setRegex(r => !r)}>.*</button>
         {levels.map(([k, n]) => <button key={k} aria-pressed={lv === k} className={lv === k ? 'primary' : ''} onClick={() => setLv(k)}>{n}</button>)}
         <button aria-pressed={follow} className={follow ? 'primary' : ''} title={t('Reads the log again every 2 seconds and keeps the newest line in view')} onClick={() => { stuck.current = true; setFollow(f => !f) }}>{t('Follow')}</button>
       </Bar2>
       <div className="sp-bar">
-        <span className="sp-source">{t('Showing')}: <b>{source.name || t('Whole system')}</b></span>
-        {source.name !== '' && <button onClick={() => onSource({kind: '', name: ''})}>{t('Whole system')}</button>}
+        <Select className="sp-pick" label={t('Log source')} value={sourceKey(source)} onChange={v => onSource(parseSource(v))} options={sources} />
+        <Select className="sp-pick" label={t('Number of lines')} value={lineCount} onChange={setLineCount} options={['100', '300', '1000', '5000'].map(n => ({value: n, label: t('Last {n} lines', {n})}))} />
+        <Select className="sp-pick" label={t('Time range')} value={since} onChange={v => setSince(v as typeof since)}
+          options={[{value: '', label: t('Any time')}, {value: '15m', label: t('Last 15 minutes')}, {value: '1h', label: t('Last hour')}, {value: '24h', label: t('Last 24 hours')}]} />
+        <span className="sp-source" role="status">{data !== null && (filter || lv !== 'all') ? t('{shown} of {total} lines', {shown: lines.length, total: all.length}) : ''}</span>
       </div>
       <Err error={error} />
       <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !follow} onScroll={onScroll}>
-        {lines.map((l, i) => <div key={i} className={'sp-log-line ' + logLevel(l)}>{l}</div>)}
+        {lines.map((l, i) => <div key={i} className={'sp-log-line ' + logLevel(l)}>{matcher.mark ? highlight(l, matcher.mark) : l}</div>)}
         {data !== null && lines.length === 0 && <div className="muted">{t('No log lines.')}</div>}
       </div>
     </div>

@@ -556,7 +556,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         if (state.server.failAction) throw state.server.failAction
         state.server.docker.containers = state.server.docker.containers.map(c => (c.name === name ? {...c, state: action === 'stop' ? 'exited' : 'running'} : c))
       },
-      logs: async (sid, kind, name) => { rec('server.logs', kind, name); return state.server.logs },
+      logs: async (sid, kind, name, opts) => { rec('server.logs', kind, name, ...(opts ? [opts] : [])); return state.server.logs },
       ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),
       stackAction: async (sid, project, action) => {
         rec('server.stackAction', project, action)

@@ -219,7 +219,8 @@ export interface Backend {
     containers(sid: string): Promise<ServerContainers>
     containerAction(sid: string, name: string, action: 'start' | 'stop' | 'restart'): Promise<void>
     /** the last lines of the journal: kind is '' (the whole system), 'service', 'container', 'stack' (a Compose project) or 'web' (name: nginx or caddy) */
-    logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string): Promise<string>
+    /** the last lines of a log; opts is for another number of lines (100, 300, 1000, 5000) and a time (15m, 1h, 24h) */
+    logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, opts?: {lines: number; since: '' | '15m' | '1h' | '24h'}): Promise<string>
     /** start, stop or restart every container of a Compose project, or 'update' it (pull the images, then up -d) */
     stackAction(sid: string, project: string, action: 'start' | 'stop' | 'restart' | 'update'): Promise<void>
     certificates(sid: string): Promise<ServerCerts>
@@ -493,7 +494,7 @@ export function wailsBackend(): Backend {
       serviceAction: (s, n, a) => u('ServerService', 'ServiceAction', s, n, a),
       containers: async s => { const r = await u<ServerContainers>('ServerService', 'Containers', s); return {...r, containers: r.containers ?? []} },
       containerAction: (s, n, a) => u('ServerService', 'ContainerAction', s, n, a),
-      logs: (s, k, n) => u('ServerService', 'Logs', s, k, n),
+      logs: (s, k, n, o) => (o ? u('ServerService', 'LogsFor', s, k, n, o.lines, o.since) : u('ServerService', 'Logs', s, k, n)),
       stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),
       certificates: async s => { const r = await u<ServerCerts>('ServerService', 'Certificates', s); return {...r, certs: r.certs ?? []} },
       web: async s => { const r = await u<ServerWeb>('ServerService', 'Web', s); return {...r, sites: (r.sites ?? []).map(x => ({...x, names: x.names ?? [], listen: x.listen ?? [], targets: x.targets ?? []}))} },

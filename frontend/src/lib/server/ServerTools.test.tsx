@@ -148,6 +148,41 @@ describe('Docker stacks', () => {
   })
 })
 
+describe('Logs filter', () => {
+  it('marks what a plain filter finds, and takes a regular expression on request', async () => {
+    setup()
+    await open('Logs')
+    await screen.findByText(/ECONNREFUSED/)
+    const box = screen.getByRole('textbox', {name: 'Filter log lines'})
+    await userEvent.type(box, 'econn')
+    expect(screen.getByRole('log').querySelector('mark')?.textContent).toBe('ECONN')
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 2 lines')
+    await userEvent.clear(box)
+    await userEvent.click(screen.getByRole('button', {name: '.*'}))
+    await userEvent.type(box, 'sshd|ECONN')
+    expect(screen.getByRole('status')).toHaveTextContent('2 of 2 lines')
+    await userEvent.clear(box)
+    await userEvent.type(box, '(')
+    expect(box).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('No log lines.')).toBeInTheDocument()
+  })
+
+  it('asks for another number of lines and another time, and for another source', async () => {
+    const {be} = setup()
+    await open('Logs')
+    await screen.findByText(/ECONNREFUSED/)
+    await userEvent.click(screen.getByRole('combobox', {name: /^Number of lines/}))
+    await userEvent.click(await screen.findByRole('option', {name: /Last 1000 lines/}))
+    await waitFor(() => expect(calls(be, 'server.logs').at(-1)).toEqual(['server.logs', '', '', {lines: 1000, since: ''}]))
+    await userEvent.click(screen.getByRole('combobox', {name: /^Time range/}))
+    await userEvent.click(await screen.findByRole('option', {name: /Last hour/}))
+    await waitFor(() => expect(calls(be, 'server.logs').at(-1)).toEqual(['server.logs', '', '', {lines: 1000, since: '1h'}]))
+    await userEvent.click(screen.getByRole('combobox', {name: /^Log source/}))
+    await userEvent.click(await screen.findByRole('option', {name: /api/}))
+    await waitFor(() => expect(calls(be, 'server.logs').at(-1)).toEqual(['server.logs', 'container', 'api', {lines: 1000, since: '1h'}]))
+  })
+})
+
 describe('Logs follow', () => {
   it('reads again every two seconds only while Follow is on', async () => {
     const {be} = setup()
@@ -333,6 +368,20 @@ describe('Fleet page', () => {
     expect(screen.getByText('the host key of "bravo" is not trusted yet')).toBeInTheDocument()
     expect(within(rowOf('alpha')).getByText('1 failed')).toBeInTheDocument()
     expect(within(rowOf('alpha')).getByText('78%')).toHaveClass('warn')
+  })
+
+  it('asks the hosts again by itself every 30 seconds, without blanking the table', async () => {
+    const be = makeFake({hosts: [a, b, c]})
+    vi.useFakeTimers({shouldAdvanceTime: true})
+    try {
+      mount(be)
+      await screen.findByText('3 of 3 servers answered')
+      await act(async () => { await vi.advanceTimersByTimeAsync(29000) })
+      expect(calls(be, 'server.fleetHost')).toHaveLength(3)
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      expect(calls(be, 'server.fleetHost')).toHaveLength(6)
+      expect(screen.getByText('3 of 3 servers answered')).toBeInTheDocument()
+    } finally { vi.useRealTimers() }
   })
 
   it('opens the panel of a host and checks again on request', async () => {

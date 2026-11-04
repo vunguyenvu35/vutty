@@ -24,6 +24,8 @@ function trouble(r: Row): number {
  * Fleet: one line for every saved host (up or down, load, memory, disk, failed services), each from its own short SSH
  * connection that never asks a question: a host whose key is not trusted yet says so instead. Nothing is kept running.
  */
+const FLEET_POLL_MS = 30000
+
 export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): void}) {
   const be = useBackend()
   const t = useT()
@@ -32,24 +34,27 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   const [running, setRunning] = useState(false)
   const alive = useRef(true)
   const round = useRef(0)
+  const busyNow = useRef(false)
   const list = useMemo(() => hosts.filter(h => h.hostname), [hosts])
 
-  const check = useCallback(async (targets: Host[]) => {
+  // quiet: the table stays as it is while the hosts answer again (the timer), instead of going through waiting and checking
+  const check = useCallback(async (targets: Host[], quiet = false) => {
     const mine = ++round.current
-    setRunning(true)
+    busyNow.current = true
+    if (!quiet) setRunning(true)
     setRows(prev => Object.fromEntries(targets.map(h => [h.id, prev[h.id]?.state === 'done' ? prev[h.id] : {state: 'waiting'} as Row])))
     let next = 0
     const worker = async () => {
       while (alive.current && mine === round.current && next < targets.length) {
         const h = targets[next++]
-        setRows(p => ({...p, [h.id]: {state: 'checking'}}))
+        if (!quiet) setRows(p => ({...p, [h.id]: {state: 'checking'}}))
         let r: ServerFleetHost
         try { r = await be.server.fleetHost(h.id) } catch (e) { r = {host_id: h.id, error: errMsg(e), overview: {} as ServerFleetHost['overview'], failed_units: 0, latency_ms: 0} }
         if (alive.current && mine === round.current) setRows(p => ({...p, [h.id]: {state: 'done', r}}))
       }
     }
     await Promise.all(Array.from({length: Math.min(WORKERS, targets.length)}, worker))
-    if (alive.current && mine === round.current) setRunning(false)
+    if (alive.current && mine === round.current) { setRunning(false); busyNow.current = false }
   }, [be])
 
   // checked when the page opens and when the set of hosts changes, not each time the host list is merely reloaded
@@ -59,7 +64,9 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   useEffect(() => {
     alive.current = true
     void check(listRef.current)
-    return () => { alive.current = false }
+    // asked again by itself: only while the page is in sight, and never on top of a round that is still going
+    const timer = window.setInterval(() => { if (!document.hidden && !busyNow.current) void check(listRef.current, true) }, FLEET_POLL_MS)
+    return () => { alive.current = false; window.clearInterval(timer) }
   }, [check, ids])
 
   const shown = useMemo(() => {
