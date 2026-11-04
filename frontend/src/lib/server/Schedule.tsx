@@ -52,7 +52,7 @@ function Jobs({sid, onLogs}: {sid: string; onLogs(kind: 'service', name: string)
                   <td className="m">{x.next || '–'}</td><td className="m">{x.last || '–'}</td>
                   <td>{x.result === '' ? '–' : x.result === 'success' ? <span className="sp-pill ok">{t('Succeeded')}</span> : <span className="sp-pill bad" title={x.result}>{t('Failed')}</span>}</td>
                   <td><div className="sp-acts">
-                    {x.unit.endsWith('.service') && <button disabled={working === x.unit} onClick={() => void run(x.unit)}>{t('Run now')}</button>}
+                    {x.unit.endsWith('.service') && <button aria-busy={working === x.unit} disabled={working === x.unit} onClick={() => void run(x.unit)}>{t('Run now')}</button>}
                     {x.unit.endsWith('.service') && <button onClick={() => onLogs('service', unitName(x.unit))}>{t('Logs')}</button>}
                   </div></td>
                 </tr>

@@ -184,28 +184,47 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
   )
 }
 
+type ProcSort = 'pid' | 'command' | 'user' | 'cpu' | 'mem'
+
 function Processes({sid, visible}: {sid: string; visible: boolean}) {
   const be = useBackend()
   const t = useT()
   const toast = useToast()
   const [filter, setFilter] = useState('')
   const [killing, setKilling] = useState(0)
+  const [ending, setEnding] = useState<number[]>([])
   const load = useCallback(() => be.server.processes(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerProcess[]>(load, visible ? POLL_MS : null)
+  const [sort, setSort] = useState<{key: ProcSort; dir: 1 | -1} | null>(null)
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase()
-    return (data ?? []).filter(p => !q || p.command.toLowerCase().includes(q) || p.user.toLowerCase().includes(q) || String(p.pid) === q)
-  }, [data, filter])
+    const list = (data ?? []).filter(p => !q || p.command.toLowerCase().includes(q) || p.user.toLowerCase().includes(q) || String(p.pid) === q)
+    if (!sort) return list
+    const {key, dir} = sort
+    return [...list].sort((a, b) => {
+      const x = a[key], y = b[key]
+      return dir * (typeof x === 'string' && typeof y === 'string' ? x.localeCompare(y) : Number(x) - Number(y))
+    })
+  }, [data, filter, sort])
+  // numbers start with the biggest, text with A to Z; a second click turns it round
+  const sortBy = (key: ProcSort) => setSort(s => (s?.key === key ? {key, dir: s.dir === 1 ? -1 : 1} : {key, dir: key === 'command' || key === 'user' ? 1 : -1}))
+  const th = (key: ProcSort, label: string, cls?: string) => (
+    <th className={cls} aria-sort={sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+      <button className="sp-sort" title={t('Sort by {column}', {column: label})} onClick={() => sortBy(key)}>{label}{sort?.key === key && <span aria-hidden="true">{sort.dir === 1 ? ' ▲' : ' ▼'}</span>}</button>
+    </th>
+  )
   const kill = async (p: ServerProcess, signal: 'TERM' | 'KILL') => {
     setKilling(0)
+    setEnding(e => [...e, p.pid])
     try { await be.server.kill(sid, p.pid, signal); toast.info(t('Sent {signal} to {pid}', {signal, pid: p.pid})); reload() } catch (e) { toast.error(errMsg(e)) }
+    setEnding(e => e.filter(x => x !== p.pid))
   }
   return (
     <div className="sp-view">
       <Bar2 busy={busy} onReload={reload}><input className="sp-filter" aria-label={t('Filter processes')} placeholder={t('Filter processes')} value={filter} onChange={e => setFilter(e.target.value)} /></Bar2>
       <Err error={error} />
       <div className="sp-table"><table>
-        <thead><tr><th>{t('PID')}</th><th>{t('Process')}</th><th>{t('User')}</th><th className="n">{t('CPU')}</th><th className="n">{t('RAM')}</th><th /></tr></thead>
+        <thead><tr>{th('pid', t('PID'))}{th('command', t('Process'))}{th('user', t('User'))}{th('cpu', t('CPU'), 'n')}{th('mem', t('RAM'), 'n')}<th /></tr></thead>
         <tbody>
           {shown.map(p => (
             <tr key={p.pid}>
@@ -214,11 +233,11 @@ function Processes({sid, visible}: {sid: string; visible: boolean}) {
               <td><div className="sp-acts">
                 {killing === p.pid ? (
                   <>
-                    <button className="danger" onClick={() => void kill(p, 'TERM')}>{t('End process')}</button>
-                    <button className="danger" onClick={() => void kill(p, 'KILL')} title={t('It cannot clean up.')}>{t('Force kill')}</button>
+                    <button className="danger" aria-busy={ending.includes(p.pid)} disabled={ending.includes(p.pid)} onClick={() => void kill(p, 'TERM')}>{t('End process')}</button>
+                    <button className="danger" aria-busy={ending.includes(p.pid)} disabled={ending.includes(p.pid)} onClick={() => void kill(p, 'KILL')} title={t('It cannot clean up.')}>{t('Force kill')}</button>
                     <button onClick={() => setKilling(0)}>{t('Cancel')}</button>
                   </>
-                ) : <button className="danger" aria-label={t('End process {pid} ({cmd})?', {pid: p.pid, cmd: p.command.split(' ')[0]})} onClick={() => setKilling(p.pid)}>{t('End')}</button>}
+                ) : <button className="danger" aria-busy={ending.includes(p.pid)} disabled={ending.includes(p.pid)} aria-label={t('End process {pid} ({cmd})?', {pid: p.pid, cmd: p.command.split(' ')[0]})} onClick={() => setKilling(p.pid)}>{t('End')}</button>}
               </div></td>
             </tr>
           ))}
@@ -266,10 +285,10 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
                 <td><div className="sp-acts">
                   {running ? (
                     <>
-                      <button disabled={working === u.name} onClick={() => void act(u, 'restart')}>{t('Restart')}</button>
-                      <button className="danger" disabled={working === u.name} onClick={() => void act(u, 'stop')}>{t('Stop')}</button>
+                      <button aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'restart')}>{t('Restart')}</button>
+                      <button className="danger" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'stop')}>{t('Stop')}</button>
                     </>
-                  ) : <button className="primary" disabled={working === u.name} onClick={() => void act(u, 'start')}>{t('Start')}</button>}
+                  ) : <button className="primary" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'start')}>{t('Start')}</button>}
                   <button onClick={() => onLogs(u.name)}>{t('Logs')}</button>
                 </div></td>
               </tr>
@@ -321,10 +340,10 @@ function Docker({sid, onLogs}: {sid: string; onLogs(s: LogSource): void}) {
       <td><div className="sp-acts">
         {c.state === 'running' ? (
           <>
-            <button disabled={working === c.name} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
-            <button className="danger" disabled={working === c.name} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
+            <button aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
+            <button className="danger" aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
           </>
-        ) : <button className="primary" disabled={working === c.name} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
+        ) : <button className="primary" aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
         <button onClick={() => onLogs({kind: 'container', name: c.name})}>{t('Logs')}</button>
       </div></td>
     </tr>
@@ -342,11 +361,11 @@ function Docker({sid, onLogs}: {sid: string; onLogs(s: LogSource): void}) {
             {g.project && (
               <div className="sp-acts">
                 <span className="sp-note">{t('{n} running', {n: g.items.filter(c => c.state === 'running').length})} / {tn(g.items.length, '{n} container', '{n} containers')}</span>
-                <button className="primary" disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'update')}>{t('Update')}</button>
-                <button disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'restart')}>{t('Restart')}</button>
+                <button className="primary" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'update')}>{t('Update')}</button>
+                <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'restart')}>{t('Restart')}</button>
                 {g.items.some(c => c.state === 'running')
-                  ? <button className="danger" disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
-                  : <button disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
+                  ? <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
+                  : <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
                 <button onClick={() => onLogs({kind: 'stack', name: g.project})}>{t('Logs')}</button>
               </div>
             )}

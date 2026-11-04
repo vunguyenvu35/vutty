@@ -16,12 +16,14 @@ interface Props {
 export function ProtocolScreen({host, onContinue, onClose}: Props) {
   const t = useT()
   const [choice, setChoice] = useState<Protocol>('ssh')
-  const options: {id: Protocol | 'mosh'; name: string; cmd: string; port: number; off?: string}[] = [
+  const all: {id: Protocol | 'mosh'; name: string; cmd: string; port: number; off?: string}[] = [
     {id: 'ssh', name: 'SSH', cmd: `ssh ${host.hostname}`, port: host.port},
     {id: 'mosh', name: 'Mosh', cmd: `mosh ${host.hostname}`, port: host.port, off: t('Not supported yet')},
     {id: 'telnet', name: 'Telnet', cmd: `telnet ${host.hostname}`, port: host.telnet_port || 23, off: host.telnet_enabled ? undefined : t('Turn it on in the host')},
     {id: 'panel', name: t('Panel'), cmd: t('Server dashboard: load, processes, services, Docker, logs'), port: host.port},
   ]
+  // what can be used first, what cannot yet at the end; each group keeps its order
+  const options = [...all.filter(o => !o.off), ...all.filter(o => o.off)]
   const portText = t('port: {port}', {port: '\u0001'}).split('\u0001')
   return (
     <ConnectScreen label={host.label} os={host.os} subtitle={host.hostname} step="choose"

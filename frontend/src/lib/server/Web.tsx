@@ -52,7 +52,7 @@ function WebServer({sid, onLogs}: {sid: string; onLogs(kind: 'web', name: string
   const t = useT()
   const toast = useToast()
   const confirm = useConfirm()
-  const [working, setWorking] = useState(false)
+  const [working, setWorking] = useState<'' | 'test' | 'reload'>('')
   const [result, setResult] = useState<ServerWebResult | null>(null)
   const load = useCallback(() => be.server.web(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerWeb>(load, null)
@@ -60,20 +60,20 @@ function WebServer({sid, onLogs}: {sid: string; onLogs(kind: 'web', name: string
   const name = kind === 'caddy' ? 'Caddy' : 'nginx'
   const test = async () => {
     if (!kind) return
-    setWorking(true)
+    setWorking('test')
     try { setResult(await be.server.webTest(sid, kind)) } catch (e) { toast.error(errMsg(e)) }
-    setWorking(false)
+    setWorking('')
   }
   const reloadServer = async () => {
     if (!kind) return
     if (!(await confirm(t('Reload {name}? It tests the configuration first and does nothing if the test fails.', {name}), {confirmLabel: t('Reload')}))) return
-    setWorking(true)
+    setWorking('reload')
     try {
       const r = await be.server.webReload(sid, kind)
       setResult(r)
       if (r.ok) toast.info(t('{name} reloaded', {name}))
     } catch (e) { toast.error(errMsg(e)) }
-    setWorking(false)
+    setWorking('')
     reload()
   }
   return (
@@ -86,8 +86,8 @@ function WebServer({sid, onLogs}: {sid: string; onLogs(kind: 'web', name: string
             <b>{name}</b>
             <span className="sp-os">{data.version}</span>
             {data.running ? <span className="sp-pill ok">{t('Running')}</span> : <span className="sp-pill bad">{t('Stopped')}</span>}
-            <button disabled={working} onClick={() => void test()}>{t('Test configuration')}</button>
-            <button className="primary" disabled={working} onClick={() => void reloadServer()}>{t('Reload')}</button>
+            <button aria-busy={working === 'test'} disabled={working !== ''} onClick={() => void test()}>{t('Test configuration')}</button>
+            <button className="primary" aria-busy={working === 'reload'} disabled={working !== ''} onClick={() => void reloadServer()}>{t('Reload')}</button>
             <button onClick={() => onLogs('web', kind)}>{t('Logs')}</button>
           </div>
           {result && <pre className={'sp-pre ' + (result.ok ? '' : 'bad')} role="status" aria-label={t('Result')}>{result.output || (result.ok ? t('The configuration is fine.') : t('The test failed.'))}</pre>}

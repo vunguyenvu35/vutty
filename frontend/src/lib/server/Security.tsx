@@ -63,7 +63,7 @@ export function Security({sid}: {sid: string}) {
                 <tr key={j.name}>
                   <td><b>{j.name}</b></td><td className="n">{j.banned}</td><td className="n">{j.total_banned}</td>
                   <td><div className="sp-chips">{j.ips.map(ip => (
-                    <span key={ip} className="sp-chip"><span className="m">{ip}</span><button disabled={working === ip} aria-label={t('Unban {ip}', {ip})} onClick={() => void unban(j.name, ip)}>{t('Unban')}</button></span>
+                    <span key={ip} className="sp-chip"><span className="m">{ip}</span><button aria-busy={working === ip} disabled={working === ip} aria-label={t('Unban {ip}', {ip})} onClick={() => void unban(j.name, ip)}>{t('Unban')}</button></span>
                   ))}{j.ips.length === 0 && '–'}</div></td>
                 </tr>
               ))}

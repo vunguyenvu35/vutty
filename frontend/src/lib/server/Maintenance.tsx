@@ -47,7 +47,7 @@ function Updates({sid}: {sid: string}) {
             {data.security > 0 && <span className="sp-pill bad">{tn(data.security, '{n} security update', '{n} security updates', {n: data.security})}</span>}
             {data.reboot_required && <span className="sp-pill warn">{t('Needs a reboot')}</span>}
             <span className="sp-os">{data.lists_age_sec >= 0 ? t('Package lists refreshed {time} ago.', {time: formatUptime(data.lists_age_sec)}) : t('Age of the package lists unknown.')}</span>
-            <button disabled={working} onClick={() => void refresh()}>{t('Refresh lists')}</button>
+            <button aria-busy={working} disabled={working} onClick={() => void refresh()}>{t('Refresh lists')}</button>
           </div>
           {data.packages.length > 0 && (
             <div className="sp-table"><table>
@@ -118,7 +118,7 @@ function Cleanup({sid}: {sid: string}) {
                   <tr key={it.id}>
                     <td><b>{names[it.id]?.[0] ?? it.id}</b><div className="sp-note">{names[it.id]?.[1] ?? it.note}</div></td>
                     <td className="n">{it.size > 0 ? formatBytes(it.size) : '–'}</td>
-                    <td><div className="sp-acts">{it.id !== 'docker-volumes' && <button className="danger" disabled={working === it.id} onClick={() => void clean(it)}>{t('Clean')}</button>}</div></td>
+                    <td><div className="sp-acts">{it.id !== 'docker-volumes' && <button className="danger" aria-busy={working === it.id} disabled={working === it.id} onClick={() => void clean(it)}>{t('Clean')}</button>}</div></td>
                   </tr>
                 ))}
               </tbody>

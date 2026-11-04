@@ -45,6 +45,7 @@ export default {
   "Kernel": "Kernel",
   "Load average": "Tải trung bình",
   "Uptime": "Thời gian chạy",
+  "Sort by {column}": "Sắp xếp theo {column}",
   "PID": "PID",
   "Process": "Tiến trình",
   "User": "Người dùng",

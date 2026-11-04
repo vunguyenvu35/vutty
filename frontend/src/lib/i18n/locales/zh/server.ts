@@ -45,6 +45,7 @@ export default {
   "Kernel": "内核",
   "Load average": "平均负载",
   "Uptime": "运行时间",
+  "Sort by {column}": "按{column}排序",
   "PID": "PID",
   "Process": "进程",
   "User": "用户",

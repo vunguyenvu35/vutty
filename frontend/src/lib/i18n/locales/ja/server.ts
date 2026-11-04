@@ -45,6 +45,7 @@ export default {
   "Kernel": "カーネル",
   "Load average": "平均負荷",
   "Uptime": "稼働時間",
+  "Sort by {column}": "{column} で並べ替え",
   "PID": "PID",
   "Process": "プロセス",
   "User": "ユーザー",
