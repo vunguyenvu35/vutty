@@ -97,6 +97,8 @@ type Host struct {
 	TerminalTheme string `json:"terminal_theme,omitempty"`
 	// AIPolicy is the AI assistant switch for this host: "" (off on prod hosts, ask elsewhere), off, ask or on.
 	AIPolicy string `json:"ai_policy,omitempty"`
+	// BackupPath is a folder on the server where its backups land: the Panel shows how old the newest file in it is.
+	BackupPath string `json:"backup_path,omitempty"`
 }
 
 type PortForward struct {

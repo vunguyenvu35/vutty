@@ -1,6 +1,6 @@
 # Panel roadmap
 
-Ideas for the next steps of **Panel**, the server dashboard that opens in a tab ([User guide](UserGuide.md#panel-a-server-dashboard-in-a-tab)). They are aimed at solo developers who run one or a few VPSs by hand.
+Status: items 1–11 are built (see the notes in [RELEASE_NOTES.md](../RELEASE_NOTES.md)); 12 is covered by Snippets; 13 is on hold, to be watched. Ideas for the next steps of **Panel**, the server dashboard that opens in a tab ([User guide](UserGuide.md#panel-a-server-dashboard-in-a-tab)). They are aimed at solo developers who run one or a few VPSs by hand.
 
 These are hypotheses, not measured demand. Before building, confirm them with a few VPS users or by counting which Panel tabs are opened most.
 
@@ -27,7 +27,7 @@ Professional sysadmins and SREs already have monitoring (Grafana, Datadog) and u
 | 2 | Disk and resource history | CPU, memory and disk sampled while the tab is open, as a short chart; a warning when a disk is nearly full | read only |
 | 3 | Nginx / Caddy | Sites and upstreams, `nginx -t`, reload only after a passing test, error log | confirm on reload |
 | 4 | Docker Compose by project | Group containers by stack (`docker compose ls/ps`); pull, up -d, restart and logs for a whole stack | confirm on change |
-| 5 | Live logs | Follow `journalctl -f` and `docker logs -f`, with a level filter and search | read only |
+| 5 | Live logs | *Follow* re-reads the log every 2 seconds (not a true `-f` stream), with a level filter and search | read only |
 
 Suggested order: 1, 2, 3, 4. Expired certificates and full disks are the common silent outages, and Nginx and Compose are the common stack.
 
@@ -46,8 +46,8 @@ Suggested order: 1, 2, 3, 4. Expired certificates and full disks are the common 
 | # | Feature | What it does |
 |---|---------|--------------|
 | 11 | Fleet overview | One screen for all saved hosts, one row each (up or down, load, disk, failed services). Most useful for people with several VPSs |
-| 12 | Runbooks | Saved, user-defined actions such as "deploy app X" (`git pull && docker compose up -d`), run with one button after a confirmation that shows the exact command |
-| 13 | AI assistant | Ask "why did this service crash?" from Panel with the relevant log in context, subject to the redaction rules in [AIAssistant.md](AIAssistant.md) |
+| 12 | Runbooks | Not built: Snippets already cover saved commands |
+| 13 | AI assistant (on hold, observing) | Ask "why did this service crash?" from Panel with the relevant log in context, subject to the redaction rules in [AIAssistant.md](AIAssistant.md) |
 
 ## Open questions
 

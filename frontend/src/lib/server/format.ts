@@ -33,3 +33,17 @@ const WARNING = /\b(warn(ing)?)\b/i
 export function logLevel(line: string): 'err' | 'warn' | '' {
   return PROBLEM.test(line) ? 'err' : WARNING.test(line) ? 'warn' : ''
 }
+
+/** how worried to be about a certificate: it should be renewed long before the last week. */
+export function certLevel(daysLeft: number): 'ok' | 'warn' | 'bad' {
+  return daysLeft < 7 ? 'bad' : daysLeft < 14 ? 'warn' : 'ok'
+}
+
+/** how old the newest backup is, as a colour: a daily job that missed two nights is a warning, a week is a problem. */
+export function backupLevel(ageSec: number): 'ok' | 'warn' | 'bad' {
+  return ageSec > 8 * 86400 ? 'bad' : ageSec > 2 * 86400 ? 'warn' : 'ok'
+}
+
+/** the part of a path a cleanup or a backup check may be asked about: absolute, no "..", only plain characters. */
+export const PATH_RE = /^\/[A-Za-z0-9_./-]{0,200}$/
+export const validPath = (p: string) => PATH_RE.test(p) && !p.split('/').includes('..')

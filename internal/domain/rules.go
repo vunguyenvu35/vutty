@@ -4,9 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// serverPathRe is the shape of a folder the Panel may look at on a server: absolute, nothing a shell would read.
+var serverPathRe = regexp.MustCompile(`^/[A-Za-z0-9_./-]{0,200}$`)
+
+// ValidServerPath reports whether p is an absolute path of letters, digits and . _ - / without a ".." step.
+func ValidServerPath(p string) bool {
+	return serverPathRe.MatchString(p) && !strings.Contains(p, "..")
+}
 
 // MaxJumpDepth bounds jump host chains to avoid loops.
 const MaxJumpDepth = 8
@@ -78,6 +87,9 @@ func NormalizeHost(h *Host) error {
 	case "", "off", "ask", "on":
 	default:
 		return fmt.Errorf("invalid assistant policy %q", h.AIPolicy)
+	}
+	if h.BackupPath != "" && !ValidServerPath(h.BackupPath) {
+		return errors.New("invalid backup folder")
 	}
 	if len(h.TerminalTheme) > 40 || strings.ContainsAny(h.TerminalTheme, " \t\r\n\x00/\\") {
 		return errors.New("invalid terminal theme")

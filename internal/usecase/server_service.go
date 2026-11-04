@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	serverOutputCap = 512 << 10
-	serverTimeout   = 20 * time.Second
-	serverMaxProcs  = 60
-	serverLogLines  = 300
+	serverOutputCap   = 512 << 10
+	serverTimeout     = 20 * time.Second
+	serverMaxProcs    = 60
+	serverLogLines    = 300
+	serverLongTimeout = 120 * time.Second // du, apt, docker prune, compose pull
 )
 
 // ServerInfo describes a new Server session.
@@ -128,11 +129,21 @@ func (s *ServerService) get(sid string) (*serverSession, error) {
 
 // run executes a script on the server and returns what it printed. A script that fails returns its output in the error.
 func (s *ServerService) run(sid, script string) (string, error) {
+	return s.runTimeout(sid, script, serverTimeout)
+}
+
+// runTimeout is run with a time limit of its own, for what takes long (du, apt, docker prune, compose pull).
+func (s *ServerService) runTimeout(sid, script string, limit time.Duration) (string, error) {
 	x, err := s.get(sid)
 	if err != nil {
 		return "", err
 	}
-	sess, err := x.client.NewSession()
+	return runScript(x.client, script, limit)
+}
+
+// runScript runs a script on an open connection, on a session of its own.
+func runScript(cl *sshx.Client, script string, limit time.Duration) (string, error) {
+	sess, err := cl.NewSession()
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +151,7 @@ func (s *ServerService) run(sid, script string) (string, error) {
 	var out, errOut capped
 	out.max, errOut.max = serverOutputCap, 16<<10
 	sess.Stdout, sess.Stderr = &out, &errOut
-	timer := time.AfterFunc(serverTimeout, func() { _ = sess.Close() })
+	timer := time.AfterFunc(limit, func() { _ = sess.Close() })
 	defer timer.Stop()
 	err = sess.Run("LC_ALL=C; export LC_ALL; " + script)
 	if err == nil {
@@ -275,7 +286,8 @@ func (s *ServerService) ContainerAction(sid, name, action string) error {
 	return err
 }
 
-// Logs returns the last lines of the system journal, of one service (kind "service") or of one container (kind "container");
+// Logs returns the last lines of the system journal, of one service (kind "service"), of one container (kind "container"), of a
+// Compose project (kind "stack") or of the web server (kind "web", name nginx or caddy);
 // with an empty name and kind, of the whole system.
 func (s *ServerService) Logs(sid, kind, name string) (string, error) {
 	var cmd string
@@ -286,6 +298,15 @@ func (s *ServerService) Logs(sid, kind, name string) (string, error) {
 		return "", errors.New("that is not a valid name")
 	case kind == "service":
 		cmd = fmt.Sprintf("journalctl -u %s.service -n %d --no-pager -o short-iso 2>&1", name, serverLogLines)
+	case kind == "stack":
+		if !composeNameRe.MatchString(name) {
+			return "", errors.New("that is not a Compose project name")
+		}
+		cmd = composeScript(name, fmt.Sprintf("logs --tail %d --timestamps --no-color", serverLogLines))
+	case kind == "web":
+		if cmd = webLogCommand(name); cmd == "" {
+			return "", errors.New("that is not a web server")
+		}
 	case kind == "container":
 		cmd = fmt.Sprintf("(docker logs --tail %[1]d --timestamps %[2]s 2>&1 || $SUDO docker logs --tail %[1]d --timestamps %[2]s 2>&1)", serverLogLines, name)
 	default:

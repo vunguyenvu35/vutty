@@ -57,3 +57,18 @@
 @media (prefers-reduced-motion: reduce) { .sp-track i { transition: none; } }
 .sp-view.fill { flex: 1; min-height: 0; }
 .sp-head .sp-access { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text); }
+
+/* the tabs that hold several boxes (Web, Maintenance, Security, Schedule) and the stacks of the Docker tab */
+.sp-wide { gap: 10px; }
+.sp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.sp-card-head h3 { margin: 0; }
+.sp-card-head .sp-bar { margin-left: auto; }
+.sp-pre { margin: 0; padding: 10px 12px; background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+.sp-pre.bad { border-color: var(--danger); color: var(--danger); }
+.sp-meter { min-width: 220px; }
+.sp-meter .sp-track { margin: 0 0 4px; }
+.sp-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-align: left; }
+.sp-link:hover:not(:disabled) { text-decoration: underline; background: none; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 2px 1px 8px; border: 1px solid var(--line); border-radius: 12px; font-size: 12px; }
+.sp-chip button { padding: 1px 8px; font-size: 11.5px; border-radius: 10px; }

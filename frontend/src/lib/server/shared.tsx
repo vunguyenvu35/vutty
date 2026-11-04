@@ -1,8 +1,9 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {useBackend} from '../backend'
 import type {TFn} from '../i18n'
 import {useT} from '../i18n'
 import {AuthPrompt} from '../ui/AuthPrompt'
+import {IconRefresh} from '../ui/Icons'
 import {authenticity} from '../sftp/RemotePane'
 import {errMsg} from '../util'
 import type {AuthChallenge, Host, HostKeyPrompt} from '../types'
@@ -134,4 +135,38 @@ export function actionQuestion(t: TFn, kind: 'service' | 'container', action: Se
   if (action === 'start') return {message: t('Start the container {name}?', p), label: t('Start')}
   if (action === 'restart') return {message: t('Restart the container {name}? Its connections drop for a moment.', p), label: t('Restart')}
   return {message: t('Stop the container {name}?', p), label: t('Stop')}
+}
+
+export type StackAction = ServerAction | 'update'
+
+/** The question asked before a Compose project is started, stopped, restarted or updated. */
+export function stackQuestion(t: TFn, action: StackAction, name: string): {message: string; label: string} {
+  const p = {name}
+  if (action === 'update') return {message: t('Update the stack {name}? It pulls the new images and recreates the containers that changed.', p), label: t('Update')}
+  if (action === 'start') return {message: t('Start all containers of {name}?', p), label: t('Start')}
+  if (action === 'restart') return {message: t('Restart all containers of {name}? Their connections drop for a moment.', p), label: t('Restart')}
+  return {message: t('Stop all containers of {name}?', p), label: t('Stop')}
+}
+
+/** The bar above a table: what is on the left, and the refresh button at the right. */
+export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): void; children?: ReactNode}) {
+  const t = useT()
+  return (
+    <div className="sp-bar">
+      {children}
+      <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={busy} onClick={onReload}><IconRefresh size={14} /></button>
+    </div>
+  )
+}
+
+export const Err = ({error}: {error: string}) => (error ? <div className="error" role="alert">{error}</div> : null)
+
+/** A box of the page with a title: the unit of every section that has more than one thing to show. */
+export function Card({title, children, right}: {title: string; children: ReactNode; right?: ReactNode}) {
+  return (
+    <section className="sp-card sp-wide">
+      <div className="sp-card-head"><h3>{title}</h3>{right}</div>
+      {children}
+    </section>
+  )
 }

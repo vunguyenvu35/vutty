@@ -366,6 +366,23 @@ func TestHostForwardAgentRoundTrips(t *testing.T) {
 	}
 }
 
+func TestHostBackupPathRoundTrips(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	now := time.Now()
+	data := domain.Data{Hosts: []domain.Host{{Meta: domain.Meta{ID: "a", UpdatedAt: now}, Label: "web", Hostname: "10.0.0.2", Port: 22, CreatedAt: now, BackupPath: "/srv/backups"}}}
+	if err := d.StorePersister().Save(data); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := d.StorePersister().Load()
+	if err != nil || len(got.Hosts) != 1 || got.Hosts[0].BackupPath != "/srv/backups" {
+		t.Fatalf("%v %+v", err, got.Hosts)
+	}
+}
+
 func TestIdentityCertificateRoundTrips(t *testing.T) {
 	d, err := Open(filepath.Join(t.TempDir(), "c.db"))
 	if err != nil {

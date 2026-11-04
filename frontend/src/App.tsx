@@ -32,6 +32,7 @@ import {SUGGEST_POPUP} from './lib/terminal/suggester'
 import {SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SidebarTab, TerminalSidebar} from './lib/terminal/Sidebar'
 import {DEFAULT_SETTINGS} from './lib/settings/defaults'
 import {Nav, Page} from './lib/shell/Nav'
+import {FleetPage} from './lib/server/FleetPage'
 import {TopBar} from './lib/shell/TopBar'
 import {IconPlus, IconSerial, IconTerminal} from './lib/ui/Icons'
 import {recordRecent} from './lib/hosts/recent'
@@ -293,6 +294,13 @@ export default function App({initial}: {/** an app window opened for this place 
     recordRecent(h.id)
     const t = newTab(h.id, '')
     setTabs(ts => [...ts, {...t, title: uniqueTitle(ts, h.label)}])
+    setActive(t.id)
+  }
+  // "Open panel" in the Fleet page: the server dashboard of that host in a tab of its own
+  const openPanel = (h: Host) => {
+    recordRecent(h.id)
+    const t = newTab(h.id, '')
+    setTabs(ts => [...ts, {...t, kind: 'server' as const, title: uniqueTitle(ts, h.label + ' (Panel)')}])
     setActive(t.id)
   }
   // the answer of a tab that asked which protocol to use: the same tab goes on with it
@@ -590,6 +598,7 @@ export default function App({initial}: {/** an app window opened for this place 
             )}
             {page === 'knownhosts' && <KnownHostsPage />}
             {page === 'logs' && <LogsPage />}
+            {page === 'fleet' && <FleetPage hosts={hosts} onPanel={openPanel} />}
 
             {page === 'forwards' && (
               <PortForwardsPage hosts={hosts} draft={dialog?.k === 'forward' && !dialog.forward ? fwDraft : undefined} reloadKey={fwTick}

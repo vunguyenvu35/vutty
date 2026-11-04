@@ -2,7 +2,7 @@ import {ReactNode} from 'react'
 import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
-import type {ExecRun, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -57,6 +57,17 @@ export interface Fake extends Backend {
       docker: ServerContainers
       logs: string
       ports: ServerPorts
+      certs: ServerCerts
+      web: ServerWeb
+      webResult: ServerWebResult
+      updates: ServerUpdates
+      cleanup: ServerCleanup
+      folders: Record<string, ServerFolder[]>
+      security: ServerSecurity
+      schedule: ServerSchedule
+      backup: ServerBackup
+      /** what fleetHost answers per host id: an error text means the host did not answer */
+      fleetErrors: Record<string, string>
       failAction: string
       openError: string
     }
@@ -167,9 +178,19 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         disk_total: 50 * GB, disk_used: 39 * GB, net_rx: 120000, net_tx: 45000, root: false},
       processes: [{pid: 2210, user: 'app', cpu: 38.5, mem: 12.4, command: 'node server.js'}, {pid: 3011, user: 'redis', cpu: 1.3, mem: 2.6, command: 'redis-server *:6379'}],
       units: [{name: 'app-worker', description: 'Job queue', active: 'failed', sub: 'failed', enabled: 'enabled'}, {name: 'nginx', description: 'Web server', active: 'active', sub: 'running', enabled: 'enabled'}],
-      docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: ''}]},
+      docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp', project: 'shop'}, {id: 'c3', name: 'db', image: 'postgres:16', state: 'running', status: 'Up 2 hours', ports: '', project: 'shop'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: '', project: ''}]},
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
       ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}]},
+      certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
+      web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
+      webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
+      updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
+      cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
+      folders: {'/var': [{path: '/var/lib', size: 12 * GB}, {path: '/var/log', size: 2 * GB}], '/var/lib': [{path: '/var/lib/docker', size: 10 * GB}]},
+      security: {fail2ban: {installed: true, running: true, jails: [{name: 'sshd', banned: 2, total_banned: 41, ips: ['203.0.113.5', '198.51.100.7']}]}, ssh: {known: true, port: 22, root_login: 'yes', password_auth: 'yes'}, failed: {known: true, total: 240, top: [{ip: '203.0.113.9', count: 180}]}},
+      schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}]},
+      backup: {found: true, file: 'db-2026-11-02.sql.gz', size: GB / 8, mtime: 1790000000 - 3 * 86400, now: 1790000000},
+      fleetErrors: {},
       failAction: '',
       openError: '',
     },
@@ -537,6 +558,37 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       },
       logs: async (sid, kind, name) => { rec('server.logs', kind, name); return state.server.logs },
       ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),
+      stackAction: async (sid, project, action) => {
+        rec('server.stackAction', project, action)
+        if (state.server.failAction) throw state.server.failAction
+        if (action === 'stop' || action === 'start') state.server.docker.containers = state.server.docker.containers.map(c => (c.project === project ? {...c, state: action === 'stop' ? 'exited' : 'running'} : c))
+      },
+      certificates: async () => ({found: state.server.certs.found, certs: state.server.certs.certs.map(c => ({...c}))}),
+      web: async () => ({...state.server.web, sites: state.server.web.sites.map(x => ({...x}))}),
+      webTest: async (sid, kind) => { rec('server.webTest', kind); return {...state.server.webResult} },
+      webReload: async (sid, kind) => { rec('server.webReload', kind); if (state.server.failAction) throw state.server.failAction; return {...state.server.webResult} },
+      updates: async () => ({...state.server.updates, packages: state.server.updates.packages.map(p => ({...p}))}),
+      updatesRefresh: async () => { rec('server.updatesRefresh'); if (state.server.failAction) throw state.server.failAction },
+      cleanup: async () => ({disks: state.server.cleanup.disks.map(d => ({...d})), items: state.server.cleanup.items.map(i => ({...i}))}),
+      cleanupRun: async (sid, id) => {
+        rec('server.cleanupRun', id)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.cleanup.items = state.server.cleanup.items.filter(i => i.id !== id)
+      },
+      diskUsage: async (sid, path) => { rec('server.diskUsage', path); return (state.server.folders[path] ?? []).map(f => ({...f})) },
+      security: async () => JSON.parse(JSON.stringify(state.server.security)),
+      unban: async (sid, jail, ip) => {
+        rec('server.unban', jail, ip)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.security.fail2ban.jails = state.server.security.fail2ban.jails.map(j => (j.name === jail ? {...j, banned: j.banned - 1, ips: j.ips.filter(x => x !== ip)} : j))
+      },
+      schedule: async () => JSON.parse(JSON.stringify(state.server.schedule)),
+      backup: async (sid, path) => { rec('server.backup', path); return {...state.server.backup} },
+      fleetHost: async hostId => {
+        rec('server.fleetHost', hostId)
+        const err = state.server.fleetErrors[hostId]
+        return err ? {host_id: hostId, error: err, overview: {...state.server.overview}, failed_units: 0, latency_ms: 0} : {host_id: hostId, error: '', overview: {...state.server.overview}, failed_units: 1, latency_ms: 42}
+      },
     },
     local: {
       home: async () => '/Users/me',

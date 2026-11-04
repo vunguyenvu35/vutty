@@ -4,7 +4,7 @@ import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth,
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, ServerContainers, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerUnit,
+  McpImportItem, McpServer, McpServerInput, McpTool, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
 } from './types'
 
 /**
@@ -218,8 +218,31 @@ export interface Backend {
     serviceAction(sid: string, name: string, action: 'start' | 'stop' | 'restart' | 'enable' | 'disable'): Promise<void>
     containers(sid: string): Promise<ServerContainers>
     containerAction(sid: string, name: string, action: 'start' | 'stop' | 'restart'): Promise<void>
-    /** the last lines of the journal: kind is '' (the whole system), 'service' or 'container' */
-    logs(sid: string, kind: '' | 'service' | 'container', name: string): Promise<string>
+    /** the last lines of the journal: kind is '' (the whole system), 'service', 'container', 'stack' (a Compose project) or 'web' (name: nginx or caddy) */
+    logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string): Promise<string>
+    /** start, stop or restart every container of a Compose project, or 'update' it (pull the images, then up -d) */
+    stackAction(sid: string, project: string, action: 'start' | 'stop' | 'restart' | 'update'): Promise<void>
+    certificates(sid: string): Promise<ServerCerts>
+    web(sid: string): Promise<ServerWeb>
+    /** nginx -t / caddy validate: changes nothing */
+    webTest(sid: string, kind: 'nginx' | 'caddy'): Promise<ServerWebResult>
+    /** tests the configuration and reloads only when it passed */
+    webReload(sid: string, kind: 'nginx' | 'caddy'): Promise<ServerWebResult>
+    updates(sid: string): Promise<ServerUpdates>
+    /** refreshes the package lists (apt-get update, dnf makecache) */
+    updatesRefresh(sid: string): Promise<void>
+    cleanup(sid: string): Promise<ServerCleanup>
+    /** runs one cleanup by id (see ServerReclaim); docker-volumes is refused */
+    cleanupRun(sid: string, id: string): Promise<void>
+    /** the folders directly under path (an absolute path of letters, digits and . _ - /), biggest first */
+    diskUsage(sid: string, path: string): Promise<ServerFolder[]>
+    security(sid: string): Promise<ServerSecurity>
+    unban(sid: string, jail: string, ip: string): Promise<void>
+    schedule(sid: string): Promise<ServerSchedule>
+    /** the newest file under path on the server */
+    backup(sid: string, path: string): Promise<ServerBackup>
+    /** one saved host: connects on its own, answers or says why not (never asks a question) */
+    fleetHost(hostId: string): Promise<ServerFleetHost>
     /** the TCP ports something listens on, with what the ufw firewall says about each (read only: the panel never changes the firewall) */
     ports(sid: string): Promise<ServerPorts>
   }
@@ -471,6 +494,21 @@ export function wailsBackend(): Backend {
       containers: async s => { const r = await u<ServerContainers>('ServerService', 'Containers', s); return {...r, containers: r.containers ?? []} },
       containerAction: (s, n, a) => u('ServerService', 'ContainerAction', s, n, a),
       logs: (s, k, n) => u('ServerService', 'Logs', s, k, n),
+      stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),
+      certificates: async s => { const r = await u<ServerCerts>('ServerService', 'Certificates', s); return {...r, certs: r.certs ?? []} },
+      web: async s => { const r = await u<ServerWeb>('ServerService', 'Web', s); return {...r, sites: (r.sites ?? []).map(x => ({...x, names: x.names ?? [], listen: x.listen ?? [], targets: x.targets ?? []}))} },
+      webTest: (s, k) => u('ServerService', 'WebTest', s, k),
+      webReload: (s, k) => u('ServerService', 'WebReload', s, k),
+      updates: async s => { const r = await u<ServerUpdates>('ServerService', 'Updates', s); return {...r, packages: r.packages ?? []} },
+      updatesRefresh: s => u('ServerService', 'UpdatesRefresh', s),
+      cleanup: async s => { const r = await u<ServerCleanup>('ServerService', 'Cleanup', s); return {disks: r.disks ?? [], items: r.items ?? []} },
+      cleanupRun: (s, id) => u('ServerService', 'CleanupRun', s, id),
+      diskUsage: async (s, p) => (await u<ServerFolder[]>('ServerService', 'DiskUsage', s, p)) ?? [],
+      security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
+      unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
+      schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? []} },
+      backup: (s, p) => u('ServerService', 'Backup', s, p),
+      fleetHost: h => u('ServerService', 'FleetHost', h),
       ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },
     },
     local: {

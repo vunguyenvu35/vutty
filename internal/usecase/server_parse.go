@@ -47,12 +47,13 @@ type ServerUnit struct {
 
 // ServerContainer is a Docker container.
 type ServerContainer struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Image  string `json:"image"`
-	State  string `json:"state"` // running, exited, paused…
-	Status string `json:"status"`
-	Ports  string `json:"ports"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Image   string `json:"image"`
+	State   string `json:"state"` // running, exited, paused…
+	Status  string `json:"status"`
+	Ports   string `json:"ports"`
+	Project string `json:"project"` // the Docker Compose project it belongs to ("" when Compose did not start it)
 }
 
 // ServerContainers is the Docker section: Installed is false when the server has no docker command.
@@ -262,11 +263,11 @@ func parseContainers(out string) ServerContainers {
 		if !strings.HasPrefix(ln, "{") {
 			continue
 		}
-		var j struct{ ID, Names, Image, State, Status, Ports string }
+		var j struct{ ID, Names, Image, State, Status, Ports, Labels string }
 		if json.Unmarshal([]byte(ln), &j) != nil {
 			continue
 		}
-		res.Containers = append(res.Containers, ServerContainer{ID: j.ID, Name: j.Names, Image: j.Image, State: j.State, Status: j.Status, Ports: j.Ports})
+		res.Containers = append(res.Containers, ServerContainer{ID: j.ID, Name: j.Names, Image: j.Image, State: j.State, Status: j.Status, Ports: j.Ports, Project: composeProject(j.Labels)})
 	}
 	sort.SliceStable(res.Containers, func(i, j int) bool {
 		a, b := res.Containers[i], res.Containers[j]

@@ -23,7 +23,7 @@ describe('Server panel (tab)', () => {
     expect(screen.getByRole('meter', {name: 'Disk /'})).toHaveAttribute('aria-valuenow', '78')
     expect(await screen.findByText('app-worker has failed')).toBeInTheDocument() // from the failed service
     expect(screen.getByText('The disk is 78% full')).toBeInTheDocument()
-    await userEvent.click(within(screen.getByText('app-worker has failed').parentElement!.parentElement!).getByRole('button', {name: 'Open'}))
+    await userEvent.click(within(screen.getByText('app-worker has failed').closest('.sp-attn') as HTMLElement).getByRole('button', {name: 'Open'}))
     expect(await screen.findByRole('columnheader', {name: 'Startup'})).toBeInTheDocument() // went to Services
   })
 

@@ -36,6 +36,8 @@ export interface Host {
   terminal_theme?: string
   /** the AI assistant switch of this host: '' (off on prod hosts, ask elsewhere), off, ask or on */
   ai_policy?: AiPolicy
+  /** a folder on the server where backups land: the Panel shows how old the newest file in it is (set from the Panel, not the host form) */
+  backup_path?: string
 }
 
 export interface Identity {
@@ -537,6 +539,8 @@ export interface ServerContainer {
   state: string
   status: string
   ports: string
+  /** the Docker Compose project it belongs to ('' when it was not started by Compose) */
+  project: string
 }
 export interface ServerContainers {
   installed: boolean
@@ -554,4 +558,131 @@ export interface ServerPorts {
   /** ufw: 'active' or 'inactive'; 'unknown' when the server has none or the login may not ask */
   firewall: 'active' | 'inactive' | 'unknown'
   ports: ServerPort[]
+}
+
+/** Let's Encrypt certificates found on the server (read only). */
+export interface ServerCert {
+  /** the folder name under /etc/letsencrypt/live */
+  name: string
+  domains: string[]
+  /** unix seconds */
+  not_after: number
+  days_left: number
+}
+export interface ServerCerts {
+  /** /etc/letsencrypt was found (and could be read) */
+  found: boolean
+  certs: ServerCert[]
+}
+/** One server { } block of nginx, or one site of a Caddyfile. */
+export interface ServerSite {
+  names: string[]
+  listen: string[]
+  /** proxy_pass, fastcgi_pass, root, reverse_proxy… */
+  targets: string[]
+}
+export interface ServerWeb {
+  /** 'nginx', 'caddy' or '' when neither is installed */
+  kind: '' | 'nginx' | 'caddy'
+  version: string
+  running: boolean
+  sites: ServerSite[]
+}
+/** What nginx -t (caddy validate) printed; for a reload, ok means it passed and the server was reloaded. */
+export interface ServerWebResult {
+  ok: boolean
+  output: string
+}
+export interface ServerPackage {
+  name: string
+  version: string
+  security: boolean
+}
+export interface ServerUpdates {
+  /** 'apt', 'dnf', 'yum' or '' when none is known */
+  manager: '' | 'apt' | 'dnf' | 'yum'
+  count: number
+  security: number
+  reboot_required: boolean
+  /** seconds since the package lists were refreshed, -1 when unknown */
+  lists_age_sec: number
+  packages: ServerPackage[]
+}
+export interface ServerDisk {
+  mount: string
+  device: string
+  total: number
+  used: number
+}
+/** Something that can be cleaned, and about how much it would free. docker-volumes is shown only: it is never cleaned from the Panel. */
+export interface ServerReclaim {
+  id: 'docker-dangling' | 'docker-images' | 'journal' | 'apt-cache' | 'docker-volumes'
+  /** bytes, 0 when unknown */
+  size: number
+  note: string
+}
+export interface ServerCleanup {
+  disks: ServerDisk[]
+  items: ServerReclaim[]
+}
+export interface ServerFolder {
+  path: string
+  size: number
+}
+export interface ServerJail {
+  name: string
+  banned: number
+  total_banned: number
+  ips: string[]
+}
+export interface ServerSecurity {
+  fail2ban: {installed: boolean; running: boolean; jails: ServerJail[]}
+  /** sshd -T; known is false when the login may not ask */
+  ssh: {known: boolean; port: number; root_login: string; password_auth: string}
+  /** failed SSH logins in the last 24 hours, by address, most first; known is false when there is no log to read */
+  failed: {known: boolean; total: number; top: Array<{ip: string; count: number}>}
+}
+export interface ServerTimer {
+  /** the timer unit, e.g. backup.timer */
+  name: string
+  description: string
+  /** the unit it starts, e.g. backup.service */
+  unit: string
+  /** as the server prints them ('' when never or unknown) */
+  next: string
+  last: string
+  /** how the last run of the unit ended: success, exit-code… ('' when unknown) */
+  result: string
+}
+export interface ServerCron {
+  /** where the line is: 'crontab' (the login's own), 'root', '/etc/crontab' or '/etc/cron.d/<file>' */
+  source: string
+  user: string
+  schedule: string
+  command: string
+}
+export interface ServerSchedule {
+  timers: ServerTimer[]
+  cron: ServerCron[]
+}
+export interface ServerBackup {
+  /** a file was found under the path */
+  found: boolean
+  /** the newest file, relative to the path */
+  file: string
+  size: number
+  /** unix seconds */
+  mtime: number
+  /** now on the server, unix seconds, so that the age does not depend on this computer's clock */
+  now: number
+}
+/** One saved host as the fleet overview sees it: a one-off connection, no prompts (a host key that is not trusted yet is an error). */
+export interface ServerFleetHost {
+  host_id: string
+  /** empty when the host answered */
+  error: string
+  overview: ServerOverview
+  failed_units: number
+  /** how long the SSH connection took, in milliseconds */
+  latency_ms: number
 }

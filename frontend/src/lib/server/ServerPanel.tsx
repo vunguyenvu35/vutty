@@ -1,20 +1,40 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {useBackend} from '../backend'
-import {useT} from '../i18n'
+import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {IconRefresh, IconTerminal} from '../ui/Icons'
+import {IconTerminal} from '../ui/Icons'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, useLoad, useServerConnection, type ServerAction} from './shared'
-import {formatRate, formatUptime, level, logLevel, pct} from './format'
-import type {Host, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit} from '../types'
+import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction} from './shared'
+import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
+import {Web} from './Web'
+import {Maintenance} from './Maintenance'
+import {Security} from './Security'
+import {Schedule} from './Schedule'
+import type {Host, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
-type Section = 'overview' | 'processes' | 'services' | 'docker' | 'logs' | 'ports'
-interface LogSource {kind: '' | 'service' | 'container'; name: string}
+type Section = 'overview' | 'processes' | 'services' | 'docker' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule'
+interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web'; name: string}
 
 const POLL_MS = 5000
-const HISTORY = 40
+const FOLLOW_MS = 2000
+/** how many samples of the overview are kept: 5 s apart, so half an hour */
+const HISTORY = 360
+
+/** The overview of the server, asked again every few seconds while the tab is shown (whatever section is open) and the samples kept for the charts. */
+function useOverviewFeed(sid: string, visible: boolean) {
+  const be = useBackend()
+  const [hist, setHist] = useState<{cpu: number[]; mem: number[]; disk: number[]; net: number[]}>({cpu: [], mem: [], disk: [], net: []})
+  const load = useCallback(async () => {
+    const o = await be.server.overview(sid)
+    const keep = (h: number[], v: number) => [...h, v].slice(-HISTORY)
+    setHist(h => ({cpu: keep(h.cpu, o.cpu_pct), mem: keep(h.mem, pct(o.mem_used, o.mem_total)), disk: keep(h.disk, pct(o.disk_used, o.disk_total)), net: keep(h.net, o.net_rx + o.net_tx)}))
+    return o
+  }, [be, sid])
+  return {...useLoad<ServerOverview>(load, visible ? POLL_MS : null), hist}
+}
+type Feed = ReturnType<typeof useOverviewFeed>
 
 /**
  * A Server tab: the whole of a server in one page (load, processes, services, Docker, logs, ports and the firewall), over an SSH
@@ -26,7 +46,7 @@ export function ServerPanel({host, visible, onAccess}: {host: Host; visible: boo
   const {phase, sid, notice} = useServerConnection(host)
   const [section, setSection] = useState<Section>('overview')
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
-  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['logs', t('Logs')], ['ports', t('Ports & firewall')]]
+  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['schedule', t('Schedule')]]
   const showLogs = (s: LogSource) => { setSource(s); setSection('logs') }
   return (
     <div className="sp" role="region" aria-label={t('Server panel of {name}', {name: host.label})}>
@@ -36,6 +56,17 @@ export function ServerPanel({host, visible, onAccess}: {host: Host; visible: boo
         {onAccess && <button className="sp-access" onClick={onAccess} title={t('Open a terminal on this host in a new tab')}><IconTerminal size={14} /> {t('Access host')}</button>}
       </div>
       {phase === 'ready' && sid ? (
+        <Ready sid={sid} host={host} visible={visible} section={section} setSection={setSection} source={source} setSource={setSource} sections={sections} showLogs={showLogs} />
+      ) : <div className="sp-notice">{notice}</div>}
+    </div>
+  )
+}
+
+/** The part of the panel that needs the connection: the section tabs and the open section. */
+function Ready({sid, host, visible, section, setSection, source, setSource, sections, showLogs}: {sid: string; host: Host; visible: boolean; section: Section; setSection(s: Section): void; source: LogSource; setSource(s: LogSource): void; sections: [Section, string][]; showLogs(s: LogSource): void}) {
+  const t = useT()
+  const feed = useOverviewFeed(sid, visible)
+  return (
         <>
           <div className="sp-tabs" role="tablist" aria-label={t('Server sections')}>
             {sections.map(([id, label]) => (
@@ -43,26 +74,29 @@ export function ServerPanel({host, visible, onAccess}: {host: Host; visible: boo
             ))}
           </div>
           <div className="sp-body">
-            {section === 'overview' && <Overview sid={sid} visible={visible} onGo={setSection} />}
+            {section === 'overview' && <Overview sid={sid} host={host} feed={feed} onGo={setSection} />}
             {section === 'processes' && <Processes sid={sid} visible={visible} />}
             {section === 'services' && <Services sid={sid} onLogs={name => showLogs({kind: 'service', name})} />}
-            {section === 'docker' && <Docker sid={sid} onLogs={name => showLogs({kind: 'container', name})} />}
-            {section === 'logs' && <Logs sid={sid} source={source} onSource={setSource} />}
+            {section === 'docker' && <Docker sid={sid} onLogs={showLogs} />}
+            {section === 'web' && <Web sid={sid} onLogs={(kind, name) => showLogs({kind, name})} />}
+            {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} />}
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
+            {section === 'maintenance' && <Maintenance sid={sid} />}
+            {section === 'security' && <Security sid={sid} />}
+            {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
           </div>
         </>
-      ) : <div className="sp-notice">{notice}</div>}
-    </div>
   )
 }
 
-function Bar({label, value, note}: {label: string; value: number; note: string}) {
+function Bar({label, value, note, data}: {label: string; value: number; note: string; data?: number[]}) {
   return (
     <div className="sp-card">
       <h3>{label}</h3>
       <div className="sp-big">{value}<small>%</small></div>
       <div className={'sp-track ' + level(value)} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}><i style={{width: value + '%'}} /></div>
       <div className="sp-note">{note}</div>
+      {data && <Spark data={data} max={100} />}
     </div>
   )
 }
@@ -82,50 +116,48 @@ function Spark({data, max}: {data: number[]; max: number}) {
   )
 }
 
-function Bar2({busy, onReload, children}: {busy: boolean; onReload(): void; children?: ReactNode}) {
-  const t = useT()
-  return (
-    <div className="sp-bar">
-      {children}
-      <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={busy} onClick={onReload}><IconRefresh size={14} /></button>
-    </div>
-  )
-}
+const Bar2 = Toolbar
 
-const Err = ({error}: {error: string}) => (error ? <div className="error" role="alert">{error}</div> : null)
-
-function Overview({sid, visible, onGo}: {sid: string; visible: boolean; onGo(s: Section): void}) {
+function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed; onGo(s: Section): void}) {
   const be = useBackend()
   const t = useT()
-  const [cpu, setCpu] = useState<number[]>([])
-  const [net, setNet] = useState<number[]>([])
-  const load = useCallback(async () => {
-    const o = await be.server.overview(sid)
-    setCpu(h => [...h, o.cpu_pct].slice(-HISTORY))
-    setNet(h => [...h, o.net_rx + o.net_tx].slice(-HISTORY))
-    return o
-  }, [be, sid])
-  const {data: o, error, busy, reload} = useLoad<ServerOverview>(load, visible ? POLL_MS : null)
+  const tn = useTn()
+  const {data: o, error, busy, reload, hist} = feed
+  // what else may need attention: asked once, and left out quietly when the login cannot ask
   const loadUnits = useCallback(() => be.server.services(sid), [be, sid])
   const {data: units} = useLoad<ServerUnit[]>(loadUnits, null)
+  const loadCerts = useCallback(() => be.server.certificates(sid), [be, sid])
+  const {data: certs} = useLoad<ServerCerts>(loadCerts, null)
+  const loadUpdates = useCallback(() => be.server.updates(sid), [be, sid])
+  const {data: updates} = useLoad<ServerUpdates>(loadUpdates, null)
+  const backupPath = host.backup_path ?? ''
+  const loadBackup = useCallback(() => (backupPath ? be.server.backup(sid, backupPath) : Promise.resolve(null)), [be, sid, backupPath])
+  const {data: backup} = useLoad<ServerBackup | null>(loadBackup, null)
   if (!o) return <><Err error={error} /><div className="muted">{t('Loading…')}</div></>
   const ram = pct(o.mem_used, o.mem_total), disk = pct(o.disk_used, o.disk_total)
   const failed = (units ?? []).filter(u => u.active === 'failed')
+  const minutes = Math.max(1, Math.round((hist.cpu.length * POLL_MS) / 60000))
+  const expiring = (certs?.certs ?? []).filter(c => certLevel(c.days_left) !== 'ok')
   const attention: {key: string; tone: 'bad' | 'warn'; text: string; go: Section}[] = [
     ...failed.map(u => ({key: 'u' + u.name, tone: 'bad' as const, text: t('{name} has failed', {name: u.name}), go: 'services' as const})),
-    ...(disk >= 75 ? [{key: 'disk', tone: disk >= 90 ? 'bad' as const : 'warn' as const, text: t('The disk is {n}% full', {n: disk}), go: 'overview' as const}] : []),
+    ...(disk >= 75 ? [{key: 'disk', tone: disk >= 90 ? 'bad' as const : 'warn' as const, text: t('The disk is {n}% full', {n: disk}), go: 'maintenance' as const}] : []),
     ...(ram >= 90 ? [{key: 'ram', tone: 'warn' as const, text: t('Memory is {n}% used', {n: ram}), go: 'processes' as const}] : []),
+    ...expiring.map(c => ({key: 'c' + c.name, tone: certLevel(c.days_left) as 'bad' | 'warn', text: c.days_left < 0 ? t('The certificate for {name} has expired', {name: c.domains[0] ?? c.name}) : tn(c.days_left, 'The certificate for {name} expires in {n} day', 'The certificate for {name} expires in {n} days', {name: c.domains[0] ?? c.name}), go: 'web' as const})),
+    ...(updates && updates.security > 0 ? [{key: 'sec', tone: 'warn' as const, text: tn(updates.security, '{n} security update is waiting', '{n} security updates are waiting', {}), go: 'maintenance' as const}] : []),
+    ...(updates?.reboot_required ? [{key: 'reboot', tone: 'warn' as const, text: t('The server needs a reboot'), go: 'maintenance' as const}] : []),
+    ...(backup && (!backup.found || backupLevel(backup.now - backup.mtime) !== 'ok') ? [{key: 'backup', tone: (!backup.found || backupLevel(backup.now - backup.mtime) === 'bad' ? 'bad' : 'warn') as 'bad' | 'warn', text: backup.found ? t('The newest backup is {time} old', {time: formatUptime(backup.now - backup.mtime)}) : t('No backup was found in {path}', {path: backupPath}), go: 'schedule' as const}] : []),
   ]
   return (
     <div className="sp-view">
       <Bar2 busy={busy} onReload={reload}><span className="sp-os">{o.os} · {t('up {time}', {time: formatUptime(o.uptime_sec)})}</span></Bar2>
       <Err error={error} />
       <div className="sp-grid">
-        <div className="sp-card"><h3>{t('CPU')} · {t('{n} cores', {n: o.cores})}</h3><div className="sp-big">{Math.round(o.cpu_pct)}<small>%</small></div><Spark data={cpu} max={100} /></div>
-        <Bar label={t('Memory')} value={ram} note={`${formatBytes(o.mem_used)} / ${formatBytes(o.mem_total)}${o.swap_total ? ' · ' + t('Swap') + ' ' + formatBytes(o.swap_used) + ' / ' + formatBytes(o.swap_total) : ''}`} />
-        <Bar label={t('Disk /')} value={disk} note={`${formatBytes(o.disk_used)} / ${formatBytes(o.disk_total)}`} />
-        <div className="sp-card"><h3>{t('Network')}</h3><div className="sp-big sp-big-sm">↓ {formatRate(o.net_rx)}</div><div className="sp-note">↑ {formatRate(o.net_tx)}</div><Spark data={net} max={1024} /></div>
+        <div className="sp-card"><h3>{t('CPU')} · {t('{n} cores', {n: o.cores})}</h3><div className="sp-big">{Math.round(o.cpu_pct)}<small>%</small></div><Spark data={hist.cpu} max={100} /></div>
+        <Bar label={t('Memory')} value={ram} data={hist.mem} note={`${formatBytes(o.mem_used)} / ${formatBytes(o.mem_total)}${o.swap_total ? ' · ' + t('Swap') + ' ' + formatBytes(o.swap_used) + ' / ' + formatBytes(o.swap_total) : ''}`} />
+        <Bar label={t('Disk /')} value={disk} data={hist.disk} note={`${formatBytes(o.disk_used)} / ${formatBytes(o.disk_total)}`} />
+        <div className="sp-card"><h3>{t('Network')}</h3><div className="sp-big sp-big-sm">↓ {formatRate(o.net_rx)}</div><div className="sp-note">↑ {formatRate(o.net_tx)}</div><Spark data={hist.net} max={1024} /></div>
       </div>
+      <div className="sp-note">{t('The charts show the last {n} min while this tab is open.', {n: minutes})}</div>
       <div className="sp-grid sp-grid-2">
         <div className="sp-card">
           <h3>{t('Needs attention')}</h3>
@@ -249,9 +281,10 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
   )
 }
 
-function Docker({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
+function Docker({sid, onLogs}: {sid: string; onLogs(s: LogSource): void}) {
   const be = useBackend()
   const t = useT()
+  const tn = useTn()
   const toast = useToast()
   const confirm = useConfirm()
   const [working, setWorking] = useState('')
@@ -265,64 +298,99 @@ function Docker({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
     setWorking('')
     reload()
   }
+  const stack = async (project: string, action: StackAction) => {
+    const q = stackQuestion(t, action, project)
+    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action === 'stop'}))) return
+    setWorking('stack:' + project)
+    try { await be.server.stackAction(sid, project, action); toast.info(t('{name}: done', {name: project})) } catch (e) { toast.error(errMsg(e)) }
+    setWorking('')
+    reload()
+  }
+  // the containers of a Compose project together, the others after them
+  const groups = useMemo(() => {
+    const by = new Map<string, ServerContainer[]>()
+    for (const c of data?.containers ?? []) by.set(c.project, [...(by.get(c.project) ?? []), c])
+    const projects = [...by.keys()].filter(p => p !== '').sort()
+    return [...projects.map(p => ({project: p, items: by.get(p)!})), ...(by.has('') ? [{project: '', items: by.get('')!}] : [])]
+  }, [data])
+  const row = (c: ServerContainer) => (
+    <tr key={c.id}>
+      <td><b>{c.name}</b><div className="sp-note m">{c.image}</div></td>
+      <td>{c.state === 'running' ? <span className="sp-pill ok" title={c.status}>{t('Running')}</span> : <span className="sp-pill" title={c.status}>{t('Stopped')}</span>}</td>
+      <td className="m">{c.ports || '–'}</td>
+      <td><div className="sp-acts">
+        {c.state === 'running' ? (
+          <>
+            <button disabled={working === c.name} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
+            <button className="danger" disabled={working === c.name} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
+          </>
+        ) : <button className="primary" disabled={working === c.name} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
+        <button onClick={() => onLogs({kind: 'container', name: c.name})}>{t('Logs')}</button>
+      </div></td>
+    </tr>
+  )
   return (
     <div className="sp-view">
       <Bar2 busy={busy} onReload={reload} />
       <Err error={error} />
       {data && !data.installed && <div className="sp-empty">{t('Docker is not installed on this server.')}</div>}
-      {data?.installed && (
-        <div className="sp-table"><table>
-          <thead><tr><th>{t('Container')}</th><th>{t('Status')}</th><th>{t('Ports')}</th><th /></tr></thead>
-          <tbody>
-            {data.containers.map(c => (
-              <tr key={c.id}>
-                <td><b>{c.name}</b><div className="sp-note m">{c.image}</div></td>
-                <td>{c.state === 'running' ? <span className="sp-pill ok" title={c.status}>{t('Running')}</span> : <span className="sp-pill" title={c.status}>{t('Stopped')}</span>}</td>
-                <td className="m">{c.ports || '–'}</td>
-                <td><div className="sp-acts">
-                  {c.state === 'running' ? (
-                    <>
-                      <button disabled={working === c.name} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
-                      <button className="danger" disabled={working === c.name} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
-                    </>
-                  ) : <button className="primary" disabled={working === c.name} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
-                  <button onClick={() => onLogs(c.name)}>{t('Logs')}</button>
-                </div></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>{data.containers.length === 0 && <div className="sp-empty">{t('No containers.')}</div>}</div>
-      )}
+      {data?.installed && data.containers.length === 0 && <div className="sp-empty">{t('No containers.')}</div>}
+      {data?.installed && groups.map(g => (
+        <section key={g.project || '-'} className="sp-card sp-wide" aria-label={g.project || t('Other containers')}>
+          <div className="sp-card-head">
+            <h3>{g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')}</h3>
+            {g.project && (
+              <div className="sp-acts">
+                <span className="sp-note">{t('{n} running', {n: g.items.filter(c => c.state === 'running').length})} / {tn(g.items.length, '{n} container', '{n} containers')}</span>
+                <button className="primary" disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'update')}>{t('Update')}</button>
+                <button disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'restart')}>{t('Restart')}</button>
+                {g.items.some(c => c.state === 'running')
+                  ? <button className="danger" disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
+                  : <button disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
+                <button onClick={() => onLogs({kind: 'stack', name: g.project})}>{t('Logs')}</button>
+              </div>
+            )}
+          </div>
+          <div className="sp-table"><table>
+            <thead><tr><th>{t('Container')}</th><th>{t('Status')}</th><th>{t('Ports')}</th><th /></tr></thead>
+            <tbody>{g.items.map(row)}</tbody>
+          </table></div>
+        </section>
+      ))}
     </div>
   )
 }
 
-function Logs({sid, source, onSource}: {sid: string; source: LogSource; onSource(s: LogSource): void}) {
+function Logs({sid, visible, source, onSource}: {sid: string; visible: boolean; source: LogSource; onSource(s: LogSource): void}) {
   const be = useBackend()
   const t = useT()
   const [filter, setFilter] = useState('')
   const [lv, setLv] = useState<'all' | 'err' | 'warn' | 'info'>('all')
+  const [follow, setFollow] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  const stuck = useRef(true) // the view is at the bottom: new lines scroll into sight, but never pull away from what is being read
   const load = useCallback(() => be.server.logs(sid, source.kind, source.name), [be, sid, source.kind, source.name])
-  const {data, error, busy, reload} = useLoad<string>(load, null)
+  const {data, error, busy, reload} = useLoad<string>(load, follow && visible ? FOLLOW_MS : null)
   const lines = useMemo(() => {
     const q = filter.trim().toLowerCase()
     return (data ?? '').split('\n').filter(l => l && (!q || l.toLowerCase().includes(q)) && (lv === 'all' || (lv === 'info' ? logLevel(l) === '' : logLevel(l) === lv)))
   }, [data, filter, lv])
-  useEffect(() => { const b = boxRef.current; if (b) b.scrollTop = b.scrollHeight }, [lines])
+  useEffect(() => { const b = boxRef.current; if (b && stuck.current) b.scrollTop = b.scrollHeight }, [lines])
+  const onScroll = () => { const b = boxRef.current; if (b) stuck.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40 }
   const levels: ['all' | 'err' | 'warn' | 'info', string][] = [['all', t('All')], ['err', t('Errors')], ['warn', t('Warnings')], ['info', t('Info')]]
   return (
     <div className="sp-view fill">
       <Bar2 busy={busy} onReload={reload}>
         <input className="sp-filter" aria-label={t('Filter log lines')} placeholder={t('Filter log lines')} value={filter} onChange={e => setFilter(e.target.value)} />
         {levels.map(([k, n]) => <button key={k} aria-pressed={lv === k} className={lv === k ? 'primary' : ''} onClick={() => setLv(k)}>{n}</button>)}
+        <button aria-pressed={follow} className={follow ? 'primary' : ''} title={t('Reads the log again every 2 seconds and keeps the newest line in view')} onClick={() => { stuck.current = true; setFollow(f => !f) }}>{t('Follow')}</button>
       </Bar2>
       <div className="sp-bar">
         <span className="sp-source">{t('Showing')}: <b>{source.name || t('Whole system')}</b></span>
         {source.name !== '' && <button onClick={() => onSource({kind: '', name: ''})}>{t('Whole system')}</button>}
       </div>
       <Err error={error} />
-      <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy}>
+      <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !follow} onScroll={onScroll}>
         {lines.map((l, i) => <div key={i} className={'sp-log-line ' + logLevel(l)}>{l}</div>)}
         {data !== null && lines.length === 0 && <div className="muted">{t('No log lines.')}</div>}
       </div>

@@ -69,7 +69,7 @@ describe('Nav', () => {
     narrow(true)
     render(<Nav page="hosts" onPage={vi.fn()} onData={vi.fn()} onSettings={vi.fn()} onLock={vi.fn()} />)
     const names = screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))
-    expect(names).toEqual(['Hosts', 'Keychain', 'Port Forwarding', 'Snippets', 'Known Hosts', 'Logs', 'Import / Export', 'Settings', 'Lock vault'])
+    expect(names).toEqual(['Hosts', 'Fleet', 'Keychain', 'Port Forwarding', 'Snippets', 'Known Hosts', 'Logs', 'Import / Export', 'Settings', 'Lock vault'])
     for (const b of screen.getAllByRole('button')) expect(b).toHaveAttribute('title', b.getAttribute('aria-label')!)
     expect(screen.getByRole('button', {name: 'Hosts'})).toHaveAttribute('aria-current', 'page')
   })
