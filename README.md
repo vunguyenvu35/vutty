@@ -28,12 +28,12 @@
 - **Work in tabs and split panes**, through one or more jump hosts, with keep-alive and one-key reconnect. Drag tabs to order them, drag a tab onto a pane to split it (sessions keep running), open a host in a **new window**, and see at a glance which tabs are connected.
 - **Run one command on several hosts** at once, each on its own connection, with the exit code and output of every host, a timeout and *Cancel*. Snippets can have blanks (`{{name}}`, `{{name|default}}`) that are asked for when they run.
 - **Careful with production.** Hosts marked *prod* get a red frame and a PROD badge, and Vutty asks before text with a line break is pasted there or a snippet is run. Servers that ask for more than a password (a verification code, Duo) are answered in a *Sign in* box over the terminal.
-- **A sidebar beside every terminal**: hosts, snippets (run or paste), command history, and terminal themes and font.
+- **A sidebar beside every terminal**: your hosts as a tree like a file manager's (groups with a count, one line per host, a dot on the ones you have open, *Expand all* and the arrow keys), snippets (run or paste), command history, and terminal themes and font.
 - **More than SSH**: a shell on this computer, serial ports and Telnet (with its own login), a *Choose protocol* and connecting screen, Known Hosts and Logs pages.
-- **Browse and transfer files with SFTP** in a tab of its own (and in the terminal sidebar): two panes, several files and folders at once, drag and drop, and a **transfer queue** with pause, resume (a copy is continued from the bytes already sent, also after a lost connection), cancel and retry. Compare and **sync folders** (nothing is ever deleted), **edit a remote file** and have it saved back when you save, and a right-click menu with permissions. Nothing is replaced without asking.
+- **Browse and transfer files with SFTP** in a tab of its own (and in the terminal sidebar): two panes, several files and folders at once, drag and drop, and a **transfer queue** with pause, resume (a copy is continued from the bytes already sent, also after a lost connection), cancel and retry. Compare and **sync folders** (nothing is ever deleted), **edit a remote file** and have it saved back when you save, and a right-click menu with permissions. A copy keeps the modification time of its source, and nothing is replaced without asking.
 - **Ask an AI about your terminal** with the official CLI you already use (Claude Code, Codex CLI, Gemini CLI; Antigravity CLI is experimental): the screen is sent with every secret replaced by `*******`, the assistant only suggests commands, and you decide what runs. Add MCP servers for extra tools. See the [user guide](docs/UserGuide.md#22-ai-assistant) and the [design](docs/AIAssistant.md).
 - **Save snippets** of commands you run often and type them into any terminal with a click.
-- **Make it yours**: four languages, 26 terminal colour themes, light / dark / auto appearance, font, cursor and scrollback, interface zoom, your own keyboard shortcuts, all in a Settings window of its own.
+- **Make it yours**: four languages, 26 terminal colour themes, light / dark / auto appearance, font, cursor and scrollback, interface zoom, your own keyboard shortcuts, all in a Settings popup (⌘/Ctrl + ,) like VS Code's: move it by its title bar, resize it by its edges, or turn it into a tab.
 - **Forward ports**: local, remote and SOCKS5 proxy.
 - **Stay in control.** Import and export your `~/.ssh/config`, import hosts from a listing you made with `aws`, `gcloud` or `ansible-inventory` (or a CSV; Vutty never contacts a cloud), share a host list without secrets, make encrypted backups, or sync between your computers through a private Git repository. The vault locks by itself when the computer sleeps.
 - **Heavy output stays smooth.** Output waits for the terminal to draw it, so `cat` of a huge file or a busy `tail -f` slows down instead of freezing the window ([measurements](docs/Assessment.md#terminal-performance-with-heavy-output-g4)).
@@ -45,7 +45,7 @@
   </tr>
   <tr>
     <td><img src="docs/screenshots/11-test-connection-ok.png" alt="New host with a successful connection test"><br><sub>New host: Test connection, Save or Connect</sub></td>
-    <td><img src="docs/screenshots/48-settings-terminal-theme.png" alt="Settings window with terminal themes"><br><sub>Settings window and terminal themes</sub></td>
+    <td><img src="docs/screenshots/48-settings-terminal-theme.png" alt="Settings with terminal themes"><br><sub>Settings and terminal themes</sub></td>
   </tr>
 </table>
 
@@ -110,10 +110,9 @@ Back up regularly with **Import / Export → Encrypted backup**.
 
 - The translations (Tiếng Việt, 日本語, 中文) were written with an AI model and have not been read by native speakers yet: please report what sounds wrong. What servers and the backend say (error messages from a connection, for example) stays in English.
 - Windows and Linux builds are new and less tested than macOS. On Windows the **terminal on this computer** is not available yet (SSH, SFTP and the rest work). Touch ID and the macOS-specific window features exist only on a Mac.
-- "Keychain unlock" stores the vault key in the macOS Keychain; it does **not** require Touch ID yet.
+- "Keychain unlock" stores the vault key in the macOS Keychain. Vutty asks for Touch ID (or your Mac password) before it reads the key, but the Keychain item itself carries no biometric access control, so another program that can read your login keychain is not stopped by Touch ID.
 - Locking the vault when the computer sleeps works on a Mac as the system announces it (and when the screen is locked); on Windows and Linux it locks when the computer wakes up, and a sleep of a few seconds is not noticed.
-- Settings is a popup over the window, like in VS Code (the gear, the navigation or Cmd/Ctrl+`,`): categories on the left, drag its title bar to move it and its edges to resize it, and its button before Maximize moves it into a tab; Esc closes it.
-- SFTP does not keep the modification time of copied files, and a transfer you abandon leaves a hidden `.vutty-part-…` file next to its target.
+- Settings is a popup of the main window: it cannot be dragged out of it or put on a second screen. It was checked in a browser and with component tests, not yet in the packaged app, and its screenshots here are from the older Settings window.
 - Git sync was tested with local repositories, not yet with every hosting provider.
 - `ProxyCommand` and `Match` blocks in `~/.ssh/config` are reported as warnings on import and skipped.
 
