@@ -64,6 +64,17 @@ describe('Nav', () => {
 import {Brand} from '../ui/Brand'
 import {stylesheet} from '../../test/stylesheet'
 
+describe('Navigation in a narrow window (icons only)', () => {
+  it('hides the labels and the key hints, so every icon is centred (a hidden-by-opacity hint still took room and pushed the icon left)', () => {
+    const css = stylesheet()
+    const narrow = css.match(/@media \(max-width: 1000px\) \{([\s\S]*?)\n\}/)![1]
+    const hidden = narrow.match(/([^{}\n]*)\{ display: none;/g)!.join(' ')
+    expect(hidden).toContain('.nav-item span')
+    expect(hidden).toContain('.nav-item .nav-key')
+    expect(narrow).toMatch(/\.nav-item \{ justify-content: center;/)
+  })
+})
+
 describe('Brand wordmark', () => {
   it('keeps the Vu part of the wordmark from being squeezed', () => {
     const css = stylesheet()

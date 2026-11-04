@@ -46,7 +46,7 @@ button.danger-solid:hover:not(:disabled) { background: #d94848; border-color: tr
 @media (max-width: 1000px) {
   .nav { width: 64px; padding: 10px 8px; }
   .nav-item { justify-content: center; padding: 10px 0; }
-  .nav-item span, .nav-brand .wordmark { display: none; }
+  .nav-item span, .nav-item .nav-key, .nav-brand .wordmark { display: none; } /* the key hint takes room even when it is invisible, and pushes the icon off centre */
   .nav-brand { padding: 6px 0 16px; display: flex; justify-content: center; }
   .settings-nav { width: 150px; }
   .theme-grid { grid-template-columns: 1fr; }
