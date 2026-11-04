@@ -23,7 +23,7 @@ func (s *SettingsService) ResetSettings() (Settings, error) {
 	s.c.settings = defaultSettings()
 	s.c.settings.AccountName, s.c.settings.AccountEmail = keep.AccountName, keep.AccountEmail
 	s.c.settings.SyncURL, s.c.settings.SyncFolder = keep.SyncURL, keep.SyncFolder
-	s.c.settings.SyncItems, s.c.settings.PrefsUpdated = keep.SyncItems, keep.PrefsUpdated
+	s.c.settings.SyncWhat, s.c.settings.PrefsUpdated = keep.SyncWhat, keep.PrefsUpdated
 	s.c.stampPrefs(keep) // the reset is a change like any other: it reaches the other machines
 	out := s.c.settings
 	err := s.c.saveSettings()

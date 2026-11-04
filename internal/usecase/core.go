@@ -70,17 +70,18 @@ type Settings struct {
 	// without an entry uses its default, which lives with the UI that implements it.
 	Shortcuts map[string]string `json:"shortcuts"`
 
-	// SyncItems are the preference groups the user chose to sync (all by default; see prefGroups): their values go into the sync
+	// SyncWhat is what the user chose to sync (all by default): the kinds of data (hosts, keys, forwards, snippets) and the
+	// preference groups (see prefGroups). Of the preferences, the values go into the sync
 	// bundle and newer ones are taken from it. PrefsUpdated is when each group was last changed here or taken from the bundle;
 	// the UI cannot set it.
-	SyncItems    []string             `json:"sync_items"`
+	SyncWhat     []string             `json:"sync_what"`
 	PrefsUpdated map[string]time.Time `json:"prefs_updated"`
 }
 
 func defaultSettings() Settings {
 	return Settings{Theme: "dark", TerminalTheme: "auto", FontSize: 13, FontFamily: "Menlo, Monaco, 'Courier New', monospace",
 		CursorStyle: "block", CursorBlink: true, CopyOnSelect: true, RightClick: "paste", Scrollback: 10000, AutoLockMinutes: 15,
-		Language: "auto", Zoom: 100, ConfirmProd: true, LockOnSleep: true, SessionLog: SessionLogOff, Highlight: true, GpuRenderer: true, AskProtocol: true, BiometricOnOpen: true, AutoUpdateCheck: true, Suggest: true, SyncItems: allPrefGroups(), Shortcuts: map[string]string{}}
+		Language: "auto", Zoom: 100, ConfirmProd: true, LockOnSleep: true, SessionLog: SessionLogOff, Highlight: true, GpuRenderer: true, AskProtocol: true, BiometricOnOpen: true, AutoUpdateCheck: true, Suggest: true, SyncWhat: allSyncWhat(), Shortcuts: map[string]string{}}
 }
 
 // Core wires the packages together; the services below share one instance.

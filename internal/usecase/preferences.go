@@ -10,7 +10,7 @@ import (
 )
 
 // A preference group is a set of settings the user can choose to sync (Settings → Sync). Its id is stored in
-// settings.json (SyncItems) and in the bundle, so ids never change.
+// settings.json (SyncWhat) and in the bundle, so ids never change.
 type prefGroup struct {
 	id  string
 	get func(Settings) any
@@ -116,22 +116,35 @@ var prefGroups = []prefGroup{
 		}},
 }
 
-// allPrefGroups is every group id: the default of SyncItems.
-func allPrefGroups() []string {
-	ids := make([]string, len(prefGroups))
-	for i, g := range prefGroups {
-		ids[i] = g.id
+// The kinds of data the user can choose to sync (Settings → Sync → What to sync), besides the preference groups.
+// Their ids are stored in settings.json (SyncWhat), so they never change.
+const (
+	syncHosts    = "hosts"    // hosts and groups
+	syncKeys     = "keys"     // saved keys, passwords and ssh-agent identities (with the secrets of Telnet hosts)
+	syncForwards = "forwards" // port forwards; they point at hosts, so they need Hosts
+	syncSnippets = "snippets" // snippets
+)
+
+var dataKinds = []string{syncHosts, syncKeys, syncForwards, syncSnippets}
+
+// allSyncWhat is every id the user can tick, and the default of SyncWhat: the data first, then the preference groups.
+func allSyncWhat() []string {
+	ids := append([]string{}, dataKinds...)
+	for _, g := range prefGroups {
+		ids = append(ids, g.id)
 	}
 	return ids
 }
 
-// cleanSyncItems keeps the known group ids of a list, once each and in the fixed order.
-func cleanSyncItems(in []string) []string {
+// cleanSyncWhat keeps the known ids of a list, once each and in the fixed order. Port forwards without hosts make no
+// sense (a forward points at a host), so Forwards is dropped when Hosts is not ticked.
+func cleanSyncWhat(in []string) []string {
 	out := []string{}
-	for _, id := range allPrefGroups() {
-		if slices.Contains(in, id) {
-			out = append(out, id)
+	for _, id := range allSyncWhat() {
+		if !slices.Contains(in, id) || (id == syncForwards && !slices.Contains(in, syncHosts)) {
+			continue
 		}
+		out = append(out, id)
 	}
 	return out
 }
@@ -172,7 +185,7 @@ func (c *Core) outgoingPrefs() domain.Preferences {
 	out := domain.Preferences{}
 	dirty := false
 	for _, g := range prefGroups {
-		if !slices.Contains(c.settings.SyncItems, g.id) {
+		if !slices.Contains(c.settings.SyncWhat, g.id) {
 			continue
 		}
 		at := c.settings.PrefsUpdated[g.id]
@@ -205,7 +218,7 @@ func (c *Core) applyPrefs(p domain.Preferences) {
 	changed := false
 	for _, g := range prefGroups {
 		r, ok := p[g.id]
-		if !ok || r.UpdatedAt.IsZero() || !slices.Contains(c.settings.SyncItems, g.id) || !r.UpdatedAt.After(c.settings.PrefsUpdated[g.id]) {
+		if !ok || r.UpdatedAt.IsZero() || !slices.Contains(c.settings.SyncWhat, g.id) || !r.UpdatedAt.After(c.settings.PrefsUpdated[g.id]) {
 			continue
 		}
 		next := c.settings

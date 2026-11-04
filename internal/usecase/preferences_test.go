@@ -76,7 +76,7 @@ func TestOnlyTheTickedGroupsTravelInEitherDirection(t *testing.T) {
 	a := newHarness(t).unlocked(t)
 	setPrefs(t, a, func(s *Settings) {
 		s.Theme, s.FontSize, s.Language, s.AccountName = "light", 18, "vi", "Vu"
-		s.SyncItems = []string{"appearance", "language"} // not the terminal, not the account
+		s.SyncWhat = []string{"appearance", "language"} // not the terminal, not the account
 	})
 	if err := a.app.Sync.Configure(remote); err != nil {
 		t.Fatal(err)
@@ -99,12 +99,12 @@ func TestOnlyTheTickedGroupsTravelInEitherDirection(t *testing.T) {
 
 	// B unticks language: A's newer language is not taken, and B's terminal group (ticked) is
 	time.Sleep(5 * time.Millisecond)
-	setPrefs(t, b, func(s *Settings) { s.SyncItems = []string{"appearance", "terminal"}; s.FontSize = 22 })
+	setPrefs(t, b, func(s *Settings) { s.SyncWhat = []string{"appearance", "terminal"}; s.FontSize = 22 })
 	if err := b.app.Sync.SyncNow(); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(5 * time.Millisecond)
-	setPrefs(t, a, func(s *Settings) { s.Language = "ja"; s.SyncItems = allPrefGroups() })
+	setPrefs(t, a, func(s *Settings) { s.Language = "ja"; s.SyncWhat = allSyncWhat() })
 	if err := a.app.Sync.SyncNow(); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestNothingIsSentOrTakenForAnUntickedGroupAndDefaultsNeverOutvote(t *testin
 	if h.core.outgoingPrefs() != nil {
 		t.Fatal("a machine that kept every default sends nothing")
 	}
-	setPrefs(t, h, func(s *Settings) { s.FontSize = 18; s.SyncItems = []string{} })
+	setPrefs(t, h, func(s *Settings) { s.FontSize = 18; s.SyncWhat = []string{} })
 	if h.core.outgoingPrefs() != nil {
 		t.Fatal("nothing ticked: nothing is sent")
 	}
@@ -170,8 +170,8 @@ func TestNothingIsSentOrTakenForAnUntickedGroupAndDefaultsNeverOutvote(t *testin
 	if h.app.Settings.Get().FontSize != 18 {
 		t.Fatal("nothing ticked: nothing is taken")
 	}
-	setPrefs(t, h, func(s *Settings) { s.SyncItems = []string{"terminal", "bogus", "terminal"} })
-	if got := h.app.Settings.Get().SyncItems; len(got) != 1 || got[0] != "terminal" {
+	setPrefs(t, h, func(s *Settings) { s.SyncWhat = []string{"terminal", "bogus", "terminal"} })
+	if got := h.app.Settings.Get().SyncWhat; len(got) != 1 || got[0] != "terminal" {
 		t.Fatalf("unknown and repeated ids are dropped: %v", got)
 	}
 }
@@ -202,5 +202,95 @@ func TestMergeKeepsTheNewerCopyOfEachGroup(t *testing.T) {
 	}
 	if m := domain.PurgeTombstones(domain.Bundle{Prefs: a}, time.Now()); len(m.Prefs) != 2 {
 		t.Fatal("purging tombstones keeps the preferences")
+	}
+}
+
+func TestAKindOfDataThatIsNotTickedIsNeitherSentNorTaken(t *testing.T) {
+	remote := bareRepo(t)
+	a := newHarness(t).unlocked(t)
+	a.app.Snippet.Save(domain.Snippet{Label: "first", Script: "echo 1\n"})
+	if err := a.app.Sync.Configure(remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	b := newHarness(t)
+	if err := b.app.Sync.Configure(remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.app.Sync.JoinExisting(masterPW); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.app.Snippet.List()) != 1 {
+		t.Fatal("a new machine takes everything, everything being ticked by default")
+	}
+
+	// B stops syncing snippets and hosts
+	setPrefs(t, b, func(s *Settings) { s.SyncWhat = []string{syncKeys} })
+	a.app.Snippet.Save(domain.Snippet{Label: "from A", Script: "echo A\n"})
+	a.app.Host.SaveHost(domain.Host{Label: "host-from-a", Hostname: "a.example"})
+	if err := a.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	own, _ := b.app.Snippet.Save(domain.Snippet{Label: "only on B", Script: "echo B\n"})
+	b.app.Host.SaveHost(domain.Host{Label: "host-only-on-b", Hostname: "b.example"})
+	if err := b.app.Sync.SyncNow(); err != nil {
+		t.Fatal(err)
+	}
+	hasSnippet := func(h *harness, label string) bool {
+		for _, x := range h.app.Snippet.List() {
+			if x.Label == label {
+				return true
+			}
+		}
+		return false
+	}
+	hasHost := func(h *harness, label string) bool {
+		for _, x := range h.app.Host.ListHosts(domain.HostFilter{}) {
+			if x.Label == label {
+				return true
+			}
+		}
+		return false
+	}
+	if hasSnippet(b, "from A") || hasHost(b, "host-from-a") {
+		t.Fatal("what is not ticked must not be taken")
+	}
+	if !hasSnippet(b, "only on B") || !hasHost(b, "host-only-on-b") || own.ID == "" {
+		t.Fatal("what is not ticked stays here")
+	}
+
+	// the repository still holds A's data and none of B's unticked data: a third machine sees it
+	c := newHarness(t)
+	if err := c.app.Sync.Configure(remote); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.app.Sync.JoinExisting(masterPW); err != nil {
+		t.Fatal(err)
+	}
+	if !hasSnippet(c, "from A") || !hasHost(c, "host-from-a") || hasSnippet(c, "only on B") || hasHost(c, "host-only-on-b") {
+		t.Fatalf("the repository must keep A's and not get B's: %+v", c.app.Snippet.List())
+	}
+}
+
+func TestSelectingWhatToSyncIsConsistent(t *testing.T) {
+	if got := cleanSyncWhat([]string{"forwards", "language", "bogus", "language", "snippets"}); len(got) != 2 || got[0] != "snippets" || got[1] != "language" {
+		t.Fatalf("forwards need hosts, unknown ids and repeats go, the order is fixed: %v", got)
+	}
+	if got := cleanSyncWhat([]string{"forwards", "hosts"}); len(got) != 2 || got[0] != "hosts" || got[1] != "forwards" {
+		t.Fatalf("%v", got)
+	}
+
+	own := domain.Data{Hosts: []domain.Host{{Label: "own"}}, Groups: []domain.Group{{Name: "g"}}, Identities: []domain.Identity{{Name: "k"}}, Forwards: []domain.PortForward{{}}, Snippets: []domain.Snippet{{Label: "s"}}}
+	ownSecrets := []domain.Secret{{}}
+	sent, sentSecrets := selectData(own, ownSecrets, []string{syncSnippets})
+	if len(sent.Hosts)+len(sent.Groups)+len(sent.Identities)+len(sent.Forwards) != 0 || len(sentSecrets) != 0 || len(sent.Snippets) != 1 {
+		t.Fatalf("only snippets go out: %+v %v", sent, sentSecrets)
+	}
+	merged := domain.Data{Hosts: []domain.Host{{Label: "remote"}, {Label: "own"}}, Snippets: []domain.Snippet{{Label: "s"}, {Label: "remote-s"}}}
+	kept, keptSecrets := keepUnticked(merged, own, []domain.Secret{{}, {}}, ownSecrets, []string{syncSnippets})
+	if len(kept.Hosts) != 1 || kept.Hosts[0].Label != "own" || len(kept.Snippets) != 2 || len(keptSecrets) != 1 || len(kept.Identities) != 1 {
+		t.Fatalf("unticked kinds stay as they were, ticked ones are merged: %+v %v", kept, keptSecrets)
 	}
 }

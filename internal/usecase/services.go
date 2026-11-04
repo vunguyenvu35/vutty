@@ -127,7 +127,7 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	if in.FontFamily != "" {
 		s.c.settings.FontFamily = in.FontFamily
 	}
-	s.c.settings.SyncItems = cleanSyncItems(in.SyncItems)
+	s.c.settings.SyncWhat = cleanSyncWhat(in.SyncWhat)
 	s.c.stampPrefs(before)
 	return s.c.settings, s.c.saveSettings()
 }
