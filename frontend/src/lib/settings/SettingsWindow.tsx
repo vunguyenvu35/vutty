@@ -606,7 +606,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                     <h4>{t('What to sync')}</h4>
                     <p className="muted">{t('Hosts, groups, keys, port forwards and snippets are always synced. Choose which of your preferences travel with them, inside the same encrypted bundle; the newest change of each group wins. Zoom, folders, auto-lock, Touch ID and the other settings of one machine never leave it.')}</p>
                     {SYNC_GROUPS.map(g => (
-                      <label key={g.id} className="check" style={{margin: '8px 0'}}>
+                      <label key={g.id} className="check" style={{paddingTop: 11, paddingBottom: 11}}>
                         <input type="checkbox" checked={s.sync_items.includes(g.id)}
                           onChange={e => update({sync_items: e.target.checked ? [...s.sync_items, g.id] : s.sync_items.filter(x => x !== g.id)})} />
                         <span><b>{g.label(t)}</b><span className="muted"> — {g.what(t)}</span></span>
