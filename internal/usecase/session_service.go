@@ -427,3 +427,42 @@ func (s *SessionService) markClosed(sess *session, reason string, clean bool) {
 	sess.closedEv = map[string]any{"reason": reason, "clean": clean}
 	s.c.emit("term:closed:"+sess.sid, sess.closedEv)
 }
+
+// cwder is a shell that can tell which folder it is in (a shell on this computer).
+type cwder interface{ Cwd() string }
+
+// remoteCwdCommand finds the login shell of this very connection on a Linux server and prints its folder. The shell
+// has the connection's SSH_CONNECTION and a terminal (SSH_TTY), and it leads its own session (session id = pid); the
+// command running this script has no terminal, so it never matches itself. Anything else prints nothing.
+const remoteCwdCommand = `c="$SSH_CONNECTION"; [ -n "$c" ] || exit 0
+for d in /proc/[0-9]*; do
+  p=${d#/proc/}
+  e=$(tr '\0' '\n' < "$d/environ" 2>/dev/null) || continue
+  printf '%s\n' "$e" | grep -qFx "SSH_CONNECTION=$c" || continue
+  printf '%s\n' "$e" | grep -q '^SSH_TTY=' || continue
+  [ "$(sed 's/^.*) //' "$d/stat" 2>/dev/null | cut -d' ' -f4)" = "$p" ] || continue
+  readlink "$d/cwd" && exit 0
+done`
+
+// Cwd is the folder the shell of a session is in, or "" when that cannot be told: a shell on this computer is asked
+// directly, a Linux server through its /proc. The panel's OSC 7 (the shell reporting its own folder) covers the rest.
+func (s *SessionService) Cwd(sid string) (string, error) {
+	sess, err := s.get(sid)
+	if err != nil {
+		return "", err
+	}
+	sess.mu.Lock()
+	sh, cl := sess.shell, sess.client
+	sess.mu.Unlock()
+	if c, ok := sh.(cwder); ok {
+		return c.Cwd(), nil
+	}
+	if cl == nil {
+		return "", nil
+	}
+	out, _ := cl.Exec(remoteCwdCommand, 5*time.Second)
+	if dir := strings.TrimSpace(out); strings.HasPrefix(dir, "/") && !strings.ContainsAny(dir, "\r\n") {
+		return dir, nil
+	}
+	return "", nil
+}

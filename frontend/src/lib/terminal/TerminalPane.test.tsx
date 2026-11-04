@@ -28,6 +28,7 @@ vi.mock('@xterm/xterm', () => ({
     getSelection() { return this.selection }
     hasSelection() { return this.selection !== '' }
     onSelectionChange(cb: () => void) { this.selectionCb = cb; return {dispose() {}} }
+    parser = {registerOscHandler(_n: number, _cb: (d: string) => boolean) { return {dispose() {}} }}
     paste(t: string) { this.pasted.push(t) }
     selectAll() { this.selectedAll = true }
     clear() { this.cleared = true }

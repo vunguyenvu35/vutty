@@ -2,6 +2,7 @@ package localtty
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -89,5 +90,22 @@ func TestUserShellFallsBack(t *testing.T) {
 func TestOpenFailsForAMissingProgram(t *testing.T) {
 	if _, err := OpenCommand(exec.Command("/nonexistent/program"), 80, 24, func([]byte) {}); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestCwdFollowsTheShell(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out sink
+	sh, err := OpenCommand(exec.Command("/bin/sh", "-c", "cd '"+dir+"' && echo moved && sleep 5"), 80, 24, out.write)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+	out.waitFor(t, "moved")
+	if got := sh.Cwd(); got != dir {
+		t.Fatalf("Cwd = %q, want %q", got, dir)
 	}
 }

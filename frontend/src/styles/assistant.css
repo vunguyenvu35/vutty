@@ -241,8 +241,13 @@
 .side-files-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .side-files-bar button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: 12px; }
 .side-files-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--muted); direction: rtl; text-align: left; }
-.side-files-list { flex: 1; min-height: 80px; overflow: auto; }
+.side-files-path bdi { unicode-bidi: isolate; direction: ltr; }
+.side-files-list { flex: 1; min-height: 80px; overflow: auto; transition: opacity .12s; }
+.side-files-list[aria-busy="true"] { opacity: .55; cursor: progress; }
 .side-file { padding: 5px 8px; cursor: default; user-select: none; }
-.side-file.on { background: var(--accent-soft); outline: 1px solid var(--accent); }
+.side-file.on { background: var(--accent-soft); }
+/* inside the row: the list scrolls, so an outline drawn outside the row is cut off at the top and on both sides */
+.side-file.on, .side-file:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .side-file .side-main b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-files-name input { flex: 1; min-width: 0; }
 .side-files-error { margin: 0; }

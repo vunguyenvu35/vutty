@@ -1,36 +1,52 @@
-import {MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {FormEvent, MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {useBackend} from '../backend'
 import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {IconArrowUp, IconDownload, IconFile, IconFolder, IconRefresh} from '../ui/Icons'
+import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh} from '../ui/Icons'
 import {errMsg} from '../util'
-import {formatBytes, parentOf} from './format'
+import {formatBytes, joinPath, parentOf, validName} from './format'
+import {PermissionsDialog} from './Permissions'
+import type {PaneFs} from './FilePane'
+import {remoteFs, watchEdits} from './remoteFs'
 import {QueuePanel} from './QueuePanel'
 import {queueTransfer, summarize, useQueues, verbOf} from './transfer'
 import {authenticity} from './RemotePane'
 import {AuthPrompt} from '../ui/AuthPrompt'
+import {cwdOfPane, paneStatusVersion, sessionOfPane, watchPaneStatus} from '../terminal/panes'
+import {LOCAL_HOST_ID, localPaneFs} from './localFs'
 import type {AuthChallenge, Host, HostKeyPrompt, QueueJob, RemoteEntry} from '../types'
 
 let seq = 0
 
+const HIDDEN_KEY = 'vutty.sidebar.files.hidden'
+const loadHidden = () => { try { return localStorage.getItem(HIDDEN_KEY) === '1' } catch { return false } }
+
 /**
  * The Files section of the terminal sidebar: the server of the focused terminal as a compact list, with
  * upload, download and the transfer queue. It has an SFTP connection of its own, opened when the section is
- * shown and closed when it is hidden or the terminal goes away.
+ * shown and closed when it is hidden or the terminal goes away. A local terminal shows this computer's files.
  */
-export function FilesTab({host}: {host: Host | null}) {
+export function FilesTab({host, hostId, paneId}: {host: Host | null; hostId?: string; paneId?: string}) {
   const t = useT()
-  if (!host) return <div className="side-empty">{t('Files are shown for terminals connected to a saved SSH host. Focus one to browse its files.')}</div>
-  return <HostFiles key={host.id} host={host} />
+  if (hostId === LOCAL_HOST_ID) return <Files key={LOCAL_HOST_ID} host={null} paneId={paneId} />
+  if (!host) return <div className="side-empty">{t('Files are shown for local terminals and terminals connected to a saved SSH host. Focus one to browse its files.')}</div>
+  return <Files key={host.id} host={host} paneId={paneId} />
 }
 
-function HostFiles({host}: {host: Host}) {
+/** host is null for this computer. */
+function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   const be = useBackend()
   const t = useT()
   const toast = useToast()
   const confirm = useConfirm()
   const alive = useRef(true)
+  const local = host === null
+  const hostId = host ? host.id : null
+  const listRef = useRef<HTMLDivElement>(null)
+  const loadSeq = useRef(0)
+  useSyncExternalStore(watchPaneStatus, paneStatusVersion)
+  const termDir = paneId ? cwdOfPane(paneId) : ''
   const cwdRef = useRef('')
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<'connecting' | 'ready' | 'closed'>('connecting')
@@ -45,22 +61,31 @@ function HostFiles({host}: {host: Host}) {
   const [anchor, setAnchor] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [hidden, setHidden] = useState(loadHidden)
+  const [pfs, setPfs] = useState<PaneFs | null>(null)
+  const edited = useRef(new Set<string>()) // remote files being edited from here: released when the connection ends
+  const [menu, setMenu] = useState<{x: number; y: number} | null>(null)
+  const [naming, setNaming] = useState<{mode: 'mkdir' | 'rename'; value: string; err: string} | null>(null)
+  const [perms, setPerms] = useState<RemoteEntry | null>(null)
 
+  // a slow answer for a folder the user has already left must not replace the folder they are in now
   const load = useCallback(async (s: string, dir: string) => {
+    const mine = ++loadSeq.current
     setLoading(true)
     setError('')
     try {
-      const list = await be.sftp.list(s, dir)
-      if (!alive.current) return
+      const list = await (s === LOCAL_HOST_ID ? be.local.list(dir) : be.sftp.list(s, dir))
+      if (!alive.current || mine !== loadSeq.current) return
       setEntries(list ?? [])
       setCwd(dir)
       cwdRef.current = dir
       setSelected([])
       setAnchor('')
+      if (listRef.current) listRef.current.scrollTop = 0
     } catch (e) {
-      if (alive.current) setError(errMsg(e))
+      if (alive.current && mine === loadSeq.current) setError(errMsg(e))
     } finally {
-      if (alive.current) setLoading(false)
+      if (alive.current && mine === loadSeq.current) setLoading(false)
     }
   }, [be])
 
@@ -72,12 +97,25 @@ function HostFiles({host}: {host: Host}) {
     setPhase('connecting')
     setReason('')
     setSid('')
+    setPfs(null)
     ;(async () => {
       try {
-        const info = await be.sftp.open(host.id, key)
+        if (hostId === null) {
+          const home = (await be.local.home()) || '/'
+          if (!alive.current) return
+          setSid(LOCAL_HOST_ID)
+          setPfs(localPaneFs(be))
+          setHome(home)
+          setPhase('ready')
+          await load(LOCAL_HOST_ID, home)
+          return
+        }
+        const info = await be.sftp.open(hostId, key)
         if (!alive.current) { void be.sftp.close(info.sid).catch(() => {}); return }
         opened = info.sid
-        offs.push(be.on(`sftp:closed:${info.sid}`, () => { setPhase('closed'); setReason(t('The connection was lost.')); setSid(''); opened = '' }))
+        offs.push(watchEdits(be, t, info.sid, toast, confirm))
+        offs.push(be.on(`sftp:closed:${info.sid}`, () => { setPhase('closed'); setReason(t('The connection was lost.')); setSid(''); setPfs(null); opened = '' }))
+        setPfs(remoteFs(be, t, info.sid, edited.current))
         setPrompt(null)
         setAuth(null)
         setSid(info.sid)
@@ -91,9 +129,13 @@ function HostFiles({host}: {host: Host}) {
     return () => {
       alive.current = false
       offs.forEach(o => o())
-      if (opened) void be.sftp.close(opened).catch(() => {})
+      if (opened) {
+        for (const p of edited.current) void be.sftp.editStop(opened, p).catch(() => {})
+        void be.sftp.close(opened).catch(() => {})
+      }
+      edited.current.clear()
     }
-  }, [be, host.id, attempt, load])
+  }, [be, hostId, attempt, load])
 
   const finished = useCallback((_sid: string, j: QueueJob) => {
     if (j.state === 'done') toast.info(summarize(verbOf(j.direction), j))
@@ -102,7 +144,7 @@ function HostFiles({host}: {host: Host}) {
   }, [toast, load, t])
   const sidRef = useRef(sid)
   sidRef.current = sid
-  const jobs = useQueues(sid ? [sid] : [], finished)[sid] ?? []
+  const jobs = useQueues(sid && !local ? [sid] : [], finished)[sid] ?? []
   const actions = {
     pause: (id: string) => void be.sftp.pause(sid, id).catch(e => setError(errMsg(e))),
     resume: (id: string) => void be.sftp.resume(sid, id).catch(e => setError(errMsg(e))),
@@ -117,7 +159,8 @@ function HostFiles({host}: {host: Host}) {
     setPrompt(null)
   }
 
-  const shown = useMemo(() => entries.filter(e => !e.name.startsWith('.')), [entries])
+  const shown = useMemo(() => (hidden ? entries : entries.filter(e => !e.name.startsWith('.'))), [entries, hidden])
+  const toggleHidden = () => setHidden(h => { try { localStorage.setItem(HIDDEN_KEY, h ? '0' : '1') } catch { /* not remembered */ } return !h })
   const chosen = useMemo(() => entries.filter(e => selected.includes(e.path)), [entries, selected])
   const ready = phase === 'ready' && !!sid && !!cwd
 
@@ -138,6 +181,14 @@ function HostFiles({host}: {host: Host}) {
     setError('')
     try { await fn() } catch (e) { setError(errMsg(e)) }
   }
+  const open = (e: RemoteEntry) => (e.is_dir ? void load(sid, e.path) : pfs?.open ? void guard(() => pfs.open!(e)) : undefined)
+  // what the shell reported (OSC 7) is the freshest; otherwise the backend asks the shell's process (this computer, or a Linux server)
+  const toTerminal = () => guard(async () => {
+    const term = paneId ? sessionOfPane(paneId) : ''
+    const dir = termDir || (term ? await be.session.cwd(term) : '')
+    if (!dir) throw new Error(t('Could not tell which folder the terminal is in.'))
+    await load(sid, dir)
+  })
   const upload = (folder: boolean) => guard(async () => {
     const p = await (folder ? be.system.pickDirectory(t('Upload folder')) : be.system.pickFile(t('Upload file')))
     if (p) await queueTransfer(be, confirm, sid, 'upload', [p], cwd)
@@ -147,21 +198,70 @@ function HostFiles({host}: {host: Host}) {
     if (dir) await queueTransfer(be, confirm, sid, 'download', chosen.map(e => e.path), dir)
   })
 
+  // the right-click menu closes on any click elsewhere, Escape, scrolling or a resize
+  useEffect(() => {
+    if (!menu) return
+    const off = () => setMenu(null)
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') off() }
+    window.addEventListener('mousedown', off)
+    window.addEventListener('resize', off)
+    window.addEventListener('keydown', key)
+    return () => { window.removeEventListener('mousedown', off); window.removeEventListener('resize', off); window.removeEventListener('keydown', key) }
+  }, [menu])
+  const openMenu = (ev: ReactMouseEvent, entry: RemoteEntry | null) => {
+    ev.preventDefault()
+    ev.stopPropagation()
+    if (!ready) return
+    if (entry && !selected.includes(entry.path)) { setSelected([entry.path]); setAnchor(entry.path) }
+    setMenu({x: Math.max(4, Math.min(ev.clientX, window.innerWidth - 220)), y: Math.max(4, Math.min(ev.clientY, window.innerHeight - 380))})
+  }
+  const act = (fn: () => void | Promise<void>) => { setMenu(null); void guard(async () => { await fn() }) }
+  const remove = (list: RemoteEntry[]) => guard(async () => {
+    const question = list.length > 1 ? t('Delete these {n} items (folders with everything in them)? This cannot be undone.', {n: list.length})
+      : list[0].is_dir ? t('Delete the folder "{name}" and everything in it? This cannot be undone.', {name: list[0].name}) : t('Delete "{name}"? This cannot be undone.', {name: list[0].name})
+    if (!(await confirm(question, {confirmLabel: t('Delete'), danger: true}))) return
+    try {
+      for (const e of list) await pfs!.remove(e.path, e.is_dir)
+    } finally {
+      await load(sid, cwd) // some may have gone even when one failed
+    }
+  })
+  const submitName = (ev: FormEvent) => {
+    ev.preventDefault()
+    if (!naming || !pfs) return
+    const bad = validName(naming.value)
+    if (bad) return setNaming({...naming, err: bad})
+    const name = naming.value.trim()
+    const one = chosen.length === 1 ? chosen[0] : null
+    void guard(async () => {
+      if (naming.mode === 'mkdir') await pfs.mkdir(joinPath(cwd, name))
+      else if (one) await pfs.rename(one.path, joinPath(parentOf(one.path), name))
+      setNaming(null)
+      await load(sid, cwd)
+    })
+  }
+
   return (
     <div className="side-files" aria-label={t('Server files')}>
       <div className="side-files-bar">
         <button className="icon ghost" aria-label={t('Up one folder')} disabled={!ready || cwd === '/'} onClick={() => void load(sid, parentOf(cwd))}><IconArrowUp size={15} /></button>
         <button className="icon ghost" aria-label={t('Refresh files')} disabled={!ready} onClick={() => void load(sid, cwd)}><IconRefresh size={15} /></button>
-        <code className="side-files-path" title={cwd} aria-label={t('Current folder')}>{cwd || (phase === 'connecting' ? t('Connecting…') : '')}</code>
+        <button className="icon ghost" aria-label={t("Go to the terminal's folder")} disabled={!ready}
+          title={t("Go to the terminal's folder")}
+          onClick={() => void toTerminal()}><IconLocate size={15} /></button>
+        <button className="icon ghost" aria-label={hidden ? t('Hide hidden files') : t('Show hidden files')} aria-pressed={hidden} title={hidden ? t('Hide hidden files') : t('Show hidden files')} onClick={toggleHidden}>
+          {hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}
+        </button>
+        <code className="side-files-path" title={cwd} aria-label={t('Current folder')}>{cwd ? <bdi>{cwd}</bdi> : phase === 'connecting' ? t('Connecting…') : ''}</code>
       </div>
-      <div className="side-files-bar">
+      {!local && <div className="side-files-bar">
         <button disabled={!ready} onClick={() => void upload(false)}>{t('Upload file…')}</button>
         <button disabled={!ready} onClick={() => void upload(true)}>{t('Upload folder…')}</button>
         <button disabled={!ready || chosen.length === 0} onClick={() => void download()} aria-label={t('Download selected files')}>
           <IconDownload size={14} /> {chosen.length > 1 ? t('Download {n}', {n: chosen.length}) : t('Download')}
         </button>
-      </div>
-      {phase === 'connecting' && !prompt && !auth && <div className="side-empty">{t('Connecting to {name}…', {name: host.label})}</div>}
+      </div>}
+      {phase === 'connecting' && !prompt && !auth && !local && <div className="side-empty">{t('Connecting to {name}…', {name: host.label})}</div>}
       <AuthPrompt inline challenge={auth?.c ?? null} promptKey={auth?.key ?? ''} onDone={() => setAuth(null)} onError={setReason} />
       {phase === 'closed' && (
         <div className="side-empty" role="alert">
@@ -176,11 +276,20 @@ function HostFiles({host}: {host: Host}) {
           <div className="row"><button className="primary" onClick={() => answer(true)}>{t('Trust and connect')}</button><button onClick={() => answer(false)}>{t('Cancel')}</button></div>
         </div>
       )}
+      {naming && (
+        <form className="side-files-bar side-files-name" onSubmit={submitName}>
+          <input aria-label={t('Name')} autoFocus value={naming.value} placeholder={naming.mode === 'mkdir' ? t('New folder name') : t('New name')}
+            onChange={e => setNaming({...naming, value: e.target.value, err: ''})} onKeyDown={ev => { if (ev.key === 'Escape') setNaming(null) }} />
+          <button className="primary" type="submit">{naming.mode === 'mkdir' ? t('Create') : t('Rename')}</button>
+          <button type="button" onClick={() => setNaming(null)}>{t('Cancel')}</button>
+          {naming.err && <span className="error" role="alert">{naming.err}</span>}
+        </form>
+      )}
       {ready && (
-        <div className="side-list side-files-list" role="listbox" aria-multiselectable="true" aria-label={t('Files')} aria-busy={loading}>
+        <div ref={listRef} className="side-list side-files-list" role="listbox" aria-multiselectable="true" aria-label={t('Files')} aria-busy={loading} onContextMenu={ev => openMenu(ev, null)}>
           {shown.map(e => (
             <div key={e.path} role="option" tabIndex={0} aria-selected={selected.includes(e.path)} className={'side-item side-file' + (selected.includes(e.path) ? ' on' : '')}
-              onClick={ev => pick(e, ev)} onDoubleClick={() => e.is_dir && void load(sid, e.path)} onKeyDown={ev => ev.key === 'Enter' && e.is_dir && void load(sid, e.path)}>
+              onClick={ev => pick(e, ev)} onContextMenu={ev => openMenu(ev, e)} onDoubleClick={() => open(e)} onKeyDown={ev => { if (ev.key === 'Enter') open(e); else if (ev.key === 'Backspace' && cwd !== '/') { ev.preventDefault(); void load(sid, parentOf(cwd)) } }}>
               {e.is_dir ? <IconFolder size={15} /> : <IconFile size={15} />}
               <span className="side-main"><b>{e.name}</b></span>
               <small className="muted">{e.is_dir ? '' : formatBytes(e.size)}</small>
@@ -190,7 +299,36 @@ function HostFiles({host}: {host: Host}) {
         </div>
       )}
       {error && <div className="error side-files-error" role="alert">{error}</div>}
-      <QueuePanel jobs={jobs} actions={actions} open compact />
+      {menu && (() => {
+        const none = chosen.length === 0
+        const entry = chosen.length === 1 ? chosen[0] : null
+        return (
+          <div className="ctx-menu" role="menu" aria-label={none ? t('Folder menu') : t('File menu')} style={{left: menu.x, top: menu.y}}
+            onMouseDown={ev => ev.stopPropagation()} onContextMenu={ev => ev.preventDefault()}>
+            <button role="menuitem" disabled={!entry || (!entry.is_dir && !pfs?.open)} onClick={() => act(() => open(entry!))}>{t('Open')}</button>
+            <button role="menuitem" disabled={!entry || entry.is_dir || !pfs?.openWith} onClick={() => act(() => pfs!.openWith!(entry!))}>{t('Open with…')}</button>
+            {pfs?.edit && <button role="menuitem" disabled={!entry || entry.is_dir} onClick={() => act(() => pfs.edit!(entry!))}>{t('Edit and save back')}</button>}
+            {!local && <>
+              <button role="menuitem" disabled={none} onClick={() => act(download)}>{chosen.length > 1 ? t('Download {n}', {n: chosen.length}) : t('Download')}</button>
+              <button role="menuitem" onClick={() => act(() => upload(false))}>{t('Upload file…')}</button>
+              <button role="menuitem" onClick={() => act(() => upload(true))}>{t('Upload folder…')}</button>
+            </>}
+            <button role="menuitem" disabled={none} onClick={() => act(() => be.system.writeClipboard(chosen.map(e => e.path).join('\n')))}>{t('Copy path')}</button>
+            <button role="menuitem" disabled={!entry} onClick={() => { setMenu(null); setNaming({mode: 'rename', value: entry!.name, err: ''}) }}>{t('Rename')}</button>
+            <button role="menuitem" className="danger-item" disabled={none} onClick={() => { setMenu(null); void remove(chosen) }}>{t('Delete')}</button>
+            <button role="menuitem" onClick={() => act(() => load(sid, cwd))}>{t('Refresh')}</button>
+            <button role="menuitem" onClick={() => { setMenu(null); setNaming({mode: 'mkdir', value: '', err: ''}) }}>{t('New Folder')}</button>
+            <button role="menuitem" onClick={() => { setMenu(null); toggleHidden() }}>{hidden ? t('Hide Hidden Files') : t('Show Hidden Files')}</button>
+            <button role="menuitem" disabled={!entry || !pfs?.chmod} onClick={() => { setMenu(null); setPerms(entry) }}>{t('Edit Permissions')}</button>
+            <button role="menuitem" disabled={shown.length === 0} onClick={() => { setMenu(null); setSelected(shown.map(e => e.path)) }}>{t('Select All')}</button>
+          </div>
+        )
+      })()}
+      {perms && pfs?.chmod && (
+        <PermissionsDialog name={perms.name} mode={perms.mode} onClose={() => setPerms(null)}
+          onSave={async m => { await pfs.chmod!(perms.path, m); await load(sid, cwd) }} />
+      )}
+      {!local && <QueuePanel jobs={jobs} actions={actions} open compact />}
     </div>
   )
 }

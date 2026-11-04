@@ -10,7 +10,7 @@ import {WebLinksAddon} from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import {useBackend} from '../backend'
 import {b64ToBytes, errMsg} from '../util'
-import {registerPane, registerSelection, setPaneSession, setPaneStatus} from './panes'
+import {parseCwd, registerPane, registerSelection, setPaneCwd, setPaneSession, setPaneStatus} from './panes'
 import {createHighlighter, HighlightTerm} from './highlight'
 import {matches} from '../shortcuts/shortcuts'
 import {IconArrowDown, IconArrowUp} from '../ui/Icons'
@@ -256,6 +256,10 @@ export function TerminalPane(p: Props) {
         retry.current()
       }
     })
+    const cwdSub = tm.parser.registerOscHandler(7, data => {
+      if (p.paneId) setPaneCwd(p.paneId, parseCwd(data))
+      return true
+    })
     const unregSelection = p.paneId ? registerSelection(p.paneId, () => tm.getSelection()) : () => {}
     const unregister = p.paneId ? registerPane(p.paneId, text => {
       if (stateRef.current !== 'ready') return false
@@ -362,7 +366,8 @@ export function TerminalPane(p: Props) {
       hl.dispose()
       unregister()
       unregSelection()
-      if (p.paneId) setPaneSession(p.paneId, null)
+      cwdSub.dispose()
+      if (p.paneId) { setPaneSession(p.paneId, null); setPaneCwd(p.paneId, null) }
       ro.disconnect()
       offs.forEach(o => o())
       if (sid.current) void be.session.close(sid.current).catch(() => {})

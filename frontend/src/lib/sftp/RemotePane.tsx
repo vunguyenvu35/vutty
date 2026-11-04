@@ -9,6 +9,7 @@ import {OsIcon} from '../ui/OsIcon'
 import {joinPath} from './format'
 import {hostLabel, LOCAL_HOST, LOCAL_HOST_ID, localPaneFs} from './localFs'
 import {FilePane, PaneFs, PaneState, DragPayload, Item} from './FilePane'
+import {remoteFs, watchEdits} from './remoteFs'
 import {AuthPrompt} from '../ui/AuthPrompt'
 import type {AuthChallenge, EditEvent, Host, HostKeyPrompt} from '../types'
 
@@ -91,49 +92,12 @@ export function RemotePane({host, hosts, onHost, onNewTab, tabsLead, hidden, rel
         const info = await be.sftp.open(hostId, key)
         if (!alive.current) { void be.sftp.close(info.sid).catch(() => {}); return }
         sid.current = info.sid
-        offs.push(be.on(`sftp:edit:${info.sid}`, (ev: EditEvent) => {
-          const name = ev.remote.slice(ev.remote.lastIndexOf('/') + 1)
-          if (ev.state === 'uploaded') toast.info(t('Saved {name} to the server', {name}))
-          else if (ev.state === 'error') toast.error(`${name}: ${ev.message || t('could not be saved to the server')}`)
-          else void confirm(t('{name} changed on the server since you opened it. Overwrite with your version?', {name}), {confirmLabel: t('Overwrite'), danger: true})
-            .then(yes => (yes ? be.sftp.editPush(info.sid, ev.remote, true) : undefined))
-            .catch(e => toast.error(`${name}: ${errMsg(e)}`))
-        }))
+        offs.push(watchEdits(be, t, info.sid, toast, confirm))
         offs.push(be.on(`sftp:closed:${info.sid}`, () => { setState('closed'); setClosedReason(t('The connection was lost.')); sid.current = ''; setFs(null); onSession('') }))
         setPrompt(null)
         setAuth(null)
         const s = info.sid
-        setFs({
-          list: d => be.sftp.list(s, d),
-          mkdir: p => be.sftp.mkdir(s, p),
-          rename: (a, b) => be.sftp.rename(s, a, b),
-          remove: (p, isDir) => be.sftp.remove(s, p, isDir),
-          chmod: (p, m) => be.sftp.chmod(s, p, m),
-          // a remote file is fetched into a private temporary folder and opened from there
-          open: async e => {
-            const dir = await be.local.tempDir()
-            const res = await be.sftp.downloadAll(s, [e.path], dir, true)
-            if (res.files < 1) throw new Error(t('Could not download the file'))
-            await be.system.openPath(joinPath(dir, e.name))
-          },
-          openWith: async e => {
-            const app = await be.system.pickFile(t('Open with…'))
-            if (!app) return
-            const dir = await be.local.tempDir()
-            await be.sftp.downloadAll(s, [e.path], dir, true)
-            await be.system.openPathWith(joinPath(dir, e.name), app)
-          },
-          // fetched like Open, then the file is watched: each save goes back to the server
-          edit: async e => {
-            const dir = await be.local.tempDir()
-            const res = await be.sftp.downloadAll(s, [e.path], dir, true)
-            if (res.files < 1) throw new Error(t('Could not download the file'))
-            const local = joinPath(dir, e.name)
-            await be.system.openPath(local)
-            await be.sftp.editStart(s, e.path, local)
-            edited.current.add(e.path)
-          },
-        })
+        setFs(remoteFs(be, t, s, edited.current))
         setHome(info.home || '/')
         setState('ready')
         onSession(s)

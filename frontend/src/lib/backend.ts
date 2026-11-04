@@ -60,6 +60,8 @@ export interface Backend {
     ack(sid: string, parsed: number): Promise<void>
     write(sid: string, data: string): Promise<void>
     resize(sid: string, cols: number, rows: number): Promise<void>
+    /** the folder the shell of a local terminal is in ("" for the others: they report it themselves, or not at all) */
+    cwd(sid: string): Promise<string>
     reconnect(sid: string, cols: number, rows: number): Promise<void>
     close(sid: string): Promise<void>
     /** commands in the shell history of the server, newest first (only when Suggest from host history is on) */
@@ -324,6 +326,7 @@ export function wailsBackend(): Backend {
       ack: (s, n) => u('SessionService', 'Ack', s, n),
       write: (s, d) => u('SessionService', 'Write', s, d),
       resize: (s, c, r) => u('SessionService', 'Resize', s, c, r),
+      cwd: s => u('SessionService', 'Cwd', s),
       reconnect: (s, c, r) => u('SessionService', 'Reconnect', s, c, r),
       close: s => u('SessionService', 'Close', s),
       hostHistory: async s => (await u<string[]>('SessionService', 'HostHistory', s)) ?? [],

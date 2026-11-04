@@ -119,7 +119,7 @@ export function TerminalSidebar(p: Props) {
         {p.tab === 'hosts' && <HostsTab hosts={p.hosts} groups={p.groups ?? []} tabs={p.tabs ?? []} activeTab={p.activeTab ?? ''} onConnect={p.onConnect} onSelectTab={p.onSelectTab} onCloseTab={p.onCloseTab} />}
         {p.tab === 'snippets' && <SnippetsTab snippets={p.snippets} onInsert={p.onInsert} onSnippet={p.onSnippet} onNew={p.onNewSnippet} />}
         {p.tab === 'history' && <HistoryTab hostId={p.hostId ?? ''} onInsert={p.onInsert} />}
-        {p.tab === 'files' && <FilesTab host={p.hosts.find(h => h.id === p.hostId) ?? null} />}
+        {p.tab === 'files' && <FilesTab host={p.hosts.find(h => h.id === p.hostId) ?? null} hostId={p.hostId} paneId={p.paneId} />}
         {p.tab === 'themes' && <ThemesTab settings={p.settings} appearance={p.appearance} onSettings={p.onSettings} />}
         {p.tab === 'assistant' && <AssistantTab paneId={p.paneId ?? ''} onOpenSettings={() => p.onOpenSettings?.()} />}
       </div>

@@ -1,4 +1,4 @@
-import {registerPane, toTerminalInput, writeToPane} from './panes'
+import {parseCwd, registerPane, toTerminalInput, writeToPane} from './panes'
 
 describe('pane registry', () => {
   it('writes to a registered pane and stops after unregister', () => {
@@ -35,5 +35,16 @@ describe('toTerminalInput', () => {
   it('leaves the last line on the prompt when not running', () => {
     expect(toTerminalInput('a\nb\n', false)).toBe('a\rb')
     expect(toTerminalInput('single\n\n', false)).toBe('single')
+  })
+})
+
+describe('parseCwd (OSC 7)', () => {
+  it('reads the path of a file URL, whatever the host, and decodes it', () => {
+    expect(parseCwd('file://mac.local/Users/me/My%20Docs')).toBe('/Users/me/My Docs')
+    expect(parseCwd('file:///var/www/')).toBe('/var/www/')
+  })
+  it('ignores anything else', () => {
+    expect(parseCwd('')).toBe('')
+    expect(parseCwd('http://x/y')).toBe('')
   })
 })

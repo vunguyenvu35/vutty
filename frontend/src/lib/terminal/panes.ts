@@ -70,3 +70,24 @@ export function watchPaneStatus(f: () => void): () => void {
   return () => { watchers.delete(f) }
 }
 export const paneStatusVersion = () => version
+
+/**
+ * The folder each pane's shell says it is in (the OSC 7 "file://host/path" a shell prints with its prompt). The Files section
+ * jumps to it. It is only known when the shell reports it, so a missing entry is normal.
+ */
+const cwds = new Map<string, string>()
+
+/** Parses the payload of OSC 7; the path is "" when it is not a file URL. */
+export function parseCwd(data: string): string {
+  const m = /^file:\/\/[^/]*(\/.*)$/.exec(data.trim())
+  if (!m) return ''
+  try { return decodeURIComponent(m[1]) } catch { return m[1] }
+}
+
+export function setPaneCwd(id: string, dir: string | null) {
+  if (!dir) { if (!cwds.delete(id)) return } else if (cwds.get(id) === dir) return
+  else cwds.set(id, dir)
+  version++
+  watchers.forEach(f => f())
+}
+export const cwdOfPane = (id: string): string => cwds.get(id) ?? ''

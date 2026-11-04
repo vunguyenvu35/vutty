@@ -33,6 +33,8 @@ export interface Fake extends Backend {
     knownHosts: KnownHost[]
     /** true: queued transfers stay running (40 %) until a test finishes them with finishJob */
     holdQueue: boolean
+    /** what session.cwd answers: the folder a local shell is in */
+    shellCwd: string
     /** the activity log, newest first */
     logs: ActivityEntry[]
     testResult: ConnectionTest
@@ -138,6 +140,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       '/Users/me/notes.txt': {dir: false, size: 300}, '/Users/me/.zshrc': {dir: false, size: 120}, '/Users/me/Documents/cv.pdf': {dir: false, size: 40960},
     },
     holdQueue: false,
+    shellCwd: '',
     hostHistory: [],
     cache: {files: 3, bytes: 5120},
     serialPorts: ['/dev/cu.usbserial-1410', '/dev/cu.usbmodem1101'],
@@ -274,6 +277,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       ack: async (s, n) => { rec('session.ack', s, n) },
       write: async (s, d) => { rec('session.write', s, d) },
       resize: async () => {},
+      cwd: async s => { rec('session.cwd', s); return state.shellCwd },
       reconnect: async s => { rec('session.reconnect', s) },
       close: async s => { rec('session.close', s) },
       hostHistory: async s => { rec('session.hostHistory', s); return [...state.hostHistory] },

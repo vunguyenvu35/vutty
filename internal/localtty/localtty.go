@@ -95,3 +95,11 @@ func (s *Shell) Close() {
 		s.tty.Close()
 	})
 }
+
+// Cwd is the folder the shell is in now ("" when it cannot be told).
+func (s *Shell) Cwd() string {
+	if s.cmd.Process == nil {
+		return ""
+	}
+	return processCwd(s.cmd.Process.Pid)
+}
