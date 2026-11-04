@@ -42,7 +42,7 @@
 .sp-table .n { text-align: right; font-variant-numeric: tabular-nums; }
 .sp-table .m, .sp-note.m { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .sp-cmd { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
-.sp-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; }
+.sp-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: nowrap; align-items: center; }
 .sp-acts button { padding: 3px 10px; font-size: 12px; white-space: nowrap; }
 .sp-empty { padding: 20px; text-align: center; color: var(--muted); }
 .sp-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--bg-3); color: var(--muted); }
