@@ -4,6 +4,7 @@ import type {TFn} from '../i18n'
 import {useT} from '../i18n'
 import {AuthPrompt} from '../ui/AuthPrompt'
 import {IconRefresh} from '../ui/Icons'
+import {useMinBusy} from '../ui/useMinBusy'
 import {authenticity} from '../sftp/RemotePane'
 import {errMsg} from '../util'
 import type {AuthChallenge, Host, HostKeyPrompt} from '../types'
@@ -151,10 +152,11 @@ export function stackQuestion(t: TFn, action: StackAction, name: string): {messa
 /** The bar above a table: what is on the left, and the refresh button at the right. */
 export function Toolbar({busy, onReload, children}: {busy: boolean; onReload(): void; children?: ReactNode}) {
   const t = useT()
+  const spinning = useMinBusy(busy)
   return (
     <div className="sp-bar">
       {children}
-      <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={busy} onClick={onReload}><IconRefresh size={14} /></button>
+      <button className="icon ghost" aria-label={t('Refresh')} title={t('Refresh')} aria-busy={spinning} onClick={onReload}><IconRefresh size={14} /></button>
     </div>
   )
 }

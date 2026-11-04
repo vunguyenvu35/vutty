@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {IconRefresh} from '../ui/Icons'
 import {useBackend} from '../backend'
 import {useToast} from '../ui/Toast'
 import {Switch} from '../ui/Switch'
@@ -142,7 +143,7 @@ export function AssistantSettings() {
           )
         })}
         <div className="ai-row-actions">
-          <button onClick={() => void refresh()} disabled={busy === 'refresh'}>{busy === 'refresh' ? t('Checking…') : t('Refresh')}</button>
+          <button aria-busy={busy === 'refresh'} onClick={() => void refresh()} disabled={busy === 'refresh'}><IconRefresh size={14} /> {busy === 'refresh' ? t('Checking…') : t('Refresh')}</button>
           <button onClick={() => setCustomOpen(o => !o)}>{customOpen ? t('Cancel') : t('Add a command…')}</button>
         </div>
         {customOpen && <CustomProviderForm onSaved={() => { setCustomOpen(false); void load() }} />}

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useBackend} from '../backend'
 import {useT} from '../i18n'
 import {IconRefresh} from '../ui/Icons'
+import {useMinBusy} from '../ui/useMinBusy'
 import {errMsg} from '../util'
 import {formatUptime, level, pct} from './format'
 import type {Host, ServerFleetHost} from '../types'
@@ -68,6 +69,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
       .map(h => ({h, row: rows[h.id] ?? ({state: 'waiting'} as Row)}))
       .sort((a, b) => trouble(b.row) - trouble(a.row) || a.h.label.localeCompare(b.h.label))
   }, [list, rows, q])
+  const spinning = useMinBusy(running)
   const done = Object.values(rows).filter(r => r.state === 'done') as Array<{state: 'done'; r: ServerFleetHost}>
   const down = done.filter(r => r.r.error).length
 
@@ -77,7 +79,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
       <div className="sp-bar">
         <input className="sp-filter" aria-label={t('Filter servers')} placeholder={t('Filter servers')} value={q} onChange={e => setQ(e.target.value)} />
         <span className="sp-os">{list.length === 0 ? '' : t('{up} of {n} servers answered', {up: done.length - down, n: list.length})}</span>
-        <button className="ghost-btn" aria-label={t('Check all servers again')} aria-busy={running} disabled={running} onClick={() => void check(list)}><IconRefresh size={14} /> {t('Check again')}</button>
+        <button className="ghost-btn" aria-label={t('Check all servers again')} aria-busy={spinning} disabled={running} onClick={() => void check(list)}><IconRefresh size={14} /> {t('Check again')}</button>
       </div>
       <h3 className="sec-title">{t('Fleet')}</h3>
       <div className="sp-table"><table>

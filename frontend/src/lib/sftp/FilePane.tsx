@@ -2,6 +2,7 @@ import {DragEvent, FormEvent, MouseEvent as ReactMouseEvent, ReactNode, useCallb
 import {useT, type TFn} from '../i18n'
 import {errMsg} from '../util'
 import {useConfirm} from '../ui/Confirm'
+import {useMinBusy} from '../ui/useMinBusy'
 import {IconArrowUp, IconChevron, IconClose, IconPlus, IconEye, IconEyeOff, IconFile, IconFolder, IconHome, IconRefresh, IconSearch} from '../ui/Icons'
 import {PermissionsDialog} from './Permissions'
 import {breadcrumbs, formatBytes, formatDate, joinPath, kindOf, parentOf, validName} from './format'
@@ -129,6 +130,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
   useEffect(() => { onState({cwd, selected: chosen}) }, [cwd, chosen, onState])
 
   const ready = !!fs && !!cwd
+  const spinning = useMinBusy(loading)
   const guard = async (fn: () => Promise<void>) => {
     setError('')
     try { await fn() } catch (e) { setError(errMsg(e)) }
@@ -254,7 +256,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
       <div className="sftp-bar">
         <button className="icon" aria-label={t('Up one folder')} disabled={!ready || cwd === '/'} onClick={() => load(parentOf(cwd))}><IconArrowUp size={16} /></button>
         <button className="icon" aria-label={t('Home folder')} disabled={!ready} onClick={() => load(startDir)} title={t('Home')}><IconHome size={16} /></button>
-        <button className="icon" aria-label={t('Refresh')} disabled={!ready} onClick={() => load(cwd)}><IconRefresh size={16} /></button>
+        <button className="icon" aria-label={t('Refresh')} aria-busy={spinning} disabled={!ready} onClick={() => load(cwd)}><IconRefresh size={16} /></button>
         <form className="sftp-path" onSubmit={goPath}>
           <input aria-label={t('{side} path', {side: label(t, side)})} value={pathText} onChange={e => setPathText(e.target.value)} disabled={!ready} spellCheck={false} />
         </form>

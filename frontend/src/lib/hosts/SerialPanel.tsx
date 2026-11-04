@@ -1,4 +1,6 @@
 import {useCallback, useEffect, useState} from 'react'
+import {IconRefresh} from '../ui/Icons'
+import {useMinBusy} from '../ui/useMinBusy'
 import {Section, SidePanel} from '../ui/Modal'
 import {Select} from '../ui/Select'
 import {useBackend} from '../backend'
@@ -18,9 +20,12 @@ export function SerialPanel({onClose, onConnect}: {onClose(): void; onConnect(pa
   const [port, setPort] = useState('')
   const [baud, setBaud] = useState('115200')
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
+  const spinning = useMinBusy(loading)
 
   const refresh = useCallback(async () => {
     setErr('')
+    setLoading(true)
     try {
       const list = (await be.serial.ports()) ?? []
       setPorts(list)
@@ -28,6 +33,8 @@ export function SerialPanel({onClose, onConnect}: {onClose(): void; onConnect(pa
     } catch (e) {
       setPorts([])
       setErr(errMsg(e))
+    } finally {
+      setLoading(false)
     }
   }, [be])
   useEffect(() => { void refresh() }, [refresh])
@@ -39,7 +46,7 @@ export function SerialPanel({onClose, onConnect}: {onClose(): void; onConnect(pa
         {ports === null && <div className="muted">{t('Looking for serial ports…')}</div>}
         {ports && ports.length === 0 && <div className="muted">{t('No serial ports found. Plug the device in, then refresh.')}</div>}
         {ports && ports.length > 0 && <Select label={t('Serial port')} value={port} onChange={setPort} options={ports.map(p => ({value: p, label: portName(p), hint: p}))} />}
-        <button onClick={refresh}>{t('Refresh')}</button>
+        <button aria-busy={spinning} onClick={refresh}><IconRefresh size={14} /> {t('Refresh')}</button>
       </Section>
       <Section title={t('Speed')}>
         <Select label={t('Baud rate')} value={baud} onChange={setBaud} options={BAUD_RATES.map(b => ({value: String(b), label: String(b), hint: b === 115200 ? t('common default') : b === 9600 ? t('classic default') : undefined}))} />

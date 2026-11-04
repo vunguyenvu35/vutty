@@ -3,6 +3,7 @@ import {useBackend} from '../backend'
 import {useToast} from '../ui/Toast'
 import {useConfirm} from '../ui/Confirm'
 import {errMsg} from '../util'
+import {useMinBusy} from '../ui/useMinBusy'
 import {IconCopy, IconFingerprint, IconRefresh, IconTrash} from '../ui/Icons'
 import {byName, FilterChip, ListToolbar, usePref, VIEWS, type SortOption} from '../ui/ListTools'
 import type {KnownHost} from '../types'
@@ -30,13 +31,18 @@ export function KnownHostsPage() {
   const [sort, setSort] = usePref<Sort>('vutty.knownhosts.sort', SORT_VALUES, 'host')
   const [view, setView] = usePref('vutty.knownhosts.view', VIEWS, 'grid')
 
+  const [loading, setLoading] = useState(false)
+  const spinning = useMinBusy(loading)
   const reload = useCallback(async () => {
+    setLoading(true)
     try {
       setItems((await be.knownHosts.list()) ?? [])
       setError('')
     } catch (e) {
       setItems([])
       setError(errMsg(e))
+    } finally {
+      setLoading(false)
     }
   }, [be])
   useEffect(() => {
@@ -76,7 +82,7 @@ export function KnownHostsPage() {
     <div className="hosts-page" aria-label={t('Known hosts')}>
       <ListToolbar what={t('known hosts')} query={q} onQuery={setQ} sort={sort} sortOptions={sortOptions(t)} onSort={setSort} view={view} onView={setView}>
         {presentTypes.length > 1 && <div className="chips">{presentTypes.map(ty => <FilterChip key={ty} label={ty} on={activeTypes.includes(ty)} onToggle={() => setTypes(activeTypes.includes(ty) ? activeTypes.filter(x => x !== ty) : [...activeTypes, ty])} />)}</div>}
-        <button className="ghost-btn" aria-label={t('Refresh known hosts')} onClick={reload}><IconRefresh size={14} /> {t('Refresh')}</button>
+        <button className="ghost-btn" aria-label={t('Refresh known hosts')} aria-busy={spinning} onClick={reload}><IconRefresh size={14} /> {t('Refresh')}</button>
       </ListToolbar>
 
       <h3 className="sec-title">{t('Known Hosts')}</h3>

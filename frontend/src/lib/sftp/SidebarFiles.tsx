@@ -3,6 +3,7 @@ import {useBackend} from '../backend'
 import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
+import {useMinBusy} from '../ui/useMinBusy'
 import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh} from '../ui/Icons'
 import {errMsg} from '../util'
 import {cdCommand, folderOf, formatBytes, joinPath, parentOf, validName} from './format'
@@ -163,6 +164,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   const toggleHidden = () => setHidden(h => { try { localStorage.setItem(HIDDEN_KEY, h ? '0' : '1') } catch { /* not remembered */ } return !h })
   const chosen = useMemo(() => entries.filter(e => selected.includes(e.path)), [entries, selected])
   const ready = phase === 'ready' && !!sid && !!cwd
+  const spinning = useMinBusy(loading)
 
   const pick = (e: RemoteEntry, ev: ReactMouseEvent) => {
     if (ev.metaKey || ev.ctrlKey) {
@@ -249,7 +251,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
     <div className="side-files" aria-label={t('Server files')}>
       <div className="side-files-bar">
         <button className="icon ghost" aria-label={t('Up one folder')} disabled={!ready || cwd === '/'} onClick={() => void load(sid, parentOf(cwd))}><IconArrowUp size={15} /></button>
-        <button className="icon ghost" aria-label={t('Refresh files')} disabled={!ready} onClick={() => void load(sid, cwd)}><IconRefresh size={15} /></button>
+        <button className="icon ghost" aria-label={t('Refresh files')} aria-busy={spinning} disabled={!ready} onClick={() => void load(sid, cwd)}><IconRefresh size={15} /></button>
         <button className="icon ghost" aria-label={t("Go to the terminal's folder")} disabled={!ready}
           title={t("Go to the terminal's folder")}
           onClick={() => void toTerminal()}><IconLocate size={15} /></button>
