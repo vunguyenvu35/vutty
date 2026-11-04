@@ -1,4 +1,18 @@
-import {closePane, hasPane, leaves, moveTab, movePane, newTab, pinnedSftpTab, splitPane} from './layout'
+import {closePane, hasPane, isTerminalTab, leaves, moveTab, movePane, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, splitPane} from './layout'
+
+describe('Settings tab', () => {
+  it('is one closable tab that is not a terminal: it cannot be split or duplicated, and no pane can move into it', async () => {
+    const st = settingsTab()
+    expect(st.id).toBe(SETTINGS_TAB_ID)
+    expect(st.kind).toBe('settings')
+    expect(st.pinned).toBeFalsy() // it has a close button
+    expect(isTerminalTab(st)).toBe(false)
+    expect(isTerminalTab(newTab('h', 'x'))).toBe(true)
+    expect(splitPane(st, st.activePane, 'row')).toBe(st)
+    const m = await import('./layout')
+    expect(m.duplicateOf(st, 'x')).toBeNull()
+  })
+})
 
 describe('pane layout', () => {
   it('starts with one leaf', () => {

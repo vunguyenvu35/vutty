@@ -75,10 +75,13 @@ export function TopBar(p: Props) {
     setEditing(null)
   }
   const current = p.tabs.find(tb => tb.id === p.active)
+  /** the name a tab shows: Settings is translated now, not when it was opened */
+  const tabName = (tb: Tab) => (tb.kind === 'settings' ? t('Settings') : tb.title)
   /** the icon of a tab: the server type of its host, a plug for a serial port, a terminal for this computer */
   const tabIcon = (tb: Tab) => {
     if (tb.kind === 'sftp') return <IconFolder size={15} />
     if (tb.kind === 'new') return <IconPlus size={15} />
+    if (tb.kind === 'settings') return <IconGear size={15} />
     const hostId = leaves(tb.root)[0]?.hostId ?? ''
     const id = hostId.startsWith('telnet:') ? hostId.slice('telnet:'.length) : hostId
     const os = p.hosts?.find(h => h.id === id)?.os
@@ -136,10 +139,10 @@ export function TopBar(p: Props) {
               onFocus={e => e.currentTarget.select()} onBlur={commit}
               onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') commit(); else if (e.key === 'Escape') setEditing(null) }} />
           ) : (
-            <span className="tab-title" title={tb.pinned ? tb.title : t('{title} (double-click to rename)', {title: tb.title})} onDoubleClick={() => { if (!tb.pinned && p.onRename) setEditing({id: tb.id, value: tb.title}) }}>{tb.title}</span>
+            <span className="tab-title" title={tb.pinned || tb.kind === 'settings' ? tabName(tb) : t('{title} (double-click to rename)', {title: tb.title})} onDoubleClick={() => { if (!tb.pinned && tb.kind !== 'settings' && p.onRename) setEditing({id: tb.id, value: tb.title}) }}>{tabName(tb)}</span>
           )}
           {!tb.pinned && (
-            <span className="x" role="button" aria-label={t('Close {title}', {title: tb.title})} onClick={e => { e.stopPropagation(); p.onClose(tb.id) }}>
+            <span className="x" role="button" aria-label={t('Close {title}', {title: tabName(tb)})} onClick={e => { e.stopPropagation(); p.onClose(tb.id) }}>
               <IconClose size={13} />
             </span>
           )}

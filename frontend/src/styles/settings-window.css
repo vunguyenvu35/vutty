@@ -1,13 +1,24 @@
-/* ---------- Settings window ---------- */
-.win-back { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #0007; }
-.win { width: min(1040px, 94vw); height: min(680px, 90vh); display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 30px 90px #000a; overflow: hidden; }
-.win-title { flex: none; height: 46px; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--bg-2); border-bottom: 1px solid #00000040; cursor: grab; user-select: none; touch-action: none; }
-.win-title:active { cursor: grabbing; }
-.win-dots { display: flex; align-items: center; gap: 8px; }
-.win-dots .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-3); border: 0; padding: 0; display: block; }
-.win-dots .dot.close { background: #ff5f57; cursor: pointer; }
-.win-dots .dot.close:hover { filter: brightness(1.15); }
-.win-name { font-weight: 700; line-height: 1; position: relative; top: 1px; } /* optically centred on the row of dots */
+/* ---------- Settings popup (like VS Code's): a bordered panel over the app ---------- */
+.win-back { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 56px 52px 44px; background: #0006; } /* below the top bar (46px, with the macOS window buttons) */
+.win { position: relative; width: 100%; max-width: 1280px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 24px 70px #000a; overflow: hidden; }
+.win-title { flex: none; height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--bg-2); border-bottom: 1px solid var(--line); user-select: none; cursor: grab; touch-action: none; }
+.win-title.dragging { cursor: grabbing; }
+.win.max .win-title { cursor: default; }
+.win-name { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; line-height: 1; }
+.win-name svg { color: var(--muted); }
+/* maximised: fill the whole app window. The native macOS window buttons stay at the top left, so the title bar starts after them */
+.win-back.maximized { padding: 0; background: var(--bg); }
+.win-grip { position: absolute; z-index: 3; touch-action: none; }
+.win-grip.n, .win-grip.s { left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.win-grip.e, .win-grip.w { top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+.win-grip.n { top: 0; } .win-grip.s { bottom: 0; } .win-grip.e { right: 0; } .win-grip.w { left: 0; }
+.win-grip.ne, .win-grip.nw, .win-grip.se, .win-grip.sw { width: 12px; height: 12px; }
+.win-grip.ne { top: 0; right: 0; cursor: nesw-resize; } .win-grip.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.win-grip.nw { top: 0; left: 0; cursor: nwse-resize; } .win-grip.se { bottom: 0; right: 0; cursor: nwse-resize; }
+.win.max { max-width: none; border: 0; border-radius: 0; box-shadow: none; }
+.win.max .win-title { padding-left: 84px; }
+.win-back.page { position: static; z-index: auto; display: block; padding: 0; background: none; height: 100%; }
+.win.page { max-width: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 .win-body { flex: 1; min-height: 0; display: flex; }
 .win-nav { width: 250px; flex: none; background: var(--bg-2); padding: 10px; display: flex; flex-direction: column; gap: 2px; overflow: auto; border-right: 1px solid #00000030; }
 .win-tabs { display: flex; flex-direction: column; gap: 2px; }
@@ -36,22 +47,10 @@
 .warn-line { display: flex; align-items: center; gap: 6px; }
 .win-link svg { color: var(--muted); }
 
-/* ---------- Settings window: macOS-style controls, resize, maximise, roll up ---------- */
-.win { resize: both; min-width: 640px; min-height: 420px; max-width: 98vw; max-height: 96vh; }
-.win.rolled { resize: none; height: auto !important; min-height: 0; }
-/* maximised: fill the whole app window. The native macOS window buttons stay at the top left, so the title bar starts after them */
-.win-back.maximized { padding: 0; background: var(--bg); }
-.win.max { resize: none; width: 100vw; height: 100vh; max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
-.win.max .win-title { padding-left: 84px; }
+/* ---------- Settings popup: controls, maximise ---------- */
 .win-actions { margin-left: auto; display: flex; gap: 4px; }
 .win-act { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
 .win-act:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
-.win-dots .dot { display: block; cursor: pointer; }
-.win-dots .dot.min { background: #febc2e; }
-.win-dots .dot.max { background: #28c840; }
-.win-dots .dot:hover { filter: brightness(1.15); }
-.win-title { cursor: grab; }
-.win.max .win-title { cursor: default; }
 .zoom-level { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
 .account-card .profile { display: flex; gap: 16px; align-items: center; }
 .profile-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; }

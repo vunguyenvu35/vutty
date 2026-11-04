@@ -79,6 +79,8 @@ export default {
   'Clear what Vutty can rebuild, or start the settings over.': '清除 Vutty 可以重新生成的内容，或重置设置。',
   'Close': '关闭',
   'Close settings': '关闭设置',
+  'Open settings in a tab': '在标签页中打开设置',
+  'Open in a tab': '在标签页中打开',
   'Cloud account': '云账户',
   'Colour URLs, IP addresses, paths, dates and the words error, warning and success. Colours chosen by a program are kept.': '为 URL、IP 地址、路径、日期以及 error、warning、success 等词着色。程序自己指定的颜色会保留。',
   'Command': '命令',

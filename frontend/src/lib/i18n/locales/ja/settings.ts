@@ -79,6 +79,8 @@ export default {
   'Clear what Vutty can rebuild, or start the settings over.': 'Vutty が再生成できるものを消去するか、設定を最初からやり直します。',
   'Close': '閉じる',
   'Close settings': '設定を閉じる',
+  'Open settings in a tab': '設定をタブで開く',
+  'Open in a tab': 'タブで開く',
   'Cloud account': 'クラウドアカウント',
   'Colour URLs, IP addresses, paths, dates and the words error, warning and success. Colours chosen by a program are kept.': 'URL、IP アドレス、パス、日付、および error・warning・success という語に色を付けます。プログラムが指定した色はそのまま保持されます。',
   'Command': 'コマンド',

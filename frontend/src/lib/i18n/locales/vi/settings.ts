@@ -79,6 +79,8 @@ export default {
   'Clear what Vutty can rebuild, or start the settings over.': 'Xoá những gì Vutty có thể tạo lại, hoặc đặt lại cài đặt từ đầu.',
   'Close': 'Đóng',
   'Close settings': 'Đóng cài đặt',
+  'Open settings in a tab': 'Mở Settings trong một tab',
+  'Open in a tab': 'Mở trong tab',
   'Cloud account': 'Tài khoản đám mây',
   'Colour URLs, IP addresses, paths, dates and the words error, warning and success. Colours chosen by a program are kept.': 'Tô màu URL, địa chỉ IP, đường dẫn, ngày tháng và các từ error, warning, success. Màu do chương trình chọn được giữ nguyên.',
   'Command': 'Lệnh',

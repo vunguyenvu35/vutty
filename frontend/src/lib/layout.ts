@@ -17,7 +17,7 @@ export interface Split {
 
 export type Node = Leaf | Split
 
-export type TabKind = 'terminal' | 'sftp' | 'new'
+export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings'
 
 export interface Tab {
   id: string
@@ -54,6 +54,13 @@ export function newSftpTab(hostId: string, title: string): Tab {
 /** Id of the SFTP tab that is always open next to Vaults. */
 export const SFTP_TAB_ID = 'sftp-main'
 
+/** Id of the Settings tab: there is at most one, and it can be closed (it is a tab like a terminal, not a permanent one). */
+export const SETTINGS_TAB_ID = 'settings-main'
+
+export function settingsTab(): Tab {
+  return {...newTab('', 'Settings'), id: SETTINGS_TAB_ID, kind: 'settings'}
+}
+
 export function pinnedSftpTab(): Tab {
   return {...newSftpTab('', 'SFTP'), id: SFTP_TAB_ID, pinned: true}
 }
@@ -70,7 +77,7 @@ export const MAX_TAB_TITLE = 60
 
 export const isSftp = (t: Tab) => t.kind === 'sftp'
 /** a tab that runs sessions (not the file browser, not a blank new tab) */
-export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new'
+export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings'
 
 /** A blank tab: search hosts and tabs, recent connections. It becomes a terminal when a host is picked. */
 export function newBlankTab(title: string): Tab {
@@ -89,7 +96,7 @@ export function leaves(n: Node): Leaf[] {
 
 /** Split the pane `paneId` in direction `dir`; the new pane opens a session to the same host. */
 export function splitPane(tab: Tab, paneId: string, dir: Dir): Tab {
-  if (!isTerminalTab(tab)) return tab // a file browser or a blank tab cannot be split
+  if (!isTerminalTab(tab)) return tab // a file browser, Settings or a blank tab cannot be split
   let created = ''
   const walk = (n: Node): Node => {
     if (n.type === 'leaf') {

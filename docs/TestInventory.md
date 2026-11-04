@@ -656,7 +656,7 @@
 - Terminal on this computer: a real shell, highlighting, numbered and renamed tabs
 - Find, filter and quick connect
 - Known Hosts: every key you trusted is listed
-- Settings is a page of the main window: theme, terminal theme, security, sync
+- Settings is a popup over the window: resize, theme, terminal theme, security, sync, open in a tab
 - Connection loss: banner, no automatic reconnect
 - Host key changed: the connection is blocked with no override
 - Lock and unlock

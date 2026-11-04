@@ -1,7 +1,7 @@
-import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {useState} from 'react'
-import {SettingsWindow} from './SettingsWindow'
+import {popupSize, SettingsWindow} from './SettingsWindow'
 import {Switch} from '../ui/Switch'
 import {makeFake, Providers} from '../../test/fakeBackend'
 import type {Settings, VaultStatus} from '../types'
@@ -9,11 +9,13 @@ import {SHOW_CRYPTO_DONATE} from '../donate'
 import {setLanguageSetting} from '../i18n/store'
 import {stylesheet} from '../../test/stylesheet'
 
+beforeEach(() => { try { localStorage.removeItem('vutty.settingsSize') } catch { /* none */ } })
+
 const vaultSt: VaultStatus = {exists: true, unlocked: true, keychain_enabled: false, auto_lock_minutes: 15}
 
-function Harness({be, vault = vaultSt, onVault = vi.fn(), onClose, page = false}: {be: ReturnType<typeof makeFake>; vault?: VaultStatus; onVault?: () => void; onClose: () => void; page?: boolean}) {
+function Harness({be, vault = vaultSt, onVault = vi.fn(), onClose}: {be: ReturnType<typeof makeFake>; vault?: VaultStatus; onVault?: () => void; onClose: () => void}) {
   const [s, setS] = useState<Settings>(be.state.settings)
-  return <SettingsWindow page={page} settings={s} appearance="dark" vault={vault} onSettings={setS} onVault={onVault} onChanged={vi.fn()} onClose={onClose} />
+  return <SettingsWindow settings={s} appearance="dark" vault={vault} onSettings={setS} onVault={onVault} onChanged={vi.fn()} onClose={onClose} />
 }
 
 function setup(over: Partial<Settings> = {}, vault = vaultSt) {
@@ -103,12 +105,16 @@ describe('SettingsWindow', () => {
     expect(await screen.findByTestId('app-version')).toHaveTextContent('1.1.0-test')
   })
 
-  it('closes with the red dot and with Escape', async () => {
+  it('closes with the ×, with Escape and with a click on the backdrop (not on the panel)', async () => {
     const {onClose} = setup()
     await userEvent.click(screen.getByRole('button', {name: 'Close settings'}))
     expect(onClose).toHaveBeenCalledTimes(1)
     await userEvent.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalledTimes(2)
+    fireEvent.mouseDown(screen.getByRole('dialog', {name: 'Settings'}))
+    expect(onClose).toHaveBeenCalledTimes(2) // inside the panel
+    fireEvent.mouseDown(document.querySelector('.win-back') as HTMLElement)
+    expect(onClose).toHaveBeenCalledTimes(3)
   })
 
   it('Escape closes an open dropdown first and not the window', async () => {
@@ -118,21 +124,6 @@ describe('SettingsWindow', () => {
     expect(onClose).not.toHaveBeenCalled()
     await userEvent.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('the window can be dragged by its title bar but not by its buttons', () => {
-    setup()
-    const win = screen.getByRole('dialog', {name: 'Settings'})
-    const bar = document.querySelector('.win-title') as HTMLElement
-    fireEvent.pointerDown(bar, {clientX: 100, clientY: 100, pointerId: 1})
-    fireEvent.pointerMove(bar, {clientX: 160, clientY: 130, pointerId: 1})
-    expect(win.style.transform).toBe('translate(60px, 30px)')
-    fireEvent.pointerUp(bar, {pointerId: 1})
-    fireEvent.pointerMove(bar, {clientX: 400, clientY: 400, pointerId: 1})
-    expect(win.style.transform).toBe('translate(60px, 30px)') // released: no more movement
-    fireEvent.pointerDown(screen.getByRole('button', {name: 'Close settings'}), {clientX: 5, clientY: 5, pointerId: 1})
-    fireEvent.pointerMove(bar, {clientX: 500, clientY: 500, pointerId: 1})
-    expect(win.style.transform).toBe('translate(60px, 30px)')
   })
 
   it('changes the app theme to Auto, Light or Dark from the sidebar dropdown and saves immediately', async () => {
@@ -334,43 +325,16 @@ describe('SettingsWindow', () => {
   })
 })
 
-describe('SettingsWindow: as a page of the main window', () => {
-  function setupPage() {
-    const be = makeFake()
-    const onClose = vi.fn()
-    render(<Providers be={be}><Harness be={be} onClose={onClose} page /></Providers>)
-    return {be, onClose}
-  }
-
-  it('is a region with a heading, without the floating window\'s title bar, dots or category keys', () => {
-    setupPage()
-    const region = screen.getByRole('region', {name: 'Settings'})
-    expect(region).toHaveClass('page')
-    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull()
-    expect(within(region).getByRole('heading', {name: 'Settings'})).toBeInTheDocument()
-    expect(document.querySelector('.win-title')).toBeNull()
-    expect(document.querySelector('.win-dots')).toBeNull()
-    expect(document.querySelector('.settings-key')).toBeNull() // Mod+digits belong to the pages of the app here
-  })
-
-  it('Esc does not close it, and Mod+2 does not jump to a category', async () => {
-    const {onClose} = setupPage()
-    fireEvent.keyDown(window, {key: 'Escape'})
-    fireEvent.keyDown(window, {key: '2', ctrlKey: true, metaKey: true})
-    expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole('tab', {name: 'General', selected: true})).toBeInTheDocument()
-  })
-
-  it('Ctrl+Tab still goes to the next category', async () => {
-    setupPage()
-    expect(screen.getByRole('tab', {name: 'General'})).toHaveAttribute('aria-selected', 'true')
-    fireEvent.keyDown(window, {key: 'Tab', ctrlKey: true})
-    await waitFor(() => expect(screen.getByRole('tab', {name: 'General'})).toHaveAttribute('aria-selected', 'false'))
-  })
-})
-
-describe('SettingsWindow: window controls', () => {
+describe('SettingsWindow: the popup', () => {
   const win = () => screen.getByRole('dialog', {name: 'Settings'})
+
+  it('has a title bar with the gear and the name at the left, Maximize and Close at the right, and no window dots', () => {
+    setup()
+    const bar = document.querySelector('.win-title') as HTMLElement
+    expect(within(bar).getByText('Settings', {selector: '.win-name'}).querySelector('svg')).not.toBeNull()
+    expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Maximize settings', 'Close settings'])
+    expect(document.querySelector('.win-dots')).toBeNull()
+  })
 
   it('maximise fills the screen, restore goes back, and the title bar double-click does the same', async () => {
     setup()
@@ -378,7 +342,6 @@ describe('SettingsWindow: window controls', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Maximize settings'}))
     expect(win()).toHaveClass('max')
     expect(win().closest('.win-back')).toHaveClass('maximized')
-    expect(win().style.transform).toBe('') // no leftover drag offset while maximised
     await userEvent.click(screen.getByRole('button', {name: 'Restore settings'}))
     expect(win()).not.toHaveClass('max')
     fireEvent.doubleClick(document.querySelector('.win-title') as HTMLElement)
@@ -387,48 +350,196 @@ describe('SettingsWindow: window controls', () => {
     expect(win()).not.toHaveClass('max')
   })
 
-  it('maximised, the in-app dots give way to Restore and Close on the right (the native macOS buttons own the top left)', async () => {
-    const {onClose} = setup()
-    expect(document.querySelector('.win-dots')).not.toBeNull()
-    await userEvent.click(screen.getByRole('button', {name: 'Maximize settings'}))
-    expect(document.querySelector('.win-dots')).toBeNull()
-    expect(screen.queryByRole('button', {name: 'Minimize settings'})).toBeNull()
-    await userEvent.click(screen.getByRole('button', {name: 'Close settings'}))
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('minimise rolls the window up to its title bar and unrolls it again, keeping the chosen tab', async () => {
-    setup()
-    await tab('Security')
-    await userEvent.click(screen.getByRole('button', {name: 'Minimize settings'}))
-    expect(win()).toHaveClass('rolled')
-    expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('button', {name: 'Close settings'})).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', {name: 'Unroll settings'}))
-    expect(win()).not.toHaveClass('rolled')
-    expect(screen.getByRole('tab', {name: 'Security', selected: true})).toBeInTheDocument()
-  })
-
-  it('a maximised window cannot be dragged, and maximising resets its position', () => {
-    setup()
-    const bar = document.querySelector('.win-title') as HTMLElement
-    fireEvent.pointerDown(bar, {clientX: 100, clientY: 100, pointerId: 1})
-    fireEvent.pointerMove(bar, {clientX: 150, clientY: 150, pointerId: 1})
-    fireEvent.pointerUp(bar, {pointerId: 1})
-    expect(win().style.transform).toBe('translate(50px, 50px)')
-    fireEvent.click(screen.getByRole('button', {name: 'Maximize settings'}))
-    fireEvent.pointerDown(bar, {clientX: 100, clientY: 100, pointerId: 1})
-    fireEvent.pointerMove(bar, {clientX: 300, clientY: 300, pointerId: 1})
-    expect(win().style.transform).toBe('')
-    fireEvent.click(screen.getByRole('button', {name: 'Restore settings'}))
-    expect(win().style.transform).toBe('translate(0px, 0px)')
-  })
-
-  it('the window is resizable by CSS (corner handle) with sane limits', () => {
+  it('is a bordered panel inset from the edges of the app (a backdrop shows around it) that fills the window when maximised', () => {
     const css = stylesheet()
-    const rule = css.match(/\n\.win \{ resize: both;([^}]*)\}/)![1]
-    expect(rule).toMatch(/min-width:\s*640px/)
-    expect(rule).toMatch(/max-width:\s*98vw/)
+    expect(css.match(/\n\.win-back \{([^}]*)\}/)![1]).toMatch(/padding:\s*56px 52px 44px/)
+    expect(css.match(/\n\.win \{([^}]*)\}/)![1]).toMatch(/border-radius:\s*10px/)
+    expect(css.match(/\n\.win-back\.maximized \{([^}]*)\}/)![1]).toMatch(/padding:\s*0/)
+  })
+})
+
+describe('SettingsWindow: size', () => {
+  const win = () => screen.getByRole('dialog', {name: 'Settings'})
+  const grip = (g: string) => document.querySelector(`[data-grip="${g}"]`) as HTMLElement
+  const setViewport = (w: number, h: number) => {
+    Object.defineProperty(window, 'innerWidth', {configurable: true, value: w})
+    Object.defineProperty(window, 'innerHeight', {configurable: true, value: h})
+  }
+  const original = {w: window.innerWidth, h: window.innerHeight}
+  afterEach(() => setViewport(original.w, original.h))
+  /** the popup is 800 x 600 for the pointer maths (jsdom has no layout) */
+  const sized = () => {
+    vi.spyOn(win(), 'getBoundingClientRect').mockReturnValue({width: 800, height: 600, x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600, toJSON: () => ({})} as DOMRect)
+  }
+  const drag = (g: string, from: [number, number], to: [number, number]) => {
+    fireEvent.pointerDown(grip(g), {clientX: from[0], clientY: from[1], pointerId: 1})
+    fireEvent.pointerMove(grip(g), {clientX: to[0], clientY: to[1], pointerId: 1})
+    fireEvent.pointerUp(grip(g), {pointerId: 1})
+  }
+
+  it('the size comes from the window: nearly all of it, with an inset, and never more than a panel on a large screen', () => {
+    expect(popupSize({w: 1000, h: 700}, null)).toEqual({w: 896, h: 600})
+    expect(popupSize({w: 2560, h: 1440}, null)).toEqual({w: 1280, h: 880})
+    expect(popupSize({w: 700, h: 450}, null)).toEqual({w: 640, h: 420}) // never below the minimum
+    expect(popupSize({w: 1000, h: 800}, {fw: 0.5, fh: 0.5})).toEqual({w: 640, h: 420}) // a remembered share, held to the minimum
+    expect(popupSize({w: 1000, h: 800}, {fw: 0.9, fh: 0.8})).toEqual({w: 900, h: 640})
+  })
+
+  it('opens at the size of the current window, and follows the window when it is resized', () => {
+    setViewport(1200, 800)
+    setup()
+    expect(win().style.width).toBe('1096px')
+    expect(win().style.height).toBe('700px')
+    act(() => { setViewport(2400, 1500); window.dispatchEvent(new Event('resize')) })
+    expect(win().style.width).toBe('1280px')
+    expect(win().style.height).toBe('880px')
+  })
+
+  it('has a handle on every edge and corner that resizes around the centre, so the edge follows the pointer', () => {
+    setViewport(1200, 800)
+    setup()
+    sized()
+    drag('e', [500, 300], [550, 300])
+    expect(win().style.width).toBe('900px')
+    expect(win().style.height).toBe('600px') // an east handle leaves the height as it was (the mocked 600)
+    drag('w', [100, 300], [60, 300]) // dragging a west edge to the left makes it wider
+    expect(win().style.width).toBe('880px')
+    drag('s', [400, 500], [400, 450]) // up: smaller
+    expect(win().style.height).toBe('500px')
+    drag('nw', [10, 10], [-20, -20]) // a corner changes both
+    expect(win().style.width).toBe('860px')
+    expect(win().style.height).toBe('660px')
+  })
+
+  it('moves with its title bar, held inside the window and below the top bar, and not by its buttons', () => {
+    setViewport(1200, 800)
+    setup()
+    vi.spyOn(win(), 'getBoundingClientRect').mockReturnValue({width: 800, height: 600, x: 100, y: 60, top: 60, left: 100, right: 900, bottom: 660, toJSON: () => ({})} as DOMRect)
+    const bar = document.querySelector('.win-title') as HTMLElement
+    fireEvent.pointerDown(bar, {clientX: 300, clientY: 80, pointerId: 1})
+    fireEvent.pointerMove(bar, {clientX: 340, clientY: 100, pointerId: 1})
+    expect(win().style.transform).toBe('translate(40px, 20px)')
+    expect(bar).toHaveClass('dragging')
+    fireEvent.pointerMove(bar, {clientX: -4000, clientY: -4000, pointerId: 1}) // as far as it can go: the left edge of the window, and just under the 46px top bar
+    expect(win().style.transform).toBe('translate(-100px, -14px)')
+    fireEvent.pointerMove(bar, {clientX: 9000, clientY: 9000, pointerId: 1}) // and the right and bottom edges of the window
+    expect(win().style.transform).toBe('translate(300px, 140px)')
+    fireEvent.pointerUp(bar, {pointerId: 1})
+    expect(bar).not.toHaveClass('dragging')
+    fireEvent.pointerMove(bar, {clientX: 0, clientY: 0, pointerId: 1})
+    expect(win().style.transform).toBe('translate(300px, 140px)') // released: no more movement
+    fireEvent.pointerDown(screen.getByRole('button', {name: 'Close settings'}), {clientX: 5, clientY: 5, pointerId: 1})
+    fireEvent.pointerMove(bar, {clientX: 500, clientY: 500, pointerId: 1})
+    expect(win().style.transform).toBe('translate(300px, 140px)') // a button is not a handle
+  })
+
+  it('goes back to the centre when maximised and restored, and when the window changes size', async () => {
+    setViewport(1200, 800)
+    setup()
+    vi.spyOn(win(), 'getBoundingClientRect').mockReturnValue({width: 800, height: 600, x: 100, y: 60, top: 60, left: 100, right: 900, bottom: 660, toJSON: () => ({})} as DOMRect)
+    const bar = document.querySelector('.win-title') as HTMLElement
+    fireEvent.pointerDown(bar, {clientX: 300, clientY: 80, pointerId: 1})
+    fireEvent.pointerMove(bar, {clientX: 340, clientY: 100, pointerId: 1})
+    fireEvent.pointerUp(bar, {pointerId: 1})
+    await userEvent.click(screen.getByRole('button', {name: 'Maximize settings'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Restore settings'}))
+    expect(win().style.transform).toBe('')
+    vi.spyOn(win(), 'getBoundingClientRect').mockReturnValue({width: 800, height: 600, x: 100, y: 60, top: 60, left: 100, right: 900, bottom: 660, toJSON: () => ({})} as DOMRect)
+    fireEvent.pointerDown(bar, {clientX: 300, clientY: 80, pointerId: 1})
+    fireEvent.pointerMove(bar, {clientX: 340, clientY: 100, pointerId: 1})
+    fireEvent.pointerUp(bar, {pointerId: 1})
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(win().style.transform).toBe('')
+  })
+
+  it('opens below the top bar, so it never covers the macOS window buttons', () => {
+    const css = stylesheet()
+    expect(css.match(/\n\.win-back \{([^}]*)\}/)![1]).toMatch(/padding:\s*56px 52px 44px/) // the top bar is 46px high
+    expect(css.match(/\n\.topbar \{([^}]*)\}/)![1]).toMatch(/height:\s*46px/)
+  })
+
+  it('never goes below the minimum or beyond the window', () => {
+    setViewport(1200, 800)
+    setup()
+    sized()
+    drag('se', [500, 300], [-5000, -5000])
+    expect(win().style.width).toBe('640px')
+    expect(win().style.height).toBe('420px')
+    drag('se', [500, 300], [9000, 9000])
+    expect(win().style.width).toBe('1200px')
+    expect(win().style.height).toBe('800px')
+  })
+
+  it('remembers the size as a share of the window, so another window gets a fitting one; a double click on a handle goes back to the default', () => {
+    setViewport(1200, 800)
+    const first = setup()
+    sized()
+    drag('e', [500, 300], [550, 300]) // 900 of 1200
+    expect(JSON.parse(localStorage.getItem('vutty.settingsSize')!)).toEqual({fw: 0.75, fh: 600 / 800})
+    cleanup()
+    setViewport(1000, 700)
+    setup()
+    expect(win().style.width).toBe('750px') // the same share of a smaller window
+    expect(first).toBeDefined()
+    fireEvent.doubleClick(grip('e'))
+    expect(win().style.width).toBe('896px')
+    expect(localStorage.getItem('vutty.settingsSize')).toBeNull()
+  })
+
+  it('has no handles, and no fixed size, when maximised or shown as a tab', async () => {
+    setViewport(1200, 800)
+    setup()
+    expect(document.querySelectorAll('.win-grip')).toHaveLength(8)
+    await userEvent.click(screen.getByRole('button', {name: 'Maximize settings'}))
+    expect(document.querySelectorAll('.win-grip')).toHaveLength(0)
+    expect(win().style.width).toBe('')
+    cleanup()
+    render(<Providers be={makeFake()}><SettingsWindow page settings={makeFake().state.settings} appearance="dark" vault={vaultSt} onSettings={vi.fn()} onVault={vi.fn()} onChanged={vi.fn()} onClose={vi.fn()} /></Providers>)
+    expect(document.querySelectorAll('.win-grip')).toHaveLength(0)
+    expect(screen.getByRole('region', {name: 'Settings'}).style.width).toBe('')
+  })
+})
+
+describe('SettingsWindow: open in a tab', () => {
+  it('the popup has the Open in a tab button before Maximize only when it can be moved', () => {
+    const {unmount} = render(<Providers be={makeFake()}><SettingsWindow settings={makeFake().state.settings} appearance="dark" vault={vaultSt} onSettings={vi.fn()} onVault={vi.fn()} onChanged={vi.fn()} onClose={vi.fn()} /></Providers>)
+    expect(screen.queryByRole('button', {name: 'Open settings in a tab'})).toBeNull()
+    unmount()
+    const onOpenAsTab = vi.fn()
+    render(<Providers be={makeFake()}><SettingsWindow settings={makeFake().state.settings} appearance="dark" vault={vaultSt} onSettings={vi.fn()} onVault={vi.fn()} onChanged={vi.fn()} onClose={vi.fn()} onOpenAsTab={onOpenAsTab} /></Providers>)
+    const bar = document.querySelector('.win-title') as HTMLElement
+    expect(within(bar).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Open settings in a tab', 'Maximize settings', 'Close settings'])
+    fireEvent.click(screen.getByRole('button', {name: 'Open settings in a tab'}))
+    expect(onOpenAsTab).toHaveBeenCalledTimes(1)
+  })
+
+  describe('as the body of a tab (page)', () => {
+    function setupPage() {
+      const be = makeFake()
+      const onClose = vi.fn()
+      render(<Providers be={be}><SettingsWindow page settings={be.state.settings} appearance="dark" vault={vaultSt} onSettings={vi.fn()} onVault={vi.fn()} onChanged={vi.fn()} onClose={onClose} /></Providers>)
+      return {be, onClose}
+    }
+
+    it('is a region without the popup\'s backdrop, title bar or category keys', () => {
+      const {onClose} = setupPage()
+      const region = screen.getByRole('region', {name: 'Settings'})
+      expect(region).toHaveClass('page')
+      expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull()
+      expect(document.querySelector('.win-title')).toBeNull()
+      expect(document.querySelector('.settings-key')).toBeNull()
+      fireEvent.mouseDown(document.querySelector('.win-back') as HTMLElement)
+      expect(onClose).not.toHaveBeenCalled() // there is no backdrop to click
+    })
+
+    it('Esc, Mod+2 and Ctrl+Tab are left to the app', () => {
+      const {onClose} = setupPage()
+      fireEvent.keyDown(window, {key: 'Escape'})
+      fireEvent.keyDown(window, {key: '2', ctrlKey: true, metaKey: true})
+      fireEvent.keyDown(window, {key: 'Tab', ctrlKey: true})
+      expect(onClose).not.toHaveBeenCalled()
+      expect(screen.getByRole('tab', {name: 'General', selected: true})).toBeInTheDocument()
+    })
   })
 })
 

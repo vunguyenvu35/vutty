@@ -1,4 +1,4 @@
-import {Fragment, lazy, PointerEvent as ReactPointerEvent, Suspense, useEffect, useRef, useState} from 'react'
+import {Fragment, lazy, PointerEvent as ReactPointerEvent, Suspense, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {useBackend, type UpdateInfo} from '../backend'
 import {useToast} from '../ui/Toast'
 import {useConfirm} from '../ui/Confirm'
@@ -10,7 +10,7 @@ import {setLanguageSetting} from '../i18n/store'
 import {biometricName, errMsg} from '../util'
 import {ThemePicker} from './ThemePicker'
 import {resolveTerminalTheme} from '../terminal/themes'
-import {IconArrowUpRight, IconCloud, IconEnterKey, IconFolder, IconGear, IconShield, IconSparkle, IconTerminal, IconUser} from '../ui/Icons'
+import {IconArrowUpRight, IconClose, IconCloud, IconEnterKey, IconFolder, IconGear, IconMaximizePane, IconMinimizePane, IconOpenInTab, IconShield, IconSparkle, IconTerminal, IconUser} from '../ui/Icons'
 import {formatBytes} from '../sftp/format'
 import {ShortcutsEditor} from './ShortcutsEditor'
 import {capture, formatCombo, matches} from '../shortcuts/shortcuts'
@@ -25,6 +25,38 @@ const loadAssistant = () => import('./AssistantSettings').then(m => ({default: m
 const SupportPanel = lazy(loadSupport)
 const SyncPanel = lazy(loadSync)
 const AssistantSettings = lazy(loadAssistant)
+/**
+ * The popup is sized from the window it opens in: nearly all of it (an inset around it shows the app behind, and it sits below
+ * the top bar), but never wider than WIN_MAX_W or taller than WIN_MAX_H, so it stays a panel on a large screen. Its title bar
+ * drags it (inside the window, never over the top bar). It can be dragged larger or smaller by its
+ * edges and corners (never below WIN_MIN_*, never beyond the window); that size is remembered as a share of the window, so it
+ * fits again in a window of another size.
+ */
+const WIN_MIN_W = 640
+const WIN_MIN_H = 420
+const WIN_MAX_W = 1280
+const WIN_MAX_H = 880
+const INSET_X = 104 // 52px of the app on each side
+const INSET_Y = 100 // 56px below the top bar and 44px at the bottom
+const TOP_BAR = 46 // the popup never goes over the top bar: the macOS window buttons are there
+const SIZE_KEY = 'vutty.settingsSize'
+type Grip = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+const GRIPS: Grip[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
+interface Share {fw: number; fh: number}
+const clamp = (v: number, lo: number, hi: number) => Math.round(Math.max(Math.min(lo, hi), Math.min(hi, v)))
+function loadShare(): Share | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(SIZE_KEY) ?? 'null')
+    return v && v.fw > 0 && v.fw <= 1 && v.fh > 0 && v.fh <= 1 ? {fw: v.fw, fh: v.fh} : null
+  } catch { return null }
+}
+/** the size of the popup in a window of this size */
+export function popupSize(view: {w: number; h: number}, share: Share | null): {w: number; h: number} {
+  return share
+    ? {w: clamp(share.fw * view.w, WIN_MIN_W, view.w), h: clamp(share.fh * view.h, WIN_MIN_H, view.h)}
+    : {w: clamp(view.w - INSET_X, WIN_MIN_W, WIN_MAX_W), h: clamp(view.h - INSET_Y, WIN_MIN_H, WIN_MAX_H)}
+}
+
 // the pages are fetched right after the window opens, so a tab opens at once instead of flashing "Loading…"
 const preload = () => { void loadSupport(); void loadSync(); void loadAssistant() }
 const Loading = () => { const t = useT(); return <div className="muted" role="status">{t('Loading…')}</div> }
@@ -75,8 +107,10 @@ interface Props {
   onVault(): void
   onChanged(): void
   onClose(): void
-  /** A page of the main window (like Hosts or Keychain): no floating window, no title bar, no Esc to close; Mod+digits stay the pages' keys. */
+  /** Shown in a tab of the window instead of a popup: no backdrop and no title bar (the tab has its own); Esc, Ctrl+Tab and Mod+digits stay with the app. */
   page?: boolean
+  /** the popup's button that moves Settings into a tab of the window (VS Code's "open as editor") */
+  onOpenAsTab?(): void
   /** false while the saved settings are still being fetched (the window is already up): the menu works, the pages wait */
   ready?: boolean
   /** true while the values shown are the ones remembered from last time: they show, but nothing is saved over the real ones yet */
@@ -84,13 +118,12 @@ interface Props {
 }
 
 /**
- * Settings as its own window: a floating window with a title bar, a menu on the left
- * (categories, theme, help links, version) and cards on the right. The dots work like macOS: red closes,
- * yellow rolls the window up to its title bar, green maximises (double-click the title bar too). Drag the
- * title bar to move it and the bottom-right corner to resize. Wails v2 can only create one OS window, so
- * this is an in-app window layer rather than a second native window. Changes apply immediately.
+ * Settings as a popup over the app, like in VS Code: a bordered panel with the name at the left of its title bar and
+ * Maximize / Close at the right, a menu of categories on the left and the settings on the
+ * right. Esc, a click on the backdrop and the × close it; the button before Maximize moves it into a tab of the window.
+ * Changes apply immediately.
  */
-export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, page = false, ready = true, stale = false}: Props) {
+export function SettingsWindow({settings: s, appearance, vault, onSettings, onVault, onChanged, onClose, page = false, onOpenAsTab, ready = true, stale = false}: Props) {
   const be = useBackend()
   const toast = useToast()
   const confirm = useConfirm()
@@ -111,10 +144,30 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const [name, setName] = useState(s.account_name)
   const [email, setEmail] = useState(s.account_email)
   const [err, setErr] = useState('')
-  const [offset, setOffset] = useState({x: 0, y: 0})
   const [maximized, setMaximized] = useState(false)
-  const [rolledUp, setRolledUp] = useState(false)
-  const drag = useRef<{sx: number; sy: number; ox: number; oy: number} | null>(null)
+  const backdrop = useRef<HTMLDivElement>(null)
+  // the window the popup is in, measured on its own backdrop (the interface zoom changes what a pixel is, so window.innerWidth would be wrong)
+  const measure = () => ({w: backdrop.current?.clientWidth || window.innerWidth, h: backdrop.current?.clientHeight || window.innerHeight})
+  const [view, setView] = useState(() => ({w: window.innerWidth, h: window.innerHeight}))
+  const [share, setShareState] = useState<Share | null>(loadShare) // null: the default size for this window
+  const shareRef = useRef(share)
+  const setShare = (v: Share | null) => {
+    shareRef.current = v
+    setShareState(v)
+  }
+  const remember = () => { try { if (shareRef.current) localStorage.setItem(SIZE_KEY, JSON.stringify(shareRef.current)); else localStorage.removeItem(SIZE_KEY) } catch { /* not remembered */ } }
+  useLayoutEffect(() => {
+    const fit = () => { setView(measure()); setOffset({x: 0, y: 0}) } // another window size: centred again
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
+  const size = popupSize(view, share)
+  const panel = useRef<HTMLDivElement>(null)
+  const [offset, setOffset] = useState({x: 0, y: 0}) // where the title bar dragged the popup from the centre
+  const [dragging, setDragging] = useState(false)
+  const moving = useRef<{x: number; y: number; ox: number; oy: number; minX: number; maxX: number; minY: number; maxY: number} | null>(null)
+  const resizing = useRef<{x: number; y: number; w: number; h: number; ex: number; ey: number} | null>(null)
 
   const [newer, setNewer] = useState<UpdateInfo | null>(null)
   const [checking, setChecking] = useState(false)
@@ -140,10 +193,11 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   }, [onClose, page])
   // Mod+1…8 jump to a category, Ctrl+Tab / Ctrl+Shift+Tab go to the next / previous one (not while a shortcut is being recorded)
   useEffect(() => {
+    if (page) return // in a tab, Ctrl+Tab and Mod+digits belong to the app
     const onKey = (e: KeyboardEvent) => {
       if (capture.active) return
       const go = (i: number) => { e.preventDefault(); setCat(CATS[(i + CATS.length) % CATS.length].id); setErr('') }
-      const n = page ? -1 : CATS.findIndex((_, i) => matches(e, 'Mod+' + (i + 1))) // on a page Mod+digits go to the pages
+      const n = CATS.findIndex((_, i) => matches(e, 'Mod+' + (i + 1)))
       if (n >= 0) return go(n)
       const at = CATS.findIndex(c => c.id === catRef.current)
       if (matches(e, 'Ctrl+Tab')) go(at + 1)
@@ -153,21 +207,42 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const startDrag = (e: ReactPointerEvent) => {
-    if (maximized || (e.target as HTMLElement).closest('button')) return
-    drag.current = {sx: e.clientX, sy: e.clientY, ox: offset.x, oy: offset.y}
+  const toggleMax = () => { setMaximized(m => !m); setOffset({x: 0, y: 0}) }
+  // Dragging the title bar moves the popup, held inside the window and below the top bar.
+  const startMove = (e: ReactPointerEvent) => {
+    const el = panel.current
+    if (!el || maximized || page || e.button > 0 || (e.target as HTMLElement).closest('button')) return
+    const r = el.getBoundingClientRect()
+    const top = Math.max(document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0, TOP_BAR)
+    const left0 = r.left - offset.x, top0 = r.top - offset.y // where it would be with no offset
+    const minX = -left0, minY = top - top0
+    moving.current = {x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y, minX, maxX: Math.max(minX, view.w - (left0 + r.width)), minY, maxY: Math.max(minY, view.h - (top0 + r.height))}
+    setDragging(true)
     ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
   }
-  const moveDrag = (e: ReactPointerEvent) => {
-    const d = drag.current
+  const moveMove = (e: ReactPointerEvent) => {
+    const d = moving.current
     if (!d) return
-    const limitX = window.innerWidth / 2, limitY = window.innerHeight / 2
-    setOffset({x: Math.max(-limitX, Math.min(limitX, d.ox + e.clientX - d.sx)), y: Math.max(-limitY, Math.min(limitY, d.oy + e.clientY - d.sy))})
+    setOffset({x: Math.round(Math.max(d.minX, Math.min(d.maxX, d.ox + e.clientX - d.x))), y: Math.round(Math.max(d.minY, Math.min(d.maxY, d.oy + e.clientY - d.y)))})
   }
-  const endDrag = () => { drag.current = null }
-  const toggleMax = () => { setMaximized(m => !m); setRolledUp(false); setOffset({x: 0, y: 0}) }
-
-  // the fields that start from the saved values are filled in again when those arrive
+  const endMove = () => { moving.current = null; setDragging(false) }
+  // The panel stays centred, so an edge follows the pointer when the size changes by twice the distance moved.
+  const startResize = (grip: Grip) => (e: ReactPointerEvent) => {
+    const el = panel.current
+    if (!el || e.button > 0) return
+    e.preventDefault()
+    const r = el.getBoundingClientRect()
+    resizing.current = {x: e.clientX, y: e.clientY, w: r.width, h: r.height, ex: grip.includes('e') ? 1 : grip.includes('w') ? -1 : 0, ey: grip.includes('s') ? 1 : grip.includes('n') ? -1 : 0}
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  }
+  const moveResize = (e: ReactPointerEvent) => {
+    const d = resizing.current
+    if (!d) return
+    const w = d.ex ? clamp(d.w + 2 * d.ex * (e.clientX - d.x), WIN_MIN_W, view.w) : d.w
+    const h = d.ey ? clamp(d.h + 2 * d.ey * (e.clientY - d.y), WIN_MIN_H, view.h) : d.h
+    setShare({fw: w / view.w, fh: h / view.h})
+  }
+  const endResize = () => { if (resizing.current) { resizing.current = null; remember() } }
   useEffect(() => {
     if (!ready) return
     setScroll(String(s.scrollback)); setAuto(String(vault.auto_lock_minutes)); setHint(vault.hint ?? ''); setName(s.account_name); setEmail(s.account_email)
@@ -209,33 +284,27 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const initial = (s.account_name.trim() || s.account_email.trim() || '?')[0].toUpperCase()
 
   return (
-    <div className={'win-back' + (maximized ? ' maximized' : '') + (page ? ' page' : '')} role="presentation">
-      <div className={'win' + (maximized ? ' max' : '') + (rolledUp ? ' rolled' : '') + (page ? ' page' : '')} role={page ? 'region' : 'dialog'} aria-label={t('Settings')}
-        style={maximized ? undefined : {transform: `translate(${offset.x}px, ${offset.y}px)`}}>
-        {!page && <div className="win-title" {...({onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag, onDoubleClick: toggleMax})}>
-          {/* maximised, the window covers the app and the native macOS buttons sit at the top left: the in-app dots give way to Restore / Close on the right */}
-          {!maximized && <span className="win-dots">
-            <button className="dot close" aria-label={t('Close settings')} title={t('Close')} onClick={onClose} />
-            <button className="dot min" aria-label={rolledUp ? t('Unroll settings') : t('Minimize settings')} title={rolledUp ? t('Show') : t('Minimize')} onClick={() => setRolledUp(r => !r)} />
-            <button className="dot max" aria-label={maximized ? t('Restore settings') : t('Maximize settings')} title={maximized ? t('Restore') : t('Maximize')} onClick={toggleMax} />
-          </span>}
-          <span className="win-name">{t('Settings')}</span>
-          {maximized && (
-            <span className="win-actions">
-              <button className="win-act" aria-label={t('Restore settings')} title={t('Restore')} onClick={toggleMax}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="8" y="3" width="13" height="13" rx="2" /><path d="M16 21H5a2 2 0 0 1-2-2V8" /></svg>
-              </button>
-              <button className="win-act" aria-label={t('Close settings')} title={t('Close')} onClick={onClose}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-              </button>
-            </span>
-          )}
+    <div ref={backdrop} className={'win-back' + (maximized ? ' maximized' : '') + (page ? ' page' : '')} role="presentation" onMouseDown={e => { if (!page && e.target === e.currentTarget) onClose() }}>
+      <div ref={panel} className={'win' + (maximized ? ' max' : '') + (page ? ' page' : '')} role={page ? 'region' : 'dialog'} aria-label={t('Settings')}
+        style={!page && !maximized ? {width: size.w, height: size.h, maxWidth: 'none', maxHeight: 'none', transform: offset.x || offset.y ? `translate(${offset.x}px, ${offset.y}px)` : undefined} : undefined}>
+        {!page && !maximized && GRIPS.map(g => (
+          <i key={g} className={'win-grip ' + g} data-grip={g} aria-hidden="true" title={g.length === 1 ? t('Drag to resize; double-click to reset') : undefined}
+            onPointerDown={startResize(g)} onPointerMove={moveResize} onPointerUp={endResize} onPointerCancel={endResize} onDoubleClick={() => { setShare(null); remember() }} />
+        ))}
+        {!page && <div className={'win-title' + (dragging ? ' dragging' : '')} onPointerDown={startMove} onPointerMove={moveMove} onPointerUp={endMove} onPointerCancel={endMove} onDoubleClick={e => { if (!(e.target as HTMLElement).closest('button')) toggleMax() }}>
+          <span className="win-name"><IconGear size={14} />{t('Settings')}</span>
+          <span className="win-actions">
+            {onOpenAsTab && <button className="win-act" aria-label={t('Open settings in a tab')} title={t('Open in a tab')} onClick={onOpenAsTab}><IconOpenInTab size={14} /></button>}
+            <button className="win-act" aria-label={maximized ? t('Restore settings') : t('Maximize settings')} title={maximized ? t('Restore') : t('Maximize')} onClick={toggleMax}>
+              {maximized ? <IconMinimizePane size={14} /> : <IconMaximizePane size={14} />}
+            </button>
+            <button className="win-act" aria-label={t('Close settings')} title={t('Close')} onClick={onClose}><IconClose size={14} /></button>
+          </span>
         </div>}
 
-        {!rolledUp && (
+        {(
           <div className="win-body">
             <nav className="win-nav" aria-label={t('Settings menu')}>
-              {page && <h2 className="win-heading">{t('Settings')}</h2>}
               <div role="tablist" aria-orientation="vertical" className="win-tabs">
                 {CATS.map((c, i) => (
                   <Fragment key={c.id}>

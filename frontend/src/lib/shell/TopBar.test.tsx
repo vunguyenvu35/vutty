@@ -1,7 +1,7 @@
 import {createEvent, fireEvent, render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {TopBar} from './TopBar'
-import {newTab, PANE_DRAG, setDraggingPane} from '../layout'
+import {newTab, PANE_DRAG, setDraggingPane, settingsTab} from '../layout'
 import {host} from '../../test/fakeBackend'
 
 const base = {snippets: [], onRunSnippet: vi.fn(), onSplit: vi.fn(), onNew: vi.fn(), onSettings: vi.fn()}
@@ -21,6 +21,20 @@ describe('TopBar', () => {
     expect(onSelect).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('tab', {name: /web-1/}))
     expect(onSelect).toHaveBeenCalledWith(t.id)
+  })
+
+  it('the Settings tab has a gear, can be closed, cannot be renamed, and split is off in it', async () => {
+    const st = settingsTab()
+    const onClose = vi.fn(), onRename = vi.fn()
+    render(<TopBar tabs={[st]} active={st.id} onHome={vi.fn()} onSelect={vi.fn()} onClose={onClose} onRename={onRename} {...base} />)
+    const tab = screen.getByRole('tab', {name: /Settings/})
+    expect(tab).toHaveClass('active')
+    expect(tab).not.toHaveClass('pinned')
+    await userEvent.dblClick(within(tab).getByText('Settings'))
+    expect(screen.queryByLabelText('Tab name')).toBeNull() // no rename box
+    expect(screen.getByLabelText('Split right')).toBeDisabled()
+    await userEvent.click(screen.getByLabelText('Close Settings'))
+    expect(onClose).toHaveBeenCalledWith(st.id)
   })
 
   it('split buttons are only enabled inside a terminal tab', async () => {

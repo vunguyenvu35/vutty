@@ -559,12 +559,11 @@ try {
   assert.match(await known.textContent(), /ssh-ed25519 · SHA256:/)
   await shot(page, 'known-hosts')
 
-  step('Settings is a page of the main window: theme, terminal theme, security, sync')
+  step('Settings is a popup over the window: resize, theme, terminal theme, security, sync, open in a tab')
   await nav('Settings').click()
-  const win = page.getByRole('region', {name: 'Settings'})
+  const win = page.getByRole('dialog', {name: 'Settings'})
   await win.waitFor()
-  assert.equal(await win.evaluate(el => !!el.closest('main.settings-main')), true, 'a page of the main area, not a floating window')
-  assert.equal(await page.getByRole('dialog', {name: 'Settings'}).count(), 0)
+  assert.equal(await win.evaluate(el => !!el.closest('.win-back')), true, 'a popup over the app')
   await win.getByTestId('app-version').waitFor()
 
   await shot(page, 'settings-general')
@@ -592,10 +591,38 @@ try {
   await page.getByText('You are on the latest version').waitFor()
   await shot(page, 'settings-account')
 
-  // the page fills the whole area beside the navigation
+  // the popup is inset from the edges of the window and can be maximised, like VS Code's
+  const small = await win.boundingBox()
+  const viewport = page.viewportSize()
+  assert.ok(small.x > 20 && small.y > 10 && small.width < viewport.width - 60, 'inset popup: ' + JSON.stringify(small))
+  await win.getByRole('button', {name: 'Maximize settings'}).click()
+  await page.waitForFunction(() => document.querySelector('[role=dialog][aria-label=Settings]')?.classList.contains('max'))
   const big = await win.boundingBox()
-  assert.ok(big.width > 900 && big.height > 500, 'the page fills the area: ' + JSON.stringify(big))
-  await shot(page, 'settings-page-layout')
+  assert.ok(big.width >= viewport.width - 2 && big.height >= viewport.height - 2, 'maximised: ' + JSON.stringify(big))
+  await shot(page, 'settings-maximized')
+  await win.getByRole('button', {name: 'Restore settings'}).click()
+  await page.waitForFunction(() => !document.querySelector('[role=dialog][aria-label=Settings]')?.classList.contains('max'))
+  // it sits below the top bar and can be moved by its title bar, but never over the top bar
+  assert.ok(small.y >= 46, 'below the top bar: ' + JSON.stringify(small))
+  await page.mouse.move(small.x + small.width / 2, small.y + 15)
+  await page.mouse.down()
+  await page.mouse.move(small.x + small.width / 2 + 60, small.y + 15 - 400, {steps: 5})
+  await page.mouse.up()
+  const moved = await win.boundingBox()
+  assert.ok(moved.x > small.x + 20 && moved.y >= 46 - 1, 'moved right, held under the top bar: ' + JSON.stringify({small, moved}))
+  await win.locator('.win-title').dblclick() // maximise and restore: centred again
+  await win.locator('.win-title').dblclick()
+  // it can be dragged larger by its right edge (the panel stays centred, so the edge follows the pointer) and goes back on a double click
+  const edge = await win.locator('[data-grip="e"]').boundingBox()
+  await page.mouse.move(edge.x + 3, edge.y + edge.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(edge.x + 3 - 40, edge.y + edge.height / 2, {steps: 5})
+  await page.mouse.up()
+  const narrower = await win.boundingBox()
+  assert.ok(narrower.width < small.width - 60, 'dragging the right edge to the left made it narrower: ' + JSON.stringify({small, narrower}))
+  await win.locator('[data-grip="e"]').dblclick()
+  const back = await win.boundingBox()
+  assert.ok(Math.abs(back.width - small.width) <= 2, 'a double click on the handle restores the size')
 
   await win.getByRole('tab', {name: 'Terminal'}).click()
   await win.getByRole('radio', {name: 'Dracula'}).click()
@@ -634,17 +661,23 @@ try {
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   await win.getByRole('radio', {name: /Match app theme/}).click()
 
-  // Esc closes an open dropdown and never the page; the shortcut and the navigation leave it
+  // Esc closes an open dropdown first, then the popup
   await win.getByRole('combobox', {name: /^Font family,/}).click()
   await page.keyboard.press('Escape')
+  assert.equal(await win.count(), 1, 'Esc closed only the dropdown')
   await page.keyboard.press('Escape')
-  assert.equal(await win.count(), 1, 'Esc does not close the Settings page')
-  await page.keyboard.press('ControlOrMeta+Comma') // back to the page it was opened from
   await win.waitFor({state: 'hidden'})
-  await page.keyboard.press('ControlOrMeta+Comma') // and again
+  await page.keyboard.press('ControlOrMeta+Comma') // the shortcut opens it again
   await win.waitFor()
-  await nav('Hosts').click()
+  // "Open in a tab" moves it into a tab of the window, like VS Code's "open as editor"
+  await win.getByRole('button', {name: 'Open settings in a tab'}).click()
   await win.waitFor({state: 'hidden'})
+  const tabPage = page.getByRole('region', {name: 'Settings'})
+  await tabPage.waitFor()
+  await page.getByRole('tab', {name: /Settings/, selected: true}).waitFor()
+  await shot(page, 'settings-tab')
+  await page.getByRole('button', {name: 'Close Settings'}).click()
+  await page.getByRole('tab', {name: /Settings/}).waitFor({state: 'detached'})
 
   step('Connection loss: banner, no automatic reconnect')
   await page.getByRole('tab', {name: /app-server/}).click()

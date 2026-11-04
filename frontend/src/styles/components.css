@@ -45,10 +45,6 @@ button.on-banner { background: #ffffff33; color: #fff; }
 .sftp .banner { position: absolute; }
 
 
-.win-back.page { position: static; z-index: auto; display: block; padding: 0; background: none; height: 100%; }
-.win.page { width: 100%; height: 100%; max-width: none; max-height: none; resize: none; border: 0; border-radius: 0; box-shadow: none; transform: none; background: var(--bg); }
-.win-heading { margin: 0; padding: 6px 12px 10px; font-size: 18px; font-weight: 700; }
-.main.settings-main { padding: 0; overflow: hidden; }
 
 /* Keychain: key cards and the docked New key panel */
 .tile.key-tile { background: #0b4a7a; }

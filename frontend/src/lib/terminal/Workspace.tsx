@@ -49,6 +49,8 @@ interface Props {
   onCloseTab?(tabId: string): void
   /** the Show logs button of the connecting screen */
   onShowLogs?(): void
+  /** what the Settings tab shows (the tab stays mounted while another one is in front, so its state is kept) */
+  renderSettings?(): JSX.Element | null
 }
 
 /** Recursive split-pane tree per tab. Every tab stays mounted so its sessions keep running. */
@@ -174,6 +176,8 @@ export function Workspace(p: Props) {
       layer(<NewTabScreen hosts={p.hosts ?? []} groups={p.groups ?? []} tabs={p.tabs} onOpen={h => p.onOpenFromNewTab?.(tb.id, h)} onSelectTab={id => p.onSelectTab?.(id)} onLocal={p.onLocalFromNewTab ? () => p.onLocalFromNewTab!(tb.id) : undefined} />)
     } else if (tb.choose && hostOf(leaves(tb.root)[0].hostId)) {
       layer(<ProtocolScreen host={hostOf(leaves(tb.root)[0].hostId)!} onContinue={proto => p.onProtocol?.(tb.id, proto)} onClose={() => p.onCloseTab?.(tb.id)} />)
+    } else if (tb.kind === 'settings') {
+      layer(p.renderSettings?.() ?? <></>)
     } else if (tb.kind === 'sftp') {
       layer(<SftpBrowser hostId={leaves(tb.root)[0].hostId} hostLabel={tb.sftpLabel ?? ''} nonce={tb.sftpNonce ?? 0} hosts={p.hosts} visible={active} />)
     } else {

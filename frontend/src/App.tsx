@@ -35,7 +35,7 @@ import {Nav, Page} from './lib/shell/Nav'
 import {TopBar} from './lib/shell/TopBar'
 import {IconPlus, IconSerial, IconTerminal} from './lib/ui/Icons'
 import {recordRecent} from './lib/hosts/recent'
-import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newTab, pinnedSftpTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
+import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
 import {capture, effective, formatCombo, isChord, keyOf, matches, sameStep, stepMatches, stepsOf} from './lib/shortcuts/shortcuts'
 import {errMsg} from './lib/util'
 import {useToast} from './lib/ui/Toast'
@@ -80,7 +80,8 @@ export default function App({initial}: {/** an app window opened for this place 
   const [page, setPage] = useState<Page>('hosts')
   const [openGroupId, setOpenGroupId] = useState('') // the group open on the hosts page: new hosts and groups start in it
   const [hostsReset, setHostsReset] = useState(0) // bumped when Hosts is pressed while already on it
-  const previousPage = useRef<Page>('hosts') // where Settings returns to
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const beforeSettings = useRef('home') // the tab that was in front when the Settings tab was shown: the shortcut goes back to it
   // the panel on the right of a terminal (hosts, snippets, history, themes): open or closed is remembered
   const [sidebarOpen, setSidebarOpen] = useState(() => { try { return localStorage.getItem('vutty.sidebar') !== 'closed' } catch { return true } })
   const [sidebarTab, setSidebarTabState] = useState<SidebarTab>(() => {
@@ -353,7 +354,7 @@ export default function App({initial}: {/** an app window opened for this place 
   const closeTab = async (id: string) => {
     const closing = tabs.find(t => t.id === id)
     if (closing?.pinned) return // the SFTP tab stays
-    if (settings.confirm_tab_close && closing && !(await confirm(t('Close "{title}"? Its connection will end.', {title: closing.title}), {confirmLabel: t('Close tab'), danger: true}))) return
+    if (settings.confirm_tab_close && closing && closing.kind !== 'settings' && !(await confirm(t('Close "{title}"? Its connection will end.', {title: closing.title}), {confirmLabel: t('Close tab'), danger: true}))) return
     setTabs(ts => ts.filter(t => t.id !== id))
     if (id === active) {
       const rest = tabs.filter(t => t.id !== id)
@@ -467,11 +468,24 @@ export default function App({initial}: {/** an app window opened for this place 
       .then(setSettings)
       .catch(e => { toast.error(errMsg(e)); setSettings(settings) })
   }
-  // Settings is a page of the main window; the key toggles it, and leaving it goes back to the page it was opened from
+  // Settings is a popup over the window, like in VS Code: the key toggles it, Esc, the backdrop and the × close it. Its button
+  // "Open in a tab" moves it into a tab of the window (VS Code's "open as editor"); while that tab exists the gear, the menu and the
+  // key show the tab instead, and the key again goes back to the tab that was in front.
+  const settingsTabOpen = tabs.some(x => x.id === SETTINGS_TAB_ID)
   const openSettings = (toggle = false) => {
-    if (page === 'settings' && onHome) return toggle ? goHome(previousPage.current) : undefined
-    if (page !== 'settings') previousPage.current = page
-    goHome('settings')
+    if (!settingsTabOpen) return setSettingsOpen(o => (toggle ? !o : true))
+    if (active === SETTINGS_TAB_ID) {
+      if (toggle) setActive(tabs.some(x => x.id === beforeSettings.current) ? beforeSettings.current : 'home')
+      return
+    }
+    beforeSettings.current = active
+    setActive(SETTINGS_TAB_ID)
+  }
+  const settingsToTab = () => {
+    beforeSettings.current = active
+    setSettingsOpen(false)
+    setTabs(ts => (ts.some(x => x.id === SETTINGS_TAB_ID) ? ts : [...ts, settingsTab()]))
+    setActive(SETTINGS_TAB_ID)
   }
   const zoomBy = (delta: number) => saveSettings({zoom: Math.max(80, Math.min(160, settings.zoom + delta))})
   const cycle = (dir: 1 | -1) => {
@@ -539,8 +553,8 @@ export default function App({initial}: {/** an app window opened for this place 
       {chordHint && <div className="chord-hint" role="status"><kbd className="keycap">{chordHint}</kbd> was pressed. Waiting for the next key… (Esc to cancel)</div>}
       <div className="body">
         <div className="home" style={{display: onHome ? 'flex' : 'none'}}>
-          <Nav page={page} onPage={p => { if (p === 'hosts' && page === 'hosts') { setHostsReset(n => n + 1); setDialog(null) } else changePage(p) }} shortcuts={bindings} onData={() => setDialog({k: 'data'})} onSettings={() => openSettings()} onLock={() => { void be.vault.lock().then(refreshVault) }} />
-          <main className={'main' + (page === 'settings' ? ' settings-main' : '')}>
+          <Nav page={page} onPage={p => { if (p === 'hosts' && page === 'hosts') { setHostsReset(n => n + 1); setDialog(null) } else changePage(p) }} shortcuts={bindings} onData={() => setDialog({k: 'data'})} settingsOpen={settingsOpen} onSettings={() => openSettings()} onLock={() => { void be.vault.lock().then(refreshVault) }} />
+          <main className="main">
             {page === 'hosts' && (
               <HostList resetKey={hostsReset} onGroupChange={setOpenGroupId} groups={groups} hosts={hosts} onMoveHost={moveHost} draft={dialog?.k === 'host' && !dialog.host?.id ? draft : undefined}
                 toolbar={<>
@@ -565,10 +579,7 @@ export default function App({initial}: {/** an app window opened for this place 
             )}
             {page === 'knownhosts' && <KnownHostsPage />}
             {page === 'logs' && <LogsPage />}
-            {page === 'settings' && vault && (
-              <SettingsWindow page settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
-                onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => goHome(previousPage.current)} />
-            )}
+
             {page === 'forwards' && (
               <PortForwardsPage hosts={hosts} draft={dialog?.k === 'forward' && !dialog.forward ? fwDraft : undefined} reloadKey={fwTick}
                 onNew={() => { setFwDraft({label: '', type: 'local'}); setDialog({k: 'forward'}) }} onEdit={f => setDialog({k: 'forward', forward: f})} />
@@ -591,7 +602,11 @@ export default function App({initial}: {/** an app window opened for this place 
           {dialog?.k === 'key' && <KeyPanel key={dialog.identity?.id ?? dialog.mode} mode={dialog.mode} identity={dialog.identity} onClose={close} onChanged={() => void refreshData()} onDraft={setDraft} />}
           {dialog?.k === 'snippet' && <SnippetForm key={dialog.snippet?.id ?? 'new'} snippet={dialog.snippet} onClose={close} onSaved={() => { close(); void refreshData() }} />}
         </div>
-        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')} />
+        <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
+          renderSettings={() => vault && (
+            <SettingsWindow page settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
+              onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => void closeTab(SETTINGS_TAB_ID)} />
+          )} />
         {sidebarOpen && !onHome && activeTabObj && isTerminalTab(activeTabObj) && (
           <TerminalSidebar tab={sidebarTab} onTab={setSidebarTab} hosts={hosts} groups={groups} tabs={tabs} activeTab={termActive} onSelectTab={id => setActive(id)} onCloseTab={closeTab} snippets={snippets} settings={settings} appearance={appearance}
             onInsert={insertIntoTerminal} onSnippet={runSnippet} onNewSnippet={() => { goHome('snippets'); setDialog({k: 'snippet'}) }} onConnect={connect} onSettings={saveSettings}
@@ -599,6 +614,10 @@ export default function App({initial}: {/** an app window opened for this place 
         )}
       </div>
 
+      {settingsOpen && vault && (
+        <SettingsWindow settings={settings} appearance={appearance} vault={vault} onSettings={setSettings}
+          onVault={() => void refreshVault()} onChanged={() => void refreshData()} onClose={() => setSettingsOpen(false)} onOpenAsTab={settingsToTab} />
+      )}
       {fill && (
         <FillVariables title={fill.execute ? t('Run “{name}”', {name: fill.snippet.label}) : t('Paste “{name}”', {name: fill.snippet.label})} variables={parseVariables(fill.snippet.script)} verb={fill.execute ? t('Run') : t('Paste')}
           onClose={() => setFill(null)}
