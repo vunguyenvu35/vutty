@@ -146,6 +146,8 @@ export default {
   'Headers': 'ヘッダー',
   'Help': 'ヘルプ',
   'Hide': '隠す',
+  'Fast drawing (WebGL)': '高速描画 (WebGL)',
+  'Draw the terminal you are typing in with the graphics card. Screens that redraw with many colours (htop, mc, vim) stay smooth. Turn it off if text looks wrong; it also turns itself off for a terminal where the graphics card cannot be used.': '操作中のターミナルをグラフィックスカードで描画します。色の多い画面の再描画 (htop、mc、vim) もなめらかです。文字がおかしいときはオフにしてください。グラフィックスカードを使えないターミナルでは自動的にオフになります。',
   'High risk': '高リスク',
   'Highlight output': '出力をハイライト',
   'Hosts': 'ホスト',

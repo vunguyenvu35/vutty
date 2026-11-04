@@ -146,6 +146,8 @@ export default {
   'Headers': 'Header',
   'Help': 'Trợ giúp',
   'Hide': 'Ẩn',
+  'Fast drawing (WebGL)': 'Vẽ nhanh (WebGL)',
+  'Draw the terminal you are typing in with the graphics card. Screens that redraw with many colours (htop, mc, vim) stay smooth. Turn it off if text looks wrong; it also turns itself off for a terminal where the graphics card cannot be used.': 'Vẽ terminal bạn đang gõ bằng card đồ hoạ. Màn hình vẽ lại với nhiều màu (htop, mc, vim) vẫn mượt. Tắt nếu chữ hiển thị sai; tính năng cũng tự tắt với terminal mà card đồ hoạ không dùng được.',
   'High risk': 'Rủi ro cao',
   'Highlight output': 'Tô sáng kết quả',
   'Hosts': 'Máy chủ',

@@ -12,6 +12,7 @@ import {useBackend} from '../backend'
 import {b64ToBytes, errMsg} from '../util'
 import {parseCwd, registerPane, registerSelection, setPaneCwd, setPaneSession, setPaneStatus} from './panes'
 import {createHighlighter, HighlightTerm} from './highlight'
+import {attachGpu, type Gpu} from './gpu'
 import {matches} from '../shortcuts/shortcuts'
 import {IconArrowDown, IconArrowUp} from '../ui/Icons'
 import {AuthPrompt} from '../ui/AuthPrompt'
@@ -43,6 +44,8 @@ interface Props {
   scrollback: number
   /** colour URLs, IPs, paths and error / warning / success words (default on) */
   highlight?: boolean
+  /** draw the pane that has the focus with WebGL (default on); the others, and a pane where WebGL fails, use the DOM renderer */
+  gpu?: boolean
   /** copy the selection to the clipboard as soon as it is made (default on) */
   copyOnSelect?: boolean
   /** what a right click does (default: paste) */
@@ -81,6 +84,8 @@ export function TerminalPane(p: Props) {
   const host = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal>()
   const fit = useRef<FitAddon>()
+  const gpu = useRef<{term: Terminal; gpu: Gpu} | null>(null)
+  const gpuFailed = useRef(false)
   const search = useRef<SearchAddon>()
   const highlighter = useRef<ReturnType<typeof createHighlighter>>()
   const sid = useRef('')
@@ -405,6 +410,22 @@ export function TerminalPane(p: Props) {
     if (p.highlight === false) hl.dispose()
     else { hl.reset(); hl.scan() }
   }, [p.highlight])
+
+  // WebGL only while this pane has the focus (a page has about 16 contexts); a lost context is not asked for again
+  useEffect(() => {
+    const tm = term.current
+    if (!tm) return
+    if (gpu.current && gpu.current.term !== tm) gpu.current = null // the terminal was made again: its addon went with it
+    const want = p.gpu !== false && p.visible && p.focused && !gpuFailed.current
+    if (want && !gpu.current) {
+      const g = attachGpu(tm, () => { gpuFailed.current = true; gpu.current = null })
+      if (g) gpu.current = {term: tm, gpu: g}
+      else gpuFailed.current = true
+    } else if (!want && gpu.current) {
+      gpu.current.gpu.dispose()
+      gpu.current = null
+    }
+  }, [p.gpu, p.visible, p.focused, state])
 
   useEffect(() => {
     if (p.visible) {

@@ -134,7 +134,7 @@ export function Workspace(p: Props) {
         {dropAt?.pane === n.id && <div className={'drop-hint ' + dropAt.side} aria-hidden="true" data-side={dropAt.side} />}
         <TerminalPane paneId={n.id} hostId={n.hostId} prod={hostOf(n.hostId)?.env === 'prod'} confirmProd={p.settings.confirm_prod} connect={{label: d.label, os: d.os, subtitle: connectLine(n.hostId)}} onShowLogs={p.onShowLogs} onCloseTab={() => p.onCloseTab?.(tab.id)} visible={!hidden} focused={tab.activePane === n.id}
           fontSize={p.settings.font_size} fontFamily={p.settings.font_family} termTheme={themeFor(n.hostId)} searchCombo={p.shortcuts.terminal_search}
-          highlight={p.settings.highlight} copyOnSelect={p.settings.copy_on_select} rightClick={p.settings.right_click} copyCombo={p.shortcuts.terminal_copy} appCombos={[p.shortcuts.next_tab, p.shortcuts.prev_tab, p.shortcuts.toggle_suggest].filter(Boolean)} pasteCombo={p.shortcuts.terminal_paste}
+          highlight={p.settings.highlight} gpu={p.settings.gpu_renderer} copyOnSelect={p.settings.copy_on_select} rightClick={p.settings.right_click} copyCombo={p.shortcuts.terminal_copy} appCombos={[p.shortcuts.next_tab, p.shortcuts.prev_tab, p.shortcuts.toggle_suggest].filter(Boolean)} pasteCombo={p.shortcuts.terminal_paste}
           suggest={p.settings.suggest} suggestHost={p.settings.suggest_host} suggestCombo={p.shortcuts.suggest_popup}
           cursorStyle={p.settings.cursor_style} cursorBlink={p.settings.cursor_blink} scrollback={p.settings.scrollback}
           onTyped={tab.broadcast ? data => all.forEach(l => { if (l.id !== n.id) writeToPane(l.id, data) }) : undefined}

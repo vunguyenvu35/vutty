@@ -38,6 +38,16 @@ vi.mock('@xterm/addon-fit', () => ({FitAddon: class { fit() {} }}))
 vi.mock('@xterm/addon-search', () => ({SearchAddon: class { findNext = vi.fn(); findPrevious = vi.fn() }}))
 vi.mock('@xterm/addon-web-links', () => ({WebLinksAddon: class {}}))
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
+const gpus: Array<{dispose: ReturnType<typeof vi.fn>; lost: () => void}> = []
+let gpuAvailable = true
+vi.mock('./gpu', () => ({
+  attachGpu: (_t: unknown, onLost?: () => void) => {
+    if (!gpuAvailable) return null
+    const g = {dispose: vi.fn(), lost: () => onLost?.()}
+    gpus.push(g)
+    return g
+  },
+}))
 
 import {TerminalPane} from './TerminalPane'
 
@@ -51,6 +61,60 @@ async function mount() {
   const sid = be.state.calls.find(c => c[0] === 'session.attach')![1] as string
   return {be, onExit, sid, term: created[created.length - 1], view}
 }
+
+describe('TerminalPane: WebGL', () => {
+  beforeEach(() => { created.length = 0; gpus.length = 0; gpuAvailable = true })
+  const show = (be: ReturnType<typeof makeFake>, over: Partial<React.ComponentProps<typeof TerminalPane>> = {}) =>
+    <Providers be={be}><TerminalPane {...props} onFocus={vi.fn()} onExit={vi.fn()} {...over} /></Providers>
+
+  it('draws the pane that has the focus with WebGL and gives it up when the focus goes', async () => {
+    const be = makeFake()
+    const view = render(show(be))
+    await waitFor(() => expect(gpus.length).toBe(1))
+    view.rerender(show(be, {focused: false}))
+    expect(gpus[0].dispose).toHaveBeenCalledTimes(1)
+    view.rerender(show(be, {focused: true}))
+    expect(gpus.length).toBe(2)
+  })
+
+  it('does not use it when the setting is off, or the pane is hidden', async () => {
+    const be = makeFake()
+    const off = render(show(be, {gpu: false}))
+    await waitFor(() => expect(created.length).toBe(1))
+    expect(gpus.length).toBe(0)
+    off.unmount()
+    render(show(be, {visible: false}))
+    await waitFor(() => expect(created.length).toBe(2))
+    expect(gpus.length).toBe(0)
+  })
+
+  it('switching the setting off takes the addon away at once', async () => {
+    const be = makeFake()
+    const view = render(show(be))
+    await waitFor(() => expect(gpus.length).toBe(1))
+    view.rerender(show(be, {gpu: false}))
+    expect(gpus[0].dispose).toHaveBeenCalled()
+  })
+
+  it('asks only once when WebGL is not available, and again not after the context is lost', async () => {
+    const be = makeFake()
+    gpuAvailable = false
+    const view = render(show(be))
+    await waitFor(() => expect(created.length).toBe(1))
+    gpuAvailable = true
+    view.rerender(show(be, {focused: false}))
+    view.rerender(show(be, {focused: true}))
+    expect(gpus.length).toBe(0) // failed once: the DOM renderer stays
+
+    view.unmount()
+    const lose = render(show(be))
+    await waitFor(() => expect(gpus.length).toBe(1))
+    act(() => gpus[0].lost())
+    lose.rerender(show(be, {focused: false}))
+    lose.rerender(show(be, {focused: true}))
+    expect(gpus.length).toBe(1)
+  })
+})
 
 describe('TerminalPane', () => {
   beforeEach(() => { created.length = 0 })

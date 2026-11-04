@@ -114,6 +114,7 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 		s.c.settings.Language = "auto"
 	}
 	s.c.settings.Highlight = in.Highlight
+	s.c.settings.GpuRenderer = in.GpuRenderer
 	s.c.settings.ReduceMotion = in.ReduceMotion
 	s.c.settings.AutoUpdateCheck = in.AutoUpdateCheck
 	s.c.settings.BiometricOnOpen = in.BiometricOnOpen

@@ -746,6 +746,17 @@ describe('SettingsWindow: Highlight output', () => {
   })
 })
 
+describe('SettingsWindow: Fast drawing', () => {
+  it('is on by default in the Terminal tab and can be switched off', async () => {
+    const {be} = setup()
+    await tab('Terminal')
+    const sw = screen.getByRole('switch', {name: 'Fast drawing (WebGL)'})
+    expect(sw).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(sw)
+    await waitFor(() => expect(be.state.settings.gpu_renderer).toBe(false))
+  })
+})
+
 describe('SettingsWindow: Storage', () => {
   afterEach(() => vi.restoreAllMocks())
 

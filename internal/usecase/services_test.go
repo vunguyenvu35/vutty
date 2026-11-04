@@ -1216,6 +1216,33 @@ func TestHighlightOutputIsOnForNewAndOldSettingsFilesAndCanBeSwitchedOff(t *test
 	}
 }
 
+func TestGpuRendererIsOnForNewAndOldSettingsFilesAndCanBeSwitchedOff(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "data"), 0o700)
+	os.WriteFile(filepath.Join(dir, "data", "settings.json"), []byte(`{"theme":"dark","font_size":14}`), 0o600)
+	c, err := testCore(t, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := New(c)
+	if !app.Settings.Get().GpuRenderer {
+		t.Fatal("a settings file from before this option existed keeps WebGL on")
+	}
+	s := app.Settings.Get()
+	s.GpuRenderer = false
+	saved, err := app.Settings.Save(s)
+	if err != nil || saved.GpuRenderer {
+		t.Fatalf("%+v %v", saved, err)
+	}
+	c2, err := testCore(t, dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if New(c2).Settings.Get().GpuRenderer {
+		t.Fatal("switched off must survive a restart")
+	}
+}
+
 func TestTerminalMouseSettingsDefaultsAndValidation(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "data"), 0o700)

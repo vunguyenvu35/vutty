@@ -486,6 +486,10 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       <Switch label={t('Highlight output')} checked={s.highlight} onChange={v => update({highlight: v})} />
                     </div>
                     <div className="setting-row">
+                      <div><b>{t('Fast drawing (WebGL)')}</b><div className="muted">{t('Draw the terminal you are typing in with the graphics card. Screens that redraw with many colours (htop, mc, vim) stay smooth. Turn it off if text looks wrong; it also turns itself off for a terminal where the graphics card cannot be used.')}</div></div>
+                      <Switch label={t('Fast drawing (WebGL)')} checked={s.gpu_renderer} onChange={v => update({gpu_renderer: v})} />
+                    </div>
+                    <div className="setting-row">
                       <div><b>{t('Suggest commands')}</b><div className="muted">{t('While you type, a list of the commands that match appears under the cursor (↓ ↑ choose a row, Enter or Tab put it on the line, Esc closes it), and ⌘⇧J (Ctrl+Shift+J elsewhere) opens it by hand. It uses the commands you ran in Vutty, the shell history of this computer (~/.zsh_history, ~/.bash_history) in the local terminal, and your Snippets of one line; it is not offered in vim or at a password prompt, and a line that looks like a secret is never suggested.')}</div></div>
                       <Switch label={t('Suggest commands')} checked={s.suggest} onChange={v => update({suggest: v})} />
                     </div>

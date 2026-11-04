@@ -122,6 +122,8 @@ export interface Settings {
   suggest_host: boolean // also read the shell history of an SSH host for them
   /** colour URLs, IP addresses, paths and error / warning / success words in terminal output */
   highlight: boolean
+  /** draw the terminal that has the focus with WebGL (falls back to the DOM renderer by itself) */
+  gpu_renderer: boolean
   reduce_motion: boolean
   /** look for a newer release when the app opens (at most once a day) */
   auto_update_check: boolean

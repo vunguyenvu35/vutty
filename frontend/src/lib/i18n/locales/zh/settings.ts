@@ -146,6 +146,8 @@ export default {
   'Headers': '请求头',
   'Help': '帮助',
   'Hide': '隐藏',
+  'Fast drawing (WebGL)': '快速绘制 (WebGL)',
+  'Draw the terminal you are typing in with the graphics card. Screens that redraw with many colours (htop, mc, vim) stay smooth. Turn it off if text looks wrong; it also turns itself off for a terminal where the graphics card cannot be used.': '用显卡绘制你正在输入的终端。颜色很多的重绘画面 (htop、mc、vim) 依然流畅。文字显示异常时请关闭；在无法使用显卡的终端中它会自动关闭。',
   'High risk': '高风险',
   'Highlight output': '高亮输出',
   'Hosts': '主机',
