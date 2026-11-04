@@ -3,7 +3,7 @@ import {useBackend} from '../backend'
 import {useT, useTn, type TFn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {IconTerminal} from '../ui/Icons'
+import {IconDownload, IconTerminal} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
@@ -455,6 +455,15 @@ function Logs({sid, visible, source, onSource}: {sid: string; visible: boolean; 
     const now = `${source.kind}:${source.name}:${lineCount}:${since}`
     if (asked.current !== now) { asked.current = now; reload() }
   }, [source.kind, source.name, lineCount, since, reload])
+  const toast = useToast()
+  const save = async () => {
+    const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0')
+    const name = `${source.name || 'system'}-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.log`
+    try {
+      const path = await be.system.saveText(t('Save log'), name, lines.join('\n') + '\n')
+      if (path) toast.info(t('Saved to {path}', {path}))
+    } catch (e) { toast.error(errMsg(e)) }
+  }
   const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
   const all = useMemo(() => (data ?? '').split('\n').filter(Boolean), [data])
   const lines = useMemo(
@@ -476,6 +485,7 @@ function Logs({sid, visible, source, onSource}: {sid: string; visible: boolean; 
         <Select className="sp-pick" label={t('Number of lines')} value={lineCount} onChange={setLineCount} options={['100', '300', '1000', '5000'].map(n => ({value: n, label: t('Last {n} lines', {n})}))} />
         <Select className="sp-pick" label={t('Time range')} value={since} onChange={v => setSince(v as typeof since)}
           options={[{value: '', label: t('Any time')}, {value: '15m', label: t('Last 15 minutes')}, {value: '1h', label: t('Last hour')}, {value: '24h', label: t('Last 24 hours')}]} />
+        <button disabled={lines.length === 0} title={t('Save the lines shown to a file')} onClick={() => void save()}><IconDownload size={14} /> {t('Download')}</button>
         <span className="sp-source" role="status">{data !== null && (filter || lv !== 'all') ? t('{shown} of {total} lines', {shown: lines.length, total: all.length}) : ''}</span>
       </div>
       <Err error={error} />

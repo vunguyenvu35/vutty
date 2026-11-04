@@ -271,6 +271,8 @@ export interface Backend {
     pickFile(title: string): Promise<string>
     pickDirectory(title: string): Promise<string>
     saveFile(title: string, name: string): Promise<string>
+    /** asks where to save, then writes the text there: the path, or '' when it was cancelled */
+    saveText(title: string, name: string, text: string): Promise<string>
     openUrl(url: string): Promise<void>
     /** Tells the native menu bar which language to show (en|vi|ja|zh). */
     setLanguage(lang: string): Promise<void>
@@ -533,6 +535,7 @@ export function wailsBackend(): Backend {
       pickFile: t => call('app', 'SystemService', 'PickFile', t),
       pickDirectory: t => call('app', 'SystemService', 'PickDirectory', t),
       saveFile: (t, n) => call('app', 'SystemService', 'SaveFile', t, n),
+      saveText: (t, n, x) => call('app', 'SystemService', 'SaveText', t, n, x),
       setLanguage: l => call('app', 'SystemService', 'SetLanguage', l),
       openUrl: async url => {
         try {

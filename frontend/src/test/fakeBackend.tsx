@@ -652,6 +652,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       pickFile: async () => '/tmp/picked',
       pickDirectory: async () => '/tmp/dir',
       saveFile: async (_t, name) => '/tmp/' + name,
+      saveText: async (_t, name, text) => { rec('system.saveText', name, text); return '/tmp/' + name },
       openUrl: async u => { rec('system.openUrl', u) },
       setLanguage: async l => { rec('system.setLanguage', l) },
       info: async () => ({version: '1.1.0-test'}),

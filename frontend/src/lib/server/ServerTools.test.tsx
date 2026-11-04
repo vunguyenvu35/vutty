@@ -183,6 +183,20 @@ describe('Logs filter', () => {
   })
 })
 
+describe('Logs download', () => {
+  it('saves the lines that are shown, after the filter, to a file', async () => {
+    const {be} = setup()
+    await open('Logs')
+    await screen.findByText(/ECONNREFUSED/)
+    await userEvent.type(screen.getByRole('textbox', {name: 'Filter log lines'}), 'sshd')
+    await userEvent.click(screen.getByRole('button', {name: /Download/}))
+    await waitFor(() => expect(calls(be, 'system.saveText')).toHaveLength(1))
+    const [, name, text] = calls(be, 'system.saveText')[0]
+    expect(name).toMatch(/^system-\d{8}-\d{4}\.log$/)
+    expect(text).toBe('2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu\n')
+  })
+})
+
 describe('Logs follow', () => {
   it('reads again every two seconds only while Follow is on', async () => {
     const {be} = setup()

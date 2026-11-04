@@ -214,6 +214,25 @@ func (s *SystemService) SaveFile(title, defaultName string) (string, error) {
 	return runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{Title: title, DefaultFilename: defaultName})
 }
 
+// maxSavedText bounds the text the screen can ask to be saved in one go.
+const maxSavedText = 64 << 20
+
+// SaveText asks where to save and writes the text there (a log the panel shows): the path comes from the person's choice
+// in the native dialog, never from the screen. It returns the path, or "" when the dialog was cancelled.
+func (s *SystemService) SaveText(title, defaultName, text string) (string, error) {
+	if len(text) > maxSavedText {
+		return "", errors.New("that is too much text to save")
+	}
+	path, err := s.SaveFile(title, defaultName)
+	if err != nil || path == "" {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // maxClipboard bounds what is moved through the clipboard in one go.
 const maxClipboard = 10 << 20
 

@@ -78,6 +78,9 @@ func TestNativeDialogsCanBeDisabledByEnvironment(t *testing.T) {
 	if _, err := s.PickFile("x"); err == nil {
 		t.Fatal("PickFile must fail so the UI falls back to a prompt")
 	}
+	if _, err := s.SaveText("x", "a.log", "text"); err == nil {
+		t.Fatal("SaveText must fail without a dialog, and write nothing")
+	}
 	if _, err := s.SaveFile("x", "a.txt"); err == nil {
 		t.Fatal("SaveFile must fail so the UI falls back to a prompt")
 	}
