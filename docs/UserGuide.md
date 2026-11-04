@@ -211,14 +211,32 @@ When a host asks which protocol to use (the **Ask which protocol to use** settin
 More tabs for a server you run by hand:
 
 - **Web**: the Let's Encrypt certificates (green, yellow under 14 days, red under 7) and the sites of nginx or Caddy. *Test configuration* changes nothing; *Reload* asks, tests, and reloads only if the test passes.
+
+![Web tab: certificates and the sites of nginx](screenshots/panel/web.png)
 - **Docker** groups containers by Compose project. A stack has *Update* (pull the images, then `up -d`), *Restart*, *Stop*/*Start* and *Logs*, all after a question. It needs Docker Compose v2.
+
+![Docker tab: containers grouped by Compose project](screenshots/panel/docker-stacks.png)
 - **Logs** has **Follow**: it reads the log again every 2 seconds and keeps the newest line in view until you scroll up.
+
+![Logs with Follow on](screenshots/panel/logs-follow.png)
 - **Maintenance**: pending package updates (security ones marked, and whether a reboot is needed; installing them is for the terminal), the disks, and a cleanup of Docker layers, unused images, the journal and the package cache, each with how much it frees. Docker volumes are listed but never cleaned here. *Where the space went* scans one folder at a time.
+
+![Maintenance tab: updates, disks, cleanup, folder sizes](screenshots/panel/maintenance.png)
 - **Security**: failed SSH logins in the last 24 hours by address, fail2ban jails with *Unban*, and the SSH settings (a warning when root or password login is on).
+
+![Security tab: SSH settings, failed logins, fail2ban](screenshots/panel/security.png)
 - **Schedule**: systemd timers (with *Run now* and Logs), cron jobs, and **Backups**: type the folder where your backups land and the panel shows how old its newest file is. The folder is saved with the host.
+
+![Schedule tab: timers, cron and the backup check](screenshots/panel/schedule.png)
 - **Overview** keeps the last half hour of CPU, memory, disk and network while the tab is open, and lists what needs attention: failed services, a full disk, a certificate about to expire, security updates, a reboot, an old backup.
 
+![Overview with history and what needs attention](screenshots/panel/overview.png)
+
 **Fleet** (in the left menu) shows every saved host on one page: up or down, CPU, memory, disk, load and failed services, the hosts with trouble first. Each host gets a short connection of its own that never asks a question, so a host whose key is not trusted yet shows as down: open it once in a terminal. *Open panel* opens its dashboard in a tab.
+
+![Fleet: every saved host on one page](screenshots/panel/fleet.png)
+
+_The screenshots use sample data, not a real server._
 
 ![Panel: Overview](screenshots/panel/overview.png)
 
