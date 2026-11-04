@@ -754,6 +754,9 @@ describe('SettingsWindow: Fast drawing', () => {
     expect(sw).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(sw)
     await waitFor(() => expect(be.state.settings.gpu_renderer).toBe(false))
+  })
+})
+
 describe('SettingsWindow: What to sync', () => {
   it('lists the groups of preferences, all ticked by default, and saves what is ticked and unticked', async () => {
     const {be} = setup()
