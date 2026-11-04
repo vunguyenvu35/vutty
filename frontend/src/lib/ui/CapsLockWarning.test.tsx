@@ -1,5 +1,6 @@
 import {act, fireEvent, render, screen} from '@testing-library/react'
 import {CapsLockWarning} from './CapsLockWarning'
+import {stylesheet} from '../../test/stylesheet'
 
 function mount() {
   render(
@@ -56,9 +57,7 @@ describe('CapsLockWarning', () => {
   })
 
   it('the webview\'s own indicator and autofill button are hidden by the stylesheet', async () => {
-    const {readFileSync} = await import('node:fs')
-    const {join} = await import('node:path')
-    const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
+    const css = stylesheet()
     expect(css).toMatch(/::-webkit-caps-lock-indicator[^}]*display: none/)
     expect(css).toMatch(/::-webkit-credentials-auto-fill-button/)
   })

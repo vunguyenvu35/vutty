@@ -1,0 +1,78 @@
+/* ---------- Settings window ---------- */
+.win-back { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: #0007; }
+.win { width: min(1040px, 94vw); height: min(680px, 90vh); display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 30px 90px #000a; overflow: hidden; }
+.win-title { flex: none; height: 46px; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--bg-2); border-bottom: 1px solid #00000040; cursor: grab; user-select: none; touch-action: none; }
+.win-title:active { cursor: grabbing; }
+.win-dots { display: flex; align-items: center; gap: 8px; }
+.win-dots .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-3); border: 0; padding: 0; display: block; }
+.win-dots .dot.close { background: #ff5f57; cursor: pointer; }
+.win-dots .dot.close:hover { filter: brightness(1.15); }
+.win-name { font-weight: 700; line-height: 1; position: relative; top: 1px; } /* optically centred on the row of dots */
+.win-body { flex: 1; min-height: 0; display: flex; }
+.win-nav { width: 250px; flex: none; background: var(--bg-2); padding: 10px; display: flex; flex-direction: column; gap: 2px; overflow: auto; border-right: 1px solid #00000030; }
+.win-tabs { display: flex; flex-direction: column; gap: 2px; }
+.win-sep { height: 10px; }
+.win-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 12px; min-height: 40px; }
+.win-row .select-wrap.inline { width: 110px; }
+.win-row .select-wrap.inline .select-trigger { height: 32px; background: transparent; border-color: transparent; justify-content: flex-end; gap: 6px; padding: 0 6px; color: var(--muted); }
+.win-row .select-wrap.inline { width: auto; }
+.win-row .select-wrap.inline .select-trigger { width: auto; }
+.win-row .select-wrap.inline .select-trigger:hover:not(:disabled), .win-row .select-wrap.inline .select-trigger.open { color: var(--text); border-color: transparent; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.win-row.version { color: var(--muted); }
+.win-link { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; background: transparent; padding: 10px 12px; border-radius: 9px; }
+.win-link:hover:not(:disabled) { background: var(--bg-3); }
+.win-link span { color: var(--muted); }
+.win-content { flex: 1; min-width: 0; overflow: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+.control.wide { width: 100%; }
+@media (max-width: 800px) { .win-nav { width: 190px; } }
+
+/* password reveal button: an inline icon button, no emoji */
+.pw-row button.eye { position: absolute; right: 5px; top: 5px; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; color: var(--muted); background: transparent; border: 0; border-radius: 7px; }
+.pw-row button.eye:hover { color: var(--text); background: var(--bg-3); border-color: transparent; }
+.pw-row button.eye[aria-pressed='true'] { color: var(--accent); }
+.result-title { display: flex; align-items: center; gap: 7px; }
+.test-result.ok .result-title { color: var(--ok); }
+.test-result.bad .result-title { color: var(--danger); }
+.warn-line { display: flex; align-items: center; gap: 6px; }
+.win-link svg { color: var(--muted); }
+
+/* ---------- Settings window: macOS-style controls, resize, maximise, roll up ---------- */
+.win { resize: both; min-width: 640px; min-height: 420px; max-width: 98vw; max-height: 96vh; }
+.win.rolled { resize: none; height: auto !important; min-height: 0; }
+/* maximised: fill the whole app window. The native macOS window buttons stay at the top left, so the title bar starts after them */
+.win-back.maximized { padding: 0; background: var(--bg); }
+.win.max { resize: none; width: 100vw; height: 100vh; max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+.win.max .win-title { padding-left: 84px; }
+.win-actions { margin-left: auto; display: flex; gap: 4px; }
+.win-act { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
+.win-act:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.win-dots .dot { display: block; cursor: pointer; }
+.win-dots .dot.min { background: #febc2e; }
+.win-dots .dot.max { background: #28c840; }
+.win-dots .dot:hover { filter: brightness(1.15); }
+.win-title { cursor: grab; }
+.win.max .win-title { cursor: default; }
+.zoom-level { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+.account-card .profile { display: flex; gap: 16px; align-items: center; }
+.profile-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #5b8cff, #a78bfa); }
+
+/* ---------- shortcut editor ---------- */
+.shortcuts h4 { margin: 0; }
+.sc-group { margin-top: 6px; }
+.sc-title { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin: 10px 0 4px; }
+.sc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.sc-keys { display: flex; align-items: center; gap: 8px; }
+.key-chip { display: inline-flex; align-items: center; padding: 3px 6px; border-radius: 8px; background: transparent; border: 1px solid transparent; color: var(--text); }
+.key-chip:hover { background: var(--bg-3); }
+.sc-row .fixed kbd, .sc-row.fixed kbd { font-family: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--bg-3); color: var(--muted); border: 0; }
+.keycombo { display: inline-flex; align-items: center; gap: 8px; }
+.keystep { display: inline-flex; align-items: center; gap: 4px; }
+.keythen { color: var(--muted); font-size: 11px; margin-right: 2px; }
+.keycap { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; font: 500 12px/1 ui-sans-serif, -apple-system, system-ui, sans-serif; color: var(--text); background: var(--bg-3); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; }
+.key-chip.custom .keycap { border-color: var(--accent); color: var(--accent); }
+.sc-row.fixed kbd { color: var(--muted); }
+.key-capture { padding: 5px 12px; border-radius: 8px; border: 1px dashed var(--accent); background: var(--accent-soft); font-size: 12px; animation: pulse 1.2s ease-in-out infinite; }
+.key-capture small { color: var(--muted); margin-left: 6px; }
+@keyframes pulse { 50% { opacity: .6; } }
+[data-motion='reduced'] *, [data-motion='reduced'] *::before, [data-motion='reduced'] *::after { animation: none !important; transition: none !important; }

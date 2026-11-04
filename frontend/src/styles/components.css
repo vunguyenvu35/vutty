@@ -1,0 +1,176 @@
+/* ---------- SFTP browser ---------- */
+.sftp { position: relative; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.sftp-panes { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.fpane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #00000040; }
+.sftp-panes > :last-child .fpane { border-right: 0; }
+.fpane.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; background: var(--accent-soft); }
+.fpane-head { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px; background: var(--bg-2); border-bottom: 1px solid #00000040; flex: none; }
+.fpane-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
+.fpane-title { font-size: 14px; }
+.fpane-head .spacer { flex: 1; }
+.fpane-head button { display: inline-flex; align-items: center; gap: 6px; }
+.rpane { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.rpane .fpane { flex: 1; border-right: 0; }
+.fpane-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; }
+.fpane-empty h3 { margin: 6px 0 0; font-size: 16px; }
+.fpane-empty p { margin: 0 0 6px; max-width: 280px; }
+.fpane-empty-icon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 16px; background: var(--bg-3); }
+.host-picker { width: min(420px, 90%); display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.host-picker h3 { margin: 0; }
+.host-picker-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+.host-picker-list button { display: flex; align-items: center; gap: 10px; text-align: left; background: var(--bg-2); }
+.host-picker-list button:hover { background: var(--bg-3); }
+.host-picker-list small { margin-left: auto; }
+.sftp-foot { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--bg-2); border-top: 1px solid #00000040; flex-wrap: wrap; }
+.sftp-foot button { display: inline-flex; align-items: center; gap: 6px; }
+.sftp-foot .error { margin: 0; }
+.sftp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--bg-2); border-bottom: 1px solid #00000040; flex-wrap: wrap; }
+.sftp-bar button { display: inline-flex; align-items: center; gap: 6px; }
+.sftp-path { flex: 1; min-width: 140px; }
+.sftp-path input { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.sftp-crumbs { display: flex; align-items: center; gap: 4px; padding: 8px 14px; color: var(--muted); font-size: 12px; min-height: 34px; }
+.sftp-crumbs > span { display: inline-flex; align-items: center; gap: 4px; }
+.sftp-name { display: flex; align-items: center; gap: 8px; padding: 6px 14px 10px; flex-wrap: wrap; }
+.sftp-name input { max-width: 260px; }
+.sftp-table { flex: 1; overflow: auto; padding: 0 8px 12px; min-height: 0; }
+.sftp-row { display: grid; grid-template-columns: minmax(120px, 1fr) 150px 70px 70px; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 8px; cursor: default; user-select: none; font-size: 13px; }
+.sftp-row.head { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .02em; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+.sftp-row:not(.head):hover { background: var(--bg-3); }
+.sftp-row.selected { background: var(--accent-soft); outline: 1px solid var(--accent); }
+.sftp-row .name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sftp-row .name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sftp-row:focus-visible { outline: 2px solid var(--accent); }
+.sftp-error { margin: 0; padding: 8px 14px; }
+button.on-banner { background: #ffffff33; color: #fff; }
+.sftp .banner { position: absolute; }
+
+
+/* Settings in its own native window: fills the window; the title bar starts after the macOS buttons and drags the window */
+.win-back.native { position: fixed; inset: 0; display: block; padding: 0; background: var(--bg); }
+.win.native { width: 100vw; height: 100vh; max-width: none; max-height: none; resize: none; border: 0; border-radius: 0; box-shadow: none; transform: none; }
+.win-title.native, .win.native .win-title { padding: 0 84px; justify-content: center; cursor: default; --wails-draggable: drag; }
+.win.native .win-title button { --wails-draggable: no-drag; }
+
+/* Keychain: key cards and the docked New key panel */
+.tile.key-tile { background: #0b4a7a; }
+.key-area { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 110px; resize: vertical; }
+.drop-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 110px; padding: 16px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 12px; text-align: center; }
+.drop-zone.over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.wide-btn { width: 100%; }
+
+/* in-app confirmation (the desktop webview has no confirm()) sits above windows and panels */
+.confirm-back { z-index: 300; }
+.modal.confirm { width: min(420px, 92vw); }
+.confirm-msg { margin: 0; line-height: 1.5; white-space: pre-wrap; }
+
+/* split panes: a × on every pane (shown on hover, and always on the focused one) */
+.pane-wrap { position: relative; min-width: 0; min-height: 0; height: 100%; }
+
+/* server type icon: the distribution's mark on its colour; the environment becomes a small pip */
+.tile.os-tile { position: relative; color: #fff; }
+.os-mark { font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.env-pip { position: absolute; right: -3px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-2); background: var(--env-none); }
+.env-pip.env-prod { background: var(--env-prod); } .env-pip.env-staging { background: var(--env-staging); } .env-pip.env-dev { background: var(--env-dev); }
+.host-picker-list .os-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--bg-3); }
+.fpane-icon .os-mark { font-size: 10px !important; }
+
+/* Port forwarding: type switch, diagram, rule cards */
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--bg-3); border-radius: 8px; padding: 2px; }
+.seg-btn { border: 0; background: transparent; border-radius: 6px; padding: 7px 0; color: var(--muted); font-weight: 600; }
+.seg-btn.on { background: var(--accent); color: #fff; }
+.fw-diagram { width: 100%; height: auto; max-height: 150px; margin: 6px 0; }
+.fw-question { margin: 0 0 4px; font-size: 13px; }
+.fw-desc { margin: 0 0 6px; line-height: 1.5; font-size: 13px; }
+.fw-hint { font-size: 12px; }
+.fw-row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+.tile.fw-tile { font-weight: 800; font-size: 18px; color: #fff; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+
+/* wizard steps */
+.back-link { align-self: flex-start; border: 0; background: transparent; color: var(--accent); padding: 0; font-weight: 600; }
+.fw-hosts { display: flex; flex-direction: column; gap: 6px; }
+.fw-host { display: flex; align-items: center; gap: 10px; text-align: left; background: var(--bg-2); padding: 8px 10px; }
+.fw-host:hover { background: var(--bg-3); }
+.fw-host .meta { display: flex; flex-direction: column; min-width: 0; }
+.fw-host .label { font-weight: 600; }
+.fw-host .addr { color: var(--muted); font-size: 12px; }
+.tile.small { width: 34px; height: 34px; border-radius: 9px; flex: none; background: var(--bg-3); }
+.search-box.small { display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--bg-3); border-radius: 8px; }
+.search-box.small input { border: 0; background: transparent; }
+.fw-summary { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.os-mark { display: inline-grid; place-items: center; line-height: 0; }
+
+/* screens without a title bar: a strip to drag the window by */
+.gate { position: relative; }
+.drag-bar { position: absolute; top: 0; left: 0; right: 0; height: 46px; --wails-draggable: drag; }
+
+.sel-count { margin-left: auto; color: var(--accent); font-weight: 600; }
+
+.tab-rename { width: 140px; height: 24px; padding: 0 6px; font-size: 13px; }
+
+/* Known Hosts and Logs */
+.search-box.grow { flex: 1; max-width: 420px; }
+.log-table { display: flex; flex-direction: column; font-size: 13px; }
+.log-row { display: grid; grid-template-columns: 150px 14px 160px 1fr; gap: 12px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.log-row:hover { background: var(--bg-3); }
+.log-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--env-dev); }
+.log-row.bad .log-dot { background: var(--env-prod); }
+.log-row.bad .log-msg { color: var(--env-prod); }
+.log-host { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-msg { overflow-wrap: anywhere; }
+.chips .chip { cursor: pointer; }
+
+.telnet-warning { font-size: 12px; line-height: 1.5; color: var(--env-staging); }
+
+/* New host + caret menu (New group, Import) */
+.split-wrap { display: inline-flex; align-items: stretch; }
+.split-wrap .split-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.add-menu { position: relative; display: inline-flex; }
+.split-caret { height: 100%; padding: 0 8px; border-radius: 0 8px 8px 0; border-left: 1px solid #00000040; display: inline-flex; align-items: center; }
+.split-caret svg { transform: rotate(90deg); }
+.split-caret[aria-expanded='true'] svg { transform: rotate(-90deg); }
+.menu-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 210px; padding: 6px; display: flex; flex-direction: column; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.menu-pop button { display: flex; align-items: center; gap: 10px; text-align: left; background: transparent; border: 0; padding: 9px 10px; border-radius: 7px; }
+.menu-pop button:hover, .menu-pop button:focus-visible { background: var(--bg-3); }
+
+/* right-click menu of a terminal */
+.ctx-menu { position: fixed; z-index: 70; min-width: 150px; padding: 5px; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow); }
+.ctx-menu button { text-align: left; background: transparent; border: 0; padding: 7px 10px; border-radius: 6px; }
+.ctx-menu button:hover:not(:disabled) { background: var(--bg-3); }
+
+/* New Key: floating labels and the drop area */
+.float-field { position: relative; }
+.float-field textarea { width: 100%; min-height: 84px; resize: vertical; padding: 14px 12px 10px; }
+.float-field > label { position: absolute; left: 12px; top: 12px; color: var(--muted); pointer-events: none; transition: top .12s, font-size .12s, color .12s; background: transparent; padding: 0; }
+.float-field:focus-within > label, .float-field.filled > label { top: -8px; left: 9px; font-size: 11px; padding: 0 4px; background: var(--card); color: var(--accent); }
+.float-field:focus-within textarea { border-color: var(--accent); }
+.drop-icon { color: var(--muted); }
+
+/* host list as rows */
+.cards.as-list { grid-template-columns: 1fr; gap: 4px; }
+.cards.as-list .card { padding: 8px 14px; }
+.cards.as-list .tile { width: 32px; height: 32px; border-radius: 8px; }
+.cards.as-list .meta { flex-direction: row; align-items: baseline; gap: 14px; }
+.cards.as-list .actions { display: flex; }
+.menu-pop.right { left: auto; right: 0; }
+.menu-pop button .tick { margin-left: auto; color: var(--accent); }
+.view-menu { margin-right: 8px; }
+
+/* the header of a pane: appears on hover, and stays while broadcasting */
+.pane-head { position: absolute; top: 0; left: 0; right: 0; z-index: 3; height: 30px; display: none; align-items: center; gap: 6px; padding: 0 8px 0 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); border-bottom: 1px solid var(--line); font-size: 12px; backdrop-filter: blur(4px); }
+.pane-wrap:hover .pane-head, .pane-wrap.broadcasting .pane-head, .pane-head:focus-within { display: flex; }
+.pane-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.pane-detail { color: var(--muted); }
+.pane-head .spacer { flex: 1; }
+.pane-btn { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; }
+.pane-btn.icon { padding: 0 5px; border-color: transparent; }
+.pane-btn:hover { color: var(--text); background: var(--bg-3); }
+.pane-btn.on { color: var(--env-dev); border-color: var(--env-dev); background: color-mix(in srgb, var(--env-dev) 14%, transparent); }
+.pane-wrap.broadcasting { box-shadow: inset 0 0 0 1px var(--env-dev); }
+.ctx-sep { height: 1px; margin: 4px 2px; background: var(--line); }
+
+/* Caps Lock: our own hint, and the webview's indicator and autofill button hidden */
+input[type='password']::-webkit-caps-lock-indicator,
+input[type='password']::-webkit-credentials-auto-fill-button { visibility: hidden !important; display: none !important; opacity: 0; pointer-events: none; }
+.caps-warning { position: fixed; z-index: 400; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #7a4b00; background: #ffd479; box-shadow: 0 1px 4px #0005; pointer-events: none; }

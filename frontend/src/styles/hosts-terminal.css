@@ -1,0 +1,72 @@
+/* ---------- hosts page ---------- */
+.hosts-page { max-width: none; } /* fills the window, also in full screen */
+.connect-bar { display: flex; align-items: center; gap: 10px; background: var(--bg-3); border: 1px solid transparent; border-radius: 10px; padding: 4px 6px 4px 14px; color: var(--muted); }
+.connect-bar:focus-within { border-color: var(--accent); background: var(--bg-2); }
+.connect-bar input { background: transparent !important; border: none; padding: 9px 0; color: var(--text); }
+.connect-btn { background: var(--bg) !important; color: var(--muted); font-weight: 600; padding: 7px 14px; }
+.connect-bar input:not(:placeholder-shown) ~ .connect-btn:not(:disabled) { background: var(--accent) !important; color: #fff; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; flex-wrap: wrap; }
+.split-btn { background: var(--bg-3); display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 7px 14px; }
+.ghost-btn { background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.chips { display: flex; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 11px; border-radius: 16px; cursor: pointer; background: var(--bg-3); border: 1px solid transparent; user-select: none; }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.env-prod { background: var(--env-prod); } .dot.env-staging { background: var(--env-staging); } .dot.env-dev { background: var(--env-dev); }
+.sec-title { font-size: 13px; font-weight: 700; margin: 22px 2px 10px; }
+.crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 8px 2px 0; }
+.crumbs b { color: var(--text); }
+.page-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 2px 8px; }
+.page-head h2 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.page-head select { width: auto; min-width: 220px; }
+.page-body { margin-top: 6px; }
+.empty-hint { color: var(--muted); padding: 24px 4px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.card { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--card); border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; transition: background .12s, border-color .12s, transform .12s; min-width: 0; }
+.card:hover { background: var(--card-hover); border-color: var(--line); }
+.card:focus-visible { outline: 2px solid var(--accent); }
+.tile { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: var(--env-none); }
+.tile.env-prod { background: var(--env-prod); } .tile.env-staging { background: var(--env-staging); } .tile.env-dev { background: var(--env-dev); }
+.tile.group-tile { background: #123f6d; }
+.card .meta { min-width: 0; flex: 1; }
+.card .label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .addr { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.card .actions { display: none; gap: 2px; background: var(--card-hover); border-radius: 8px; }
+.card:hover .actions, .card:focus-within .actions, .card .actions.always { display: flex; }
+.card.forward { cursor: default; }
+
+/* ---------- side panel ---------- */
+/* docked next to the page (not an overlay): the main area shrinks to make room */
+.side-panel { position: relative; width: 380px; flex: none; height: 100%; background: var(--bg-2); border-left: 1px solid #00000040; display: flex; flex-direction: column; animation: slide-in .16s ease-out; }
+@keyframes slide-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.side-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; font-weight: 700; border-bottom: 1px solid #00000030; }
+.side-body { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.side-foot { padding: 12px 16px; border-top: 1px solid #00000030; display: flex; gap: 8px; justify-content: flex-end; }
+.card-section { background: var(--card); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.card-section h4 { margin: 0 0 2px; font-size: 13px; }
+.card-section input, .card-section select { background: var(--bg); border-color: var(--line); }
+.card-section input:focus, .card-section select:focus { border-color: var(--accent); }
+.inline-field { display: flex; align-items: center; gap: 8px; }
+.inline-field input.port { width: 76px; text-align: center; }
+
+/* ---------- terminal ---------- */
+.panes { flex: 1; min-width: 0; min-height: 0; position: relative; background: var(--term-bg); }
+.pane-split { display: flex; height: 100%; width: 100%; }
+.pane-split.col { flex-direction: column; }
+.pane-split > * { flex: 1; min-width: 0; min-height: 0; }
+.pane-split > .divider { flex: none; background: var(--line); width: 1px; height: auto; }
+.pane-split.col > .divider { width: auto; height: 1px; }
+.pane { position: relative; height: 100%; background: var(--term-bg); border: 1px solid transparent; }
+.pane.focused { border-color: #3a82f755; }
+.pane .xterm { padding: 8px; height: 100%; }
+/* text being composed with an input method, shown at the cursor with the theme's colours inverted (colours: see imeColours) */
+.pane .xterm .composition-view { background: var(--ime-bg, #fff); color: var(--ime-fg, #000); border-bottom: 2px solid var(--accent); border-radius: 2px; }
+.overlay { position: absolute; inset: 0; background: #000b; display: grid; place-items: center; z-index: 5; }
+.overlay .card { cursor: default; display: block; width: min(480px, 90%); padding: 20px; background: var(--bg-2); }
+.overlay .card:hover { background: var(--bg-2); border-color: transparent; }
+.fp { font-family: ui-monospace, Menlo, monospace; word-break: break-all; background: var(--bg); padding: 9px; border-radius: 8px; margin: 8px 0; border: 1px solid var(--line); }
+.banner { position: absolute; left: 0; right: 0; bottom: 0; background: var(--danger); color: #fff; padding: 8px 14px; z-index: 4; display: flex; justify-content: space-between; gap: 16px; }
+.banner.info { background: var(--accent-2); }
+.searchbar { position: absolute; top: 8px; right: 16px; z-index: 6; display: flex; gap: 4px; background: var(--bg-2); padding: 5px; border: 1px solid var(--line); border-radius: 9px; }
+.searchbar input { width: 190px; }

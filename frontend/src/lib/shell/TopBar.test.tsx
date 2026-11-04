@@ -62,12 +62,11 @@ describe('Nav', () => {
 })
 
 import {Brand} from '../ui/Brand'
-import {readFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {stylesheet} from '../../test/stylesheet'
 
 describe('Brand wordmark', () => {
   it('keeps the Vu part of the wordmark from being squeezed', () => {
-    const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
+    const css = stylesheet()
     const rule = css.match(/\.wordmark \.vu \{([^}]*)\}/)![1]
     const spacing = rule.match(/letter-spacing:\s*(-?[\d.]+)em/)
     expect(spacing, 'the .vu rule sets a letter-spacing').not.toBeNull()

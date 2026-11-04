@@ -12,6 +12,7 @@ vi.mock('../sftp/SftpBrowser', () => ({SftpBrowser: () => <div />}))
 
 import {Workspace} from './Workspace'
 import {findTheme} from './themes'
+import {stylesheet} from '../../test/stylesheet'
 
 const base = {activeTab: '', settings: {...DEFAULT_SETTINGS, terminal_theme: 'nord'}, appearance: 'dark' as const, shortcuts: {}, onFocusPane: vi.fn(), onPaneExit: vi.fn(), onClosePane: vi.fn()}
 
@@ -132,7 +133,7 @@ describe('Workspace: which pane has the keyboard', () => {
   })
 
   it('the styles frame the focused pane in the accent colour, dim the others and mark the name', () => {
-    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../styles.css'), 'utf8') as string
+    const css = stylesheet()
     expect(css).toMatch(/\.pane-wrap\.multi\.active::before \{[^}]*border: 2px solid var\(--accent\)/)
     expect(css).toMatch(/\.pane-wrap\.multi:not\(\.active\)::after \{[^}]*rgba\(0, 0, 0, \.34\)/)
     expect(css).toMatch(/\.pane-wrap\.multi\.active \.pane-label b::before/)

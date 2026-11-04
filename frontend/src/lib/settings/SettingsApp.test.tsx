@@ -2,6 +2,7 @@ import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing
 import userEvent from '@testing-library/user-event'
 import SettingsApp from './SettingsApp'
 import {makeFake, Providers} from '../../test/fakeBackend'
+import {stylesheet} from '../../test/stylesheet'
 
 function setup(settings = {}) {
   const be = makeFake({vault: {exists: true, unlocked: true, keychain_enabled: false, auto_lock_minutes: 15}})
@@ -35,7 +36,7 @@ describe('SettingsApp (the Settings window process)', () => {
   })
 
   it('the title is centred between the macOS buttons and the right edge', () => {
-    const css = require('node:fs').readFileSync(require('node:path').join(__dirname, '../../styles.css'), 'utf8') as string
+    const css = stylesheet()
     expect(css).toMatch(/\.win\.native \.win-title \{[^}]*padding: 0 84px;[^}]*justify-content: center/)
   })
 

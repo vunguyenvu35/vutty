@@ -1,4 +1,5 @@
 import {DEFAULT_DARK, DEFAULT_LIGHT, TERMINAL_THEMES, findTheme, mix, resolveTerminalTheme} from './themes'
+import {stylesheet} from '../../test/stylesheet'
 
 const HEX = /^#[0-9a-f]{6}$/i
 const luminance = (h: string) => {
@@ -46,9 +47,7 @@ describe('terminal theme catalogue', () => {
 
 describe('"Match app theme" looks like the app', () => {
   it('the default dark and light themes use the app background from styles.css and green text', async () => {
-    const {readFileSync} = await import('node:fs')
-    const {join} = await import('node:path')
-    const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
+    const css = stylesheet()
     const dark = css.match(/:root \{[^}]*--bg: (#[0-9a-f]{6});[^}]*--text: (#[0-9a-f]{6});/s)!
     const light = css.match(/:root\[data-theme='light'\] \{[^}]*--bg: (#[0-9a-f]{6});[^}]*--text: (#[0-9a-f]{6});/s)!
     const d = findTheme('vutty-dark')!.theme, l = findTheme('vutty-light')!.theme

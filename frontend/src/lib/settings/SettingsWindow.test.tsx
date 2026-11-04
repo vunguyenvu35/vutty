@@ -1,14 +1,13 @@
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {useState} from 'react'
-import {readFileSync} from 'node:fs'
-import {join} from 'node:path'
 import {SettingsWindow} from './SettingsWindow'
 import {Switch} from '../ui/Switch'
 import {makeFake, Providers} from '../../test/fakeBackend'
 import type {Settings, VaultStatus} from '../types'
 import {SHOW_CRYPTO_DONATE} from '../donate'
 import {setLanguageSetting} from '../i18n/store'
+import {stylesheet} from '../../test/stylesheet'
 
 const vaultSt: VaultStatus = {exists: true, unlocked: true, keychain_enabled: false, auto_lock_minutes: 15}
 
@@ -391,7 +390,7 @@ describe('SettingsWindow: window controls', () => {
   })
 
   it('the window is resizable by CSS (corner handle) with sane limits', () => {
-    const css = readFileSync(join(__dirname, '../../styles.css'), 'utf8')
+    const css = stylesheet()
     const rule = css.match(/\n\.win \{ resize: both;([^}]*)\}/)![1]
     expect(rule).toMatch(/min-width:\s*640px/)
     expect(rule).toMatch(/max-width:\s*98vw/)
