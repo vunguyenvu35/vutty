@@ -204,6 +204,31 @@ The sidebar of a terminal has a **Files (SFTP)** section for the host of the foc
 
 When a host asks which protocol to use (the **Ask which protocol to use** setting, or a host that also has Telnet), **Panel** is the fourth choice. It turns the tab into a dashboard of the Linux server, with no terminal: **Overview** (CPU with a short history, load, memory, swap, the root disk, network speed, and what needs attention), **Processes** (the busiest first, with a filter), **Services** (systemd, failed ones first), **Docker** (containers), **Logs** (the last 300 lines of the system journal, one service or one container; filter by text or by errors and warnings) and **Ports & firewall** (what listens, and what ufw says about it). Overview and Processes refresh every 5 seconds while the tab is shown; the others when you press refresh.
 
+![Choose Panel on the protocol screen](screenshots/panel/choose-panel.png)
+
+**Overview** shows the load and what needs attention (a failed service, a disk that is filling up). **Access host**, at the top right, opens a terminal on the same host in a new tab.
+
+![Panel: Overview](screenshots/panel/overview.png)
+
+**Services** and **Docker** list what runs, failed ones first. Every change asks first.
+
+![Panel: Services](screenshots/panel/services.png)
+
+![Panel: asking before a restart](screenshots/panel/asks-before-restart.png)
+
+**Processes**, **Logs** and **Ports & firewall** (read only):
+
+![Panel: Processes](screenshots/panel/processes.png)
+
+![Panel: Logs](screenshots/panel/logs.png)
+
+![Panel: Ports and firewall](screenshots/panel/ports.png)
+
+**Access host** opens SSH straight away, without asking for the protocol again:
+
+![Panel: Access host opens a terminal](screenshots/panel/access-host.png)
+
+
 - It runs fixed commands (`/proc`, `ps`, `systemctl`, `docker`, `journalctl`, `ss`, `ufw status`) over a connection of its own and installs nothing on the server. A name from the screen is checked before it goes into a command, and a process is only ever ended by number.
 - **Every change asks first**: ending a process, and starting, restarting or stopping a service or a container. The firewall is only shown: the panel never changes it.
 - Changes use `sudo -n` unless you log in as root, so a login that needs a password for sudo gets the server's own error.
