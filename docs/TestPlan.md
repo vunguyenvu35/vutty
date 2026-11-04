@@ -50,7 +50,7 @@ The authoritative, always-current list of automated test cases is [TestInventory
 Not covered by automation; run on a real Mac build (`make build`, open `build/bin/vutty.app`):
 
 1. Native file dialogs work for: Import config, Export folder, Save backup, Choose key.
-2. Keychain unlock: enable, quit, relaunch, unlock with the keychain; confirm the macOS prompt behaviour.
+2. Keychain unlock: enable, quit, relaunch, unlock with the keychain; confirm the macOS prompt behaviour. With a Developer ID build that has the `keychain-access-groups` entitlement (the guarded item, G1) the Touch ID sheet must appear **once** per unlock, *Security → Keychain unlock* must stay on after a relaunch without a sheet, adding a fingerprint in System Settings must make quick unlock ask for the master password (and the key is removed), and Sync must keep working. With an ad hoc build the older item is used and one sheet appears (from Vutty).
 3. Heavy output: `yes | head -c 200M`, `tail -f` on a busy log; UI stays responsive (architecture §2 risk: WKWebView performance).
 4. Real server: password login, key login, an ssh-agent identity, and a bastion in front of a private host.
 5. Sync against a real private remote (GitHub/GitLab) using ssh-agent and using a credential helper.

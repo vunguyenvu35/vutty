@@ -142,8 +142,38 @@ func (v *Vault) keychainHas() bool {
 	if v.kc == nil || v.f == nil {
 		return false
 	}
+	if p, ok := v.kc.(keychainProber); ok {
+		return p.Has("vvterm", v.account) // no read, so no fingerprint prompt every time the status is asked
+	}
 	b, err := v.kc.Get("vvterm", v.account)
 	return err == nil && len(b) == dekLen
+}
+
+// keychainProber is a Keychain that can say whether a key is stored without reading it, and whether the item
+// guards itself (reading it shows the Touch ID sheet).
+type keychainProber interface {
+	Has(service, user string) bool
+	Protected(service, user string) bool
+}
+
+// keychainUpgrader is a Keychain that can move a plain item into a guarded one.
+type keychainUpgrader interface {
+	Upgrade(service, user string, dek []byte)
+}
+
+// upgradeKeychain moves an old plain item to a guarded one, now that dek is known to be the vault's key. It never
+// fails the caller: the plain item keeps working.
+func (v *Vault) upgradeKeychain(dek []byte) {
+	if u, ok := v.kc.(keychainUpgrader); ok {
+		u.Upgrade("vvterm", v.account, dek)
+	}
+}
+
+// itemGuardsItself reports whether the keychain item asks for the fingerprint when it is read, so that the app
+// must not ask a second time.
+func (v *Vault) itemGuardsItself() bool {
+	p, ok := v.kc.(keychainProber)
+	return ok && p.Protected("vvterm", v.account)
 }
 
 // validKDF rejects parameters that would panic Argon2 or exhaust memory when they
@@ -321,6 +351,9 @@ func (v *Vault) Unlock(pw string) error {
 	v.dek = dek
 	v.ensureKeyCheck(dek)
 	v.armTimer()
+	if v.kc != nil {
+		v.upgradeKeychain(dek)
+	}
 	return nil
 }
 
@@ -364,7 +397,7 @@ func (v *Vault) UnlockKeychain() error {
 	if v.kc == nil {
 		return ErrNoKeychain
 	}
-	if v.auth != nil {
+	if v.auth != nil && !v.itemGuardsItself() {
 		if err := v.auth("unlock your saved keys and passwords"); err != nil {
 			return err
 		}
@@ -382,6 +415,7 @@ func (v *Vault) UnlockKeychain() error {
 	}
 	v.dek = dek
 	v.armTimer()
+	v.upgradeKeychain(dek)
 	return nil
 }
 

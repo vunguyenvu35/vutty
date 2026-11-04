@@ -117,6 +117,15 @@ func (r *recorder) waitOutput(t *testing.T, sid, want string) {
 	t.Fatalf("timeout waiting for output %q, got %q", want, r.output(sid))
 }
 
+// testKeychains maps a harness's data folder to the in-memory keychain its vault uses.
+var testKeychains sync.Map
+
+// keychain is the in-memory keychain of this harness's vault.
+func (h *harness) keychain() *vault.MemKeychain {
+	kc, _ := testKeychains.Load(h.core.DataDir)
+	return kc.(*vault.MemKeychain)
+}
+
 type harness struct {
 	core *Core
 	app  *Services
@@ -139,7 +148,9 @@ func testCore(t *testing.T, dir string, emit Emitter) (*Core, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := vault.NewWith(db.VaultPersister(), data, vault.NewMemKeychain())
+	kc := vault.NewMemKeychain()
+	testKeychains.Store(data, kc)
+	v, err := vault.NewWith(db.VaultPersister(), data, kc)
 	if err != nil {
 		return nil, err
 	}
