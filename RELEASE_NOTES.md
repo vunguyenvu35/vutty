@@ -1,8 +1,17 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.4.1
+# Vutty 1.5.0
 
-Release date: 2026-11-03 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-04 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.5.0
+
+- **Settings is a popup over the window, like VS Code's.** The gear, the navigation, the menu and Cmd/Ctrl+`,` open it; Esc, a click outside it and the × close it. It opens at a size taken from the window you are in (nearly all of it, at most 1280 × 880) and sits below the top bar, so it never covers the macOS window buttons. Drag its title bar to move it (it stays inside the window), drag its edges and corners to make it larger or smaller (it remembers the size as a share of the window; a double click on an edge restores the default), or Maximize it. The button before Maximize, *Open in a tab*, moves it into a Settings tab next to your terminals; while that tab exists, the gear and the shortcut show it.
+- **Settings is no longer a window of its own.** It used to run as a second process with a hidden Dock icon, a helper app and a bridge to the main app; all of that is gone, so Settings opens at once and no longer needs a helper. Only *Duplicate in new window* still uses another process.
+- **The host list of the terminal sidebar works like a file manager's tree.** One line per host (its name, then a muted `user@host` when that says something more), guide lines for each level, a folder icon and a count on every group, a dot on hosts with an open session, *Expand all* and *Collapse all*, and the arrow keys (up and down, right opens a group, left closes it or goes to its parent, Home and End). That is what DevOps asked for after MobaXterm.
+- **SFTP copies keep the modification time of their source** (upload, replace and download), so a folder sync no longer copies a file again, or picks the wrong side, only because the copy was made later. Partial copies (`.vutty-part-…`) that nothing has written to for 7 days are removed from the folder of a transfer, once per folder and session.
+- **Icons in the narrow navigation are centred.** In a narrow window, or with a large interface zoom, the invisible key hints still took room and pushed the icons to the left.
+- Under the hood: the largest files were split by topic without changing what they do (`styles.css` into 10 files, the assistant, session and bridge code, the input-method helpers), a data race in a test of the AI assistant gateway was fixed, and the table of gaps in [docs/Assessment.md](docs/Assessment.md) was brought up to date (G1, G2, G11, G13, G14 and G17).
 
 ## What's new in 1.4.1
 
@@ -281,7 +290,7 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 
 1. **Keychain unlock is not biometric-gated**: anyone who can read your login keychain can unlock the vault.
 2. **Locking when the Mac sleeps** relies on the notifications macOS sends. The one for a *sleep* was exercised by a test that posts it by hand; the one for a *locked screen* needs the running app and was not exercised. On Windows and Linux the vault locks when the computer wakes up, and a sleep of a few seconds is not noticed.
-3. **Settings runs as a second process**: it is hidden from the Dock (no second icon). It reads and writes through a local, token-protected bridge to the main app, so it needs the main app running. The native window itself could not be screenshotted here, so its look is covered by tests and the in-app variant's screenshots; please check it on your Mac.
+3. **Settings is a popup of the main window** (since 1.5.0); it was a second process before. *Duplicate in new window* still runs the whole app in a second process, through a local, token-protected bridge to the main app, so it needs the main app running. The Settings popup (moving, resizing, its distance from the macOS window buttons, *Open in a tab*) was tested in a browser against the real backend and with component tests, **not in the packaged native app**. The screenshots of Settings in `docs/screenshots` are from the older window and are not regenerated yet; please check the popup on your Mac.
 4. The packaged app was built and its icon, About box and bundle were checked, but it is **not notarized**: on first launch right-click → Open. The *release* pipeline can sign and notarize when you provide a Developer ID.
 5. The native macOS window, file dialogs and Keychain prompts were not exercised in this environment (the UI is verified in a browser against the real backend). Run the manual checklist in [docs/TestPlan.md](docs/TestPlan.md).
 6. **Terminal performance on heavy output** was measured in the real macOS WKWebView ([docs/Assessment.md](docs/Assessment.md) G4, `tools/termperf/run.sh`). Text output (plain, log lines, colours, Vietnamese/CJK) at the most the backend sends (about 3.7 MB/s) keeps 55–60 frames per second. A screen that is redrawn in place with every cell coloured (a heavier htop) drops to about 20 frames per second with the default renderer; the WebGL renderer keeps 60 but is not used yet.
