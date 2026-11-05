@@ -156,9 +156,11 @@ export function Select({label, value, onChange, options, placeholder, className 
           aria-activedescendant={searchable ? undefined : `${id}-${active}`} onKeyDown={onMenuKey}
           style={{left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight}}>
           {searchable && (
-            <input ref={search} className="select-search" type="search" role="searchbox" aria-label={t('Search {name}', {name: label})} placeholder={t('Search…')} value={query} autoComplete="off" spellCheck={false}
+            <div className="select-search-wrap">
+              <input ref={search} className="select-search" type="search" role="searchbox" aria-label={t('Search {name}', {name: label})} placeholder={t('Search…')} value={query} autoComplete="off" spellCheck={false}
               aria-controls={`${id}-list`} aria-activedescendant={`${id}-${active}`}
               onChange={e => { setQuery(e.target.value); setActive(-1) }} />
+            </div>
           )}
           <div id={searchable ? `${id}-list` : undefined} role={searchable ? 'listbox' : undefined} aria-label={searchable ? label : undefined}>
           {searchable && visible.length === 0 && <div className="select-empty">{t('No match')}</div>}

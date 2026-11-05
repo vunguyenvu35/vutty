@@ -56,6 +56,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   useEffect(() => { onNamespace?.(ns) }, [ns, onNamespace])
   const [view, setView] = useState<K8sView>('overview')
   const [seed, setSeed] = useState('')
+  useEffect(() => { if (seed) setSeed('') }, [seed]) // a seed is used once, by the view it was meant for: a view built again later (another namespace) must not take it again
   const [page, setPage] = useState<K8sPage | null>(null)
   const [kept, setKept] = useState<Record<string, unknown>>({})
   const keep = useCallback((key: string, value: unknown) => setKept(m => ({...m, [key]: value})), [])
