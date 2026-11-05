@@ -74,7 +74,8 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
     const b = working === c.name
     return (
       <tr key={c.id}>
-        <td><b>{c.name}</b><div className="sp-note m">{c.image}</div></td>
+        <td><b>{c.name}</b></td>
+        <td className="m">{c.image}</td>
         <td>{c.state === 'running' ? <span className="sp-pill ok" title={c.status}>{t('Running')}</span> : <span className="sp-pill" title={c.status}>{t('Stopped')}</span>}</td>
         <td className="n m">{s ? s.cpu.toFixed(1) + '%' : '–'}</td>
         <td className="n m" title={s ? s.mem_pct.toFixed(1) + '%' : undefined}>{s ? s.mem_usage : '–'}</td>
@@ -115,7 +116,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
             )}
           </div>
           <div className="sp-table"><table>
-            <thead><tr><th>{t('Container')}</th><th>{t('Status')}</th><th className="n">{t('CPU')}</th><th className="n">{t('Memory')}</th><th>{t('Ports')}</th><th /></tr></thead>
+            <thead><tr><th>{t('Container')}</th><th>{t('Image')}</th><th>{t('Status')}</th><th className="n">{t('CPU')}</th><th className="n">{t('Memory')}</th><th>{t('Ports')}</th><th /></tr></thead>
             <tbody>{g.items.map(row)}</tbody>
           </table></div>
         </section>
