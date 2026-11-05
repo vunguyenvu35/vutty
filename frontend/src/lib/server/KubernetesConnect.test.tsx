@@ -1,6 +1,8 @@
-import {screen, waitFor, within} from '@testing-library/react'
+import {render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {calls, connect, openKubernetes, subTab} from '../../test/k8sKit'
+import {Providers} from '../../test/fakeBackend'
+import {ServerPanel} from './ServerPanel'
 import {makeFake} from '../../test/fakeBackend'
 import {web} from '../../test/k8sKit'
 
@@ -126,5 +128,80 @@ describe('Kubernetes: connect flow', () => {
     await screen.findByRole('tablist', {name: 'Kubernetes views'})
     expect(localStorage.getItem('vutty.k8s.context.h1')).toBe('staging-cluster')
     expect(subTab('Pods')).toBeInTheDocument()
+  })
+})
+
+/** the tab opened without clearing what the browser remembers, and without waiting for the connection to be made */
+async function openKeeping(be: ReturnType<typeof makeFake>) {
+  render(<Providers be={be}><ServerPanel host={web} visible onShell={vi.fn()} /></Providers>)
+  await screen.findByText(/up 41d 0h/)
+  await userEvent.click(screen.getByRole('tab', {name: 'Kubernetes'}))
+}
+
+describe('Kubernetes: connect flow, what is shown while it looks', () => {
+  beforeEach(() => { localStorage.clear() })
+
+  const slowDetect = (be: ReturnType<typeof makeFake>, ms: number) => {
+    const detect = be.server.k8sDetect
+    be.server.k8sDetect = async s => { await new Promise(r => setTimeout(r, ms)); return detect(s) }
+  }
+
+  it('does not draw the list of steps for an answer that comes at once: the answer is shown by itself', async () => {
+    const be = makeFake({hosts: [web]})
+    be.state.k8s.detect = {found: false, cmd: '', path: '', client_version: '', tried: ['kubectl']}
+    await openKubernetes({be})
+    expect(screen.queryByText('looking for it …')).toBeNull() // no card that flashes and goes
+    expect(await screen.findByRole('heading', {name: 'kubectl was not found on this server'})).toBeInTheDocument()
+    expect(screen.queryByText('looking for it …')).toBeNull()
+  })
+
+  it('draws the list of steps when a step takes a while', async () => {
+    const be = makeFake({hosts: [web]})
+    slowDetect(be, 700)
+    await openKubernetes({be})
+    expect(await screen.findByText('looking for it …')).toBeInTheDocument()
+    expect(screen.getByRole('heading', {name: 'Looking for Kubernetes on this server'})).toBeInTheDocument()
+    expect(await screen.findByRole('radiogroup', {name: 'Cluster'}, {timeout: 3000})).toBeInTheDocument()
+  })
+
+  it('remembers that a host had no kubectl, and forgets it when kubectl is found', async () => {
+    const be = makeFake({hosts: [web]})
+    be.state.k8s.detect = {found: false, cmd: '', path: '', client_version: '', tried: ['kubectl', 'k3s kubectl']}
+    await openKubernetes({be})
+    await screen.findByRole('heading', {name: 'kubectl was not found on this server'})
+    expect(JSON.parse(localStorage.getItem('vutty.k8s.nokubectl.h1') ?? 'null')).toEqual({tried: ['kubectl', 'k3s kubectl']})
+    be.state.k8s.detect = {...be.state.k8s.detect, found: true, cmd: 'kubectl', path: '/usr/bin/kubectl', client_version: 'v1.30.4'}
+    await userEvent.click(screen.getByRole('button', {name: 'Check again'}))
+    await screen.findByRole('radiogroup', {name: 'Cluster'})
+    expect(localStorage.getItem('vutty.k8s.nokubectl.h1')).toBeNull()
+  })
+
+  it('says at once that a host had no kubectl last time, while it looks again, and goes on when it is there now', async () => {
+    const be = makeFake({hosts: [web]})
+    localStorage.setItem('vutty.k8s.nokubectl.h1', JSON.stringify({tried: ['kubectl', 'k3s kubectl']}))
+    slowDetect(be, 500) // kubectl has been installed since: found, but not at once
+    await openKeeping(be)
+    expect(screen.getByRole('heading', {name: 'kubectl was not found on this server'})).toBeInTheDocument() // there from the first moment
+    expect(screen.getByText('Tried: kubectl, k3s kubectl')).toBeInTheDocument()
+    expect(await screen.findByRole('radiogroup', {name: 'Cluster'}, {timeout: 3000})).toBeInTheDocument() // looked again, found: it goes on
+    expect(screen.queryByRole('heading', {name: 'kubectl was not found on this server'})).toBeNull()
+    expect(calls(be, 'server.k8sDetect')).toHaveLength(1)
+    expect(localStorage.getItem('vutty.k8s.nokubectl.h1')).toBeNull()
+  })
+
+  it('keeps saying it when it is still missing, and takes the new list of places tried', async () => {
+    const be = makeFake({hosts: [web]})
+    localStorage.setItem('vutty.k8s.nokubectl.h1', JSON.stringify({tried: ['kubectl']}))
+    be.state.k8s.detect = {found: false, cmd: '', path: '', client_version: '', tried: ['kubectl', 'k3s kubectl', 'microk8s kubectl']}
+    await openKeeping(be)
+    expect(await screen.findByText('Tried: kubectl, k3s kubectl, microk8s kubectl')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('vutty.k8s.nokubectl.h1') ?? 'null')).toEqual({tried: ['kubectl', 'k3s kubectl', 'microk8s kubectl']})
+  })
+
+  it('ignores what it cannot read of what it remembered', async () => {
+    const be = makeFake({hosts: [web]})
+    localStorage.setItem('vutty.k8s.nokubectl.h1', '{"tried": "not a list"}')
+    await openKeeping(be)
+    expect(await screen.findByRole('radiogroup', {name: 'Cluster'})).toBeInTheDocument()
   })
 })

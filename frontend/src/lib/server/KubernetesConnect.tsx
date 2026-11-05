@@ -19,6 +19,22 @@ export const savedNamespaces = (hostId: string, ctx: string): string[] => {
 export const saveNamespaces = (hostId: string, ctx: string, list: string[]) => {
   try { if (list.length) localStorage.setItem(nsKey(hostId, ctx), JSON.stringify(list)); else localStorage.removeItem(nsKey(hostId, ctx)) } catch { /* not remembered */ }
 }
+// a host that had no kubectl the last time: the tab says so at once while it looks again (found now: it goes on; still not: it stays)
+const noKubectlKey = (hostId: string) => 'vutty.k8s.nokubectl.' + hostId
+export const noKubectlBefore = (hostId: string): K8sDetect | null => {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(noKubectlKey(hostId)) ?? 'null')
+    const tried = v && typeof v === 'object' && Array.isArray((v as {tried?: unknown}).tried) ? (v as {tried: unknown[]}).tried.filter((x): x is string => typeof x === 'string') : null
+    return tried ? {found: false, cmd: '', path: '', client_version: '', tried} : null
+  } catch { return null }
+}
+const rememberNoKubectl = (hostId: string, d: K8sDetect | null) => {
+  try { if (d) localStorage.setItem(noKubectlKey(hostId), JSON.stringify({tried: d.tried})); else localStorage.removeItem(noKubectlKey(hostId)) } catch { /* not remembered */ }
+}
+
+/** how long a step may take before the list of steps is drawn: an answer that comes sooner is shown by itself, without a card that flashes and goes */
+const STEPS_AFTER_MS = 350
+
 export const remember = (hostId: string, ctx: string) => { try { if (ctx) localStorage.setItem(rememberKey(hostId), ctx); else localStorage.removeItem(rememberKey(hostId)) } catch { /* not remembered */ } }
 
 type Phase =
@@ -42,7 +58,8 @@ type Phase =
 export function KubernetesConnect({sid, host, again, clusterId, onReopen, onAccess, onReady}: {sid: string; host: Host; again: {detect: K8sDetect; contexts: K8sContexts; ctx: string} | null; clusterId?: string; onReopen?(): void; onAccess?(): void; onReady(s: K8sSession): void}) {
   const be = useBackend()
   const t = useT()
-  const [phase, setPhase] = useState<Phase>(again ? {k: 'check', ctx: again.ctx} : {k: 'detect'})
+  const seen = useRef(again || clusterId ? null : noKubectlBefore(host.id))
+  const [phase, setPhase] = useState<Phase>(() => (again ? {k: 'check', ctx: again.ctx} : seen.current ? {k: 'nokubectl', d: seen.current} : {k: 'detect'}))
   const [attempt, setAttempt] = useState(0)
   const [choice, setChoice] = useState('')
   const [keep, setKeep] = useState(true)
@@ -70,10 +87,11 @@ export function KubernetesConnect({sid, host, again, clusterId, onReopen, onAcce
     let off = false
     ;(async () => {
       try {
-        setPhase({k: 'detect'})
+        if (attempt > 0 || !seen.current) setPhase({k: 'detect'}) // the first time, a host that had no kubectl keeps saying so while it is asked again
         const d = await be.server.k8sDetect(sid)
         if (off) return
-        if (!d.found) { setPhase({k: 'nokubectl', d}); return }
+        if (!d.found) { if (!clusterId && !d.direct) rememberNoKubectl(host.id, d); setPhase({k: 'nokubectl', d}); return }
+        rememberNoKubectl(host.id, null)
         setPhase({k: 'contexts'})
         const c = await be.server.k8sContexts(sid)
         if (off) return
@@ -90,12 +108,23 @@ export function KubernetesConnect({sid, host, again, clusterId, onReopen, onAcce
     return () => { off = true }
   }, [be, sid, host.id, attempt]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the steps are drawn only when they take a while (see STEPS_AFTER_MS)
+  const busy = phase.k === 'detect' || phase.k === 'contexts' || phase.k === 'check'
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (!busy) { setSlow(false); return }
+    const id = window.setTimeout(() => setSlow(true), STEPS_AFTER_MS)
+    return () => window.clearTimeout(id)
+  }, [busy])
+
   const again2 = () => { direct.current = false; setAttempt(a => a + 1) }
   const pickAnother = () => { const c = known.current?.contexts; if (c) { setChoice(prev => prev || c.contexts[0]?.name || ''); setPhase({k: 'pick', c}) } else again2() }
   const accessBtn = onAccess ? <button onClick={onAccess}>{t('Access host')}</button> : null
   const checkAgain = (f?: () => void) => <button onClick={f ?? again2}>{t('Check again')}</button>
   const raw = (s: string) => (s ? <div className="k8s-raw">{s}</div> : null)
   const card = (title: string, children: ReactNode, role?: 'alert' | 'status') => <div className="k8s-card" role={role}><h2>{title}</h2>{children}</div>
+
+  if (busy && !slow) return <div className="k8s-wait" role="status" aria-busy="true" />
 
   if (phase.k === 'detect' || phase.k === 'contexts' || phase.k === 'check') {
     const step = phase.k === 'detect' ? 1 : phase.k === 'contexts' ? 2 : 3
