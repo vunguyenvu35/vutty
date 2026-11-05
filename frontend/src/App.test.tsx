@@ -772,6 +772,19 @@ describe('App: full screen', () => {
   })
 })
 
+describe('App: the system it runs on', () => {
+  it('marks the page with the system, so a Mac gets the top bar that is as tall as the toolbar the window buttons sit in', async () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get')
+    for (const [name, os] of [['MacIntel', 'mac'], ['Win32', 'other'], ['Linux x86_64', 'other']] as const) {
+      platform.mockReturnValue(name)
+      const {unmount} = render(<Providers be={makeFake()}><App /></Providers>)
+      await waitFor(() => expect(document.documentElement.dataset.os, name).toBe(os))
+      unmount()
+    }
+    platform.mockRestore()
+  })
+})
+
 describe('App: keyboard shortcuts', () => {
   const press = (init: KeyboardEventInit) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, cancelable: true, ...init})) })
 

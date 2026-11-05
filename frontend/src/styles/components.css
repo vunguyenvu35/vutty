@@ -99,6 +99,7 @@ button.on-banner { background: #ffffff33; color: #fff; }
 /* screens without a title bar: a strip to drag the window by */
 .gate { position: relative; }
 .drag-bar { position: absolute; top: 0; left: 0; right: 0; height: 46px; --wails-draggable: drag; }
+:root[data-os=mac] .drag-bar { height: 52px; }
 
 .sel-count { margin-left: auto; color: var(--accent); font-weight: 600; }
 

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useBackend} from './lib/backend'
+import {isMac} from './lib/shortcuts/shortcuts'
 import {UnlockScreen} from './lib/vault/UnlockScreen'
 import {KeychainPage, KeyMode} from './lib/vault/KeychainPage'
 import {KeyPanel} from './lib/vault/KeyPanel'
@@ -232,6 +233,7 @@ export default function App({initial}: {/** an app window opened for this place 
   useEffect(() => { document.documentElement.style.setProperty('zoom', String((settings.zoom || 100) / 100)) }, [settings.zoom])
   useEffect(() => { setLanguageSetting(settings.language) }, [settings.language])
   useEffect(() => { document.documentElement.dataset.motion = settings.reduce_motion ? 'reduced' : 'full' }, [settings.reduce_motion])
+  useEffect(() => { document.documentElement.dataset.os = isMac() ? 'mac' : 'other' }, []) // the window buttons of macOS sit in a bar taller than the top bar: see base.css
 
   // a side panel belongs to the page it was opened on: leaving the home view closes it
   const leftHome = active !== 'home' && tabs.some(t => t.id === active)
