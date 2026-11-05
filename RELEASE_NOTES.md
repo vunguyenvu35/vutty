@@ -1,10 +1,10 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.1
+# Vutty 1.6.2
 
 Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.6.2
 
 - **Files of a shell in a pod.** The Files section of the terminal sidebar now shows the files inside the pod when the terminal is a shell in a pod of a cluster opened with a kubeconfig: browse the folders, open a file with the system, copy files out into a folder of this computer. Read only (no upload, rename or delete yet), and a folder cannot be copied out yet. Nothing is installed in the pod: it needs `sh`, `stat` and `cat` there, so a container without a shell says so. Tried on real Alpine (busybox) and Debian (GNU) pods.
 - **Fix:** the × of a filter box is centred in its circle.
