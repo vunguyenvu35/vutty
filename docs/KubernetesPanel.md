@@ -180,6 +180,15 @@ The **Security** tab reads the pods, services and ingresses of the namespace (or
 
 **Copy kubectl** (Pod and Deployment pages, Nodes rows) copies the kubectl line that does what the screen does (get as YAML, describe, follow the logs, shell, port-forward, rollout status, top, the pods of a node, `ssh` to a node, through the host as a jump host when there is one), with `--context` and `-n` in it. Nothing is run and nothing changes.
 
+## 26 · Debug container
+
+A pod whose image has no shell (distroless, `scratch`) cannot be entered, so **Debug** on the pod page adds an **ephemeral container** to it (a tool box: `nicolaka/netshoot` by default, or `busybox`, `alpine`, or any image the node can pull) and opens a shell in it. The tool box shares the network of the pod, and with *See the processes of* also the processes of one container.
+
+- **Asks first**, and says that the container cannot be removed: Kubernetes drops it only with the pod. The audit log records the image, the pod and the cluster.
+- **A cluster opened with a kubeconfig:** the container is added with a patch on `pods/ephemeralcontainers`, Vutty waits until it runs (an image that cannot be pulled, or a container that ends at once, is said with the cluster's own words), and the shell is a terminal tab in that container. **A host:** the line `kubectl debug -it … --image=… --target=…` is typed into a tab of the host.
+- **Right:** `patch pods/ephemeralcontainers`; without it the button is locked with the reason (it is one of the rows on the page of rights).
+- Tried on a real cluster (kind, Kubernetes 1.37) by both ways in.
+
 ## Command map
 
 ![Command map](screenshots/k8s/26-command-map.png)

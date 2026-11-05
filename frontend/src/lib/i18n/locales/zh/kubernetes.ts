@@ -547,4 +547,13 @@ export default {
   "kubectl commands for {name}": "{name} 的 kubectl 命令",
   "Copy a kubectl command": "复制 kubectl 命令",
   "Nothing here changes the cluster. The context and namespace are in the command.": "这里的命令不会修改集群。上下文和命名空间已包含在命令中。",
+  "Debug": "调试",
+  "This login may not add a debug container to pods": "此登录无权向 Pod 添加调试容器",
+  "Add a temporary tool box container to this pod and open a shell in it": "向此 Pod 添加临时工具箱容器并在其中打开 shell",
+  "Debug {name}": "调试 {name}",
+  "Add and open a shell": "添加并打开 shell",
+  "Image of the tool box": "工具箱镜像",
+  "See the processes of": "查看其进程的容器",
+  "No container": "无容器",
+  "The container is added to {name} on {ctx} and cannot be removed: it goes away when the pod does. It shares the network of the pod. The image is pulled by the node, so it must be reachable from there. The audit log records it.": "容器会添加到 {ctx} 上的 {name}，且无法移除：它随 Pod 一起消失。它与 Pod 共享网络。镜像由节点拉取，因此必须能从节点访问。审计日志会记录此操作。",
 }

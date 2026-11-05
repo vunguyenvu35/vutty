@@ -293,3 +293,39 @@ func TestLiveSecurityAndPortForward(t *testing.T) {
 		})
 	}
 }
+
+// A debug container added to a real pod (a pod of the Deployment web-demo in shop), by both ways in: through the API for a kubeconfig,
+// and as the kubectl debug line for a host, which is run here by the real kubectl.
+func TestLiveDebugContainer(t *testing.T) {
+	for _, mode := range []string{"kubeconfig", "host"} {
+		t.Run(mode, func(t *testing.T) {
+			h := newHarness(t).unlocked(t)
+			sid, ctx := liveSession(t, h, mode)
+			s := h.app.Server
+			pods, err := s.K8sPods(sid, ctx, "shop")
+			if err != nil || len(pods) == 0 {
+				t.Fatalf("%v %v", pods, err)
+			}
+			var pod string
+			for _, p := range pods {
+				if strings.HasPrefix(p.Name, "web-demo") {
+					pod = p.Name
+				}
+			}
+			d, err := s.K8sDebugStart(sid, ctx, "shop", pod, "busybox:1.36", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "host" {
+				if !strings.HasPrefix(d.Command, "kubectl debug -it") {
+					t.Fatalf("%q", d.Command)
+				}
+				return
+			}
+			out, err := s.k8sGet(sid, ctx, "shop", "get", "pod", pod, "-o", "json")
+			if err != nil || !strings.Contains(out, d.Container) {
+				t.Fatalf("%q %v: the container is on the pod", out, err)
+			}
+		})
+	}
+}

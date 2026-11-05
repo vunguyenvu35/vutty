@@ -744,6 +744,7 @@ var k8sRightSpec = map[string][4]string{
 	"restart": {"apps", "deployments", "", "patch"}, "delete_pod": {"", "pods", "", "delete"}, "cronjob_run": {"batch", "jobs", "", "create"},
 	"cronjob_patch": {"batch", "cronjobs", "", "patch"}, "cordon": {"", "nodes", "", "patch"}, "drain": {"", "pods", "eviction", "create"},
 	"secrets": {"", "secrets", "", "get"}, "edit": {"apps", "deployments", "", "update"},
+	"debug": {"", "pods", "ephemeralcontainers", "patch"},
 }
 
 // websocketVerbs are the rights that a shell or a port-forward over WebSocket needs. The API server authorizes the upgrade of a

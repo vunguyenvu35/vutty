@@ -473,6 +473,7 @@ var k8sRights = [][3]string{
 	{"scale", "patch", "deployments/scale"}, {"restart", "patch", "deployments"}, {"delete_pod", "delete", "pods"},
 	{"cronjob_run", "create", "jobs"}, {"cronjob_patch", "patch", "cronjobs"}, {"cordon", "patch", "nodes"},
 	{"drain", "create", "pods/eviction"}, {"secrets", "get", "secrets"}, {"edit", "update", "deployments"},
+	{"debug", "patch", "pods/ephemeralcontainers"},
 }
 
 // K8sAccess asks `kubectl auth can-i` what this login may do (in the namespace, or in all of them when ns is "").

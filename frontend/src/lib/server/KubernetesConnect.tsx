@@ -233,6 +233,7 @@ export function KubernetesConnect({sid, host, again, clusterId, onReopen, onAcce
     ['get pods/log', t('Logs'), yes('logs')],
     ['create pods/exec', t('Shell'), yes('exec')],
     ['create pods/portforward', t('Port-forward'), yes('portforward')],
+    ['patch pods/ephemeralcontainers', t('Debug'), yes('debug')],
     ['patch deployments, deployments/scale', t('Scale, Restart, Rollback'), yes('scale', 'restart')],
     ['delete pods', t('Delete pod'), yes('delete_pod')],
     ['create jobs, patch cronjobs', t('Run now, Suspend'), yes('cronjob_run', 'cronjob_patch')],

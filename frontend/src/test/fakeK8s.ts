@@ -1,5 +1,5 @@
 import type {Backend} from '../lib/backend'
-import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, RemoteEntry, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
+import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, RemoteEntry, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sDebug, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
 
 /** What the fake cluster answers: the data of the design boards (docs/screenshots/k8s), so tests and demos read like them. */
 export interface K8sFake {
@@ -44,6 +44,8 @@ export interface K8sFake {
   /** what k8sEditPreview answers; `previewError` makes it fail with this sentence instead */
   preview: K8sEditPreview
   previewError: string
+  /** what k8sDebugStart answers */
+  debug: K8sDebug
   /** the line k8sShellCommand answers */
   shell: string
   /** a change fails with this message */
@@ -212,6 +214,7 @@ export function makeK8s(): K8sFake {
     preview: {diff: [{op: ' ', text: 'spec:'}, {op: '-', text: '  replicas: 3'}, {op: '+', text: '  replicas: 4'}], changed: 2},
     previewError: '',
     shell: "kubectl exec -it -n shop web-6b7d9-m4zwn -c web --context prod-cluster -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'",
+    debug: {container: 'vutty-debug-a1b2c3', command: "kubectl debug -it -n shop web-6b7d9-m4zwn --image=nicolaka/netshoot --context prod-cluster -- sh -c 'command -v bash >/dev/null && exec bash || exec sh'"},
     fail: '',
     hold: null,
   }
@@ -235,7 +238,7 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sDetect: async s => { rec('server.k8sDetect', s); return copy(k().detect) },
     k8sContexts: async s => { rec('server.k8sContexts', s); return copy(k().contexts) },
     k8sCheck: async (s, c) => { rec('server.k8sCheck', c); return copy(k().checks[c] ?? k().checks.default) },
-    k8sAccess: async (s, c, n) => { rec('server.k8sAccess', c, n); const r: Record<string, boolean> = {}; for (const id of ['list', 'logs', 'exec', 'portforward', 'scale', 'restart', 'delete_pod', 'cronjob_run', 'cronjob_patch', 'cordon', 'drain', 'secrets', 'edit']) r[id] = k().rights[id] ?? true; return {rights: r} satisfies K8sAccess },
+    k8sAccess: async (s, c, n) => { rec('server.k8sAccess', c, n); const r: Record<string, boolean> = {}; for (const id of ['list', 'logs', 'exec', 'portforward', 'scale', 'restart', 'delete_pod', 'cronjob_run', 'cronjob_patch', 'cordon', 'drain', 'secrets', 'edit', 'debug']) r[id] = k().rights[id] ?? true; return {rights: r} satisfies K8sAccess },
     k8sNamespaces: async (s, c) => { rec('server.k8sNamespaces', c); return {names: [...k().namespaces]} },
     k8sOverview: async (s, c, n) => { rec('server.k8sOverview', c, n); return copy(k().overview) },
     k8sNodes: async (s, c) => { rec('server.k8sNodes', c); return copy(k().nodes) },
@@ -257,6 +260,7 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sLogsMulti: async (s, c, n, kind, name, o): Promise<K8sMultiLogs> => { rec('server.k8sLogsMulti', c, n, kind, name, o); return {text: k().logs.split('\n').map((l, i) => `[${name}-${i % 2 + 1}] ${l}`).join('\n'), pods: 2, skipped: 0, failed: []} },
     k8sYAML: async (s, c, kind, n, name) => { rec('server.k8sYAML', c, kind, n, name); return k().yaml },
     k8sCounts: async (s, c, n) => { rec('server.k8sCounts', c, n); const x = k(); return {pods: inNs(x.pods, n).length, workloads: inNs(x.workloads, n).length, network: inNs(x.network.services, n).length + inNs(x.network.ingresses, n).length} },
+    k8sDebugStart: async (s, c, n, p, i, t) => { rec('server.k8sDebugStart', c, n, p, i, t); if (k().fail) throw new Error(k().fail); return {...k().debug} },
     k8sSecurity: async (s, c, n) => { rec('server.k8sSecurity', c, n); const x = k().security; return copy({...x, findings: inNs(x.findings, n)}) },
     k8sHelmReleases: async (s, c, n) => { rec('server.k8sHelmReleases', c, n); return copy(inNs(k().helm, n)) },
     k8sHelmRelease: async (s, c, n, name, rev) => { rec('server.k8sHelmRelease', c, n, name, rev); const d = k().helmDetail[name]; if (!d) throw new Error('no such release'); return copy(rev ? {...d, release: {...d.release, revision: rev}} : d) },

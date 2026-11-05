@@ -707,6 +707,7 @@ export interface K8sObjList {namespaced: boolean; columns: string[]; rows: K8sOb
 export interface K8sMultiLogs {text: string; pods: number; skipped: number; failed: string[]}
 export interface K8sHelmRelease {name: string; namespace: string; revision: number; status: string; age_sec: number}
 export interface K8sHelmDetail {release: K8sHelmRelease; chart: string; chart_version: string; app_version: string; description: string; notes: string; manifest: string; has_values: boolean; history: K8sHelmRelease[]}
+export interface K8sDebug {container: string; command: string}
 export interface K8sFinding {severity: 'high' | 'medium' | 'low'; rule: string; kind: string; namespace: string; name: string; container?: string; detail: string; count: number}
 export interface K8sSecurity {findings: K8sFinding[]; pods: number; services: number}
 export interface K8sEvent {age_sec: number; type: 'Normal' | 'Warning'; reason: string; object: string; namespace: string; message: string; count: number}

@@ -75,6 +75,7 @@ type fakeCluster struct {
 	mu    sync.Mutex
 	calls []string // METHOD path?query body
 	allow map[string]bool
+	eph   string // the name of the ephemeral container that was added last
 }
 
 func (f *fakeCluster) called(method, prefix string) []string {
@@ -124,6 +125,28 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 		p := r.URL.Path
 		ok := func(s string) { _, _ = w.Write([]byte(s)) }
 		switch {
+		case strings.HasSuffix(p, "/ephemeralcontainers"):
+			var b struct {
+				Spec struct {
+					E []struct{ Name string } `json:"ephemeralContainers"`
+				} `json:"spec"`
+			}
+			_ = json.Unmarshal(body, &b)
+			f.mu.Lock()
+			if len(b.Spec.E) > 0 {
+				f.eph = b.Spec.E[0].Name
+			}
+			f.mu.Unlock()
+			ok(`{}`)
+		case strings.HasSuffix(p, "/pods/dbg") || strings.HasSuffix(p, "/pods/dbgbad"):
+			f.mu.Lock()
+			name := f.eph
+			f.mu.Unlock()
+			if strings.HasSuffix(p, "/pods/dbg") {
+				ok(`{"status":{"ephemeralContainerStatuses":[{"name":"` + name + `","state":{"running":{}}}]}}`)
+			} else {
+				ok(`{"status":{"ephemeralContainerStatuses":[{"name":"` + name + `","state":{"waiting":{"reason":"ImagePullBackOff","message":"pull access denied"}}}]}}`)
+			}
 		case strings.HasSuffix(p, "/portforward"):
 			f.serveForward(w, r)
 		case strings.HasSuffix(p, "/services/web-svc"):
@@ -790,6 +813,79 @@ func TestClusterPortForwardPortsAndRefusals(t *testing.T) {
 		} else {
 			_ = l.Close()
 		}
+	}
+}
+
+func TestClusterDebugContainerIsAddedAndWaitedFor(t *testing.T) {
+	k8sDebugPoll = 5 * time.Millisecond
+	defer func() { k8sDebugPoll = time.Second }()
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	sid, _ := clusterSession(t, h, f, "{token: tok}")
+	s := h.app.Server
+	d, err := s.K8sDebugStart(sid, "prod", "shop", "dbg", "nicolaka/netshoot", "app")
+	if err != nil || !strings.HasPrefix(d.Container, "vutty-debug-") || d.Command != "" {
+		t.Fatalf("%+v %v", d, err)
+	}
+	c := f.called("PATCH", "/api/v1/namespaces/shop/pods/dbg/ephemeralcontainers")
+	if len(c) != 1 || !strings.Contains(c[0], `"image":"nicolaka/netshoot"`) || !strings.Contains(c[0], `"targetContainerName":"app"`) || !strings.Contains(c[0], `"tty":true`) || !strings.Contains(c[0], d.Container) {
+		t.Fatalf("%v", c)
+	}
+	// an image that cannot be pulled is said at once, not after the wait
+	if _, err := s.K8sDebugStart(sid, "prod", "shop", "dbgbad", "nope/none", ""); err == nil || !strings.Contains(err.Error(), "ImagePullBackOff") || !strings.Contains(err.Error(), "pull access denied") {
+		t.Fatalf("%v", err)
+	}
+	if c := f.called("PATCH", "/api/v1/namespaces/shop/pods/dbgbad/ephemeralcontainers"); len(c) != 1 || strings.Contains(c[0], "targetContainerName") {
+		t.Fatalf("no target means none is sent: %v", c)
+	}
+	var ok, bad int
+	for _, e := range h.logs(t, domain.ActivityFilter{}) {
+		if strings.Contains(e.Message, "added the debug container "+d.Container+" (nicolaka/netshoot) to pod dbg in shop (prod)") {
+			ok++
+		}
+		if strings.Contains(e.Message, "debug container (nope/none) for pod dbgbad") {
+			bad++
+		}
+	}
+	if ok != 1 || bad != 1 {
+		t.Fatalf("audit: %d %d", ok, bad)
+	}
+	// a name that is not an image, a pod that is not a name
+	for _, img := range []string{"", "a b", "x;rm", "a/../b", "-x", "'q'"} {
+		if _, err := s.K8sDebugStart(sid, "prod", "shop", "dbg", img, ""); err == nil {
+			t.Errorf("image %q", img)
+		}
+	}
+	for _, bad := range k8sBadWords {
+		if _, err := s.K8sDebugStart(sid, "prod", "shop", bad, "busybox", ""); err == nil {
+			t.Errorf("pod %q", bad)
+		}
+		if _, err := s.K8sDebugStart(sid, "prod", "shop", "dbg", "busybox", bad); err == nil && bad != "" {
+			t.Errorf("target %q", bad)
+		}
+	}
+}
+
+func TestClusterDebugContainerGivesUpWhenItNeverRuns(t *testing.T) {
+	k8sDebugPoll, k8sDebugWait = 5*time.Millisecond, 40*time.Millisecond
+	defer func() { k8sDebugPoll, k8sDebugWait = time.Second, 90*time.Second }()
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	sid, _ := clusterSession(t, h, f, "{token: tok}")
+	if _, err := h.app.Server.K8sDebugStart(sid, "prod", "shop", "api-7d9f6c-x2kq8", "busybox", ""); err == nil || !strings.Contains(err.Error(), "did not start in time") {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestHostDebugContainerIsTheLineKubectlDebugTypesInATab(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	sid, _ := h.k8sSession(t, func(cmd string) (string, string, int) { return "", "", 0 })
+	d, err := h.app.Server.K8sDebugStart(sid, "prod", "shop", "api-1", "nicolaka/netshoot", "app")
+	if err != nil || d.Container != "" || !strings.HasPrefix(d.Command, "kubectl debug -it -n shop api-1 --image=nicolaka/netshoot --target=app --context prod -- sh -c ") {
+		t.Fatalf("%+v %v", d, err)
+	}
+	if d, _ := h.app.Server.K8sDebugStart(sid, "prod", "shop", "api-1", "busybox", ""); strings.Contains(d.Command, "--target") {
+		t.Fatalf("%q", d.Command)
 	}
 }
 

@@ -323,7 +323,7 @@ func TestK8sAccessAsksWhatTheLoginMayDo(t *testing.T) {
 		return out, "", 0
 	})
 	a, err := h.app.Server.K8sAccess(sid, "prod", "shop")
-	if err != nil || len(a.Rights) != 13 || !a.Rights["list"] || a.Rights["secrets"] || a.Rights["drain"] || !a.Rights["portforward"] {
+	if err != nil || len(a.Rights) != 14 || !a.Rights["list"] || a.Rights["secrets"] || a.Rights["drain"] || !a.Rights["portforward"] {
 		t.Fatalf("%+v %v", a, err)
 	}
 	c := fake.last()

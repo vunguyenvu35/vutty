@@ -547,4 +547,13 @@ export default {
   "kubectl commands for {name}": "Lệnh kubectl cho {name}",
   "Copy a kubectl command": "Sao chép một lệnh kubectl",
   "Nothing here changes the cluster. The context and namespace are in the command.": "Không lệnh nào ở đây thay đổi cluster. Context và namespace đã nằm trong lệnh.",
+  "Debug": "Debug",
+  "This login may not add a debug container to pods": "Tài khoản này không được thêm container debug vào pod",
+  "Add a temporary tool box container to this pod and open a shell in it": "Thêm một container hộp công cụ tạm thời vào pod này và mở shell trong đó",
+  "Debug {name}": "Debug {name}",
+  "Add and open a shell": "Thêm và mở shell",
+  "Image of the tool box": "Image của hộp công cụ",
+  "See the processes of": "Xem các tiến trình của",
+  "No container": "Không container nào",
+  "The container is added to {name} on {ctx} and cannot be removed: it goes away when the pod does. It shares the network of the pod. The image is pulled by the node, so it must be reachable from there. The audit log records it.": "Container được thêm vào {name} trên {ctx} và không thể gỡ: nó mất đi cùng pod. Nó dùng chung mạng với pod. Node sẽ kéo image, nên image phải truy cập được từ đó. Nhật ký audit ghi lại việc này.",
 }

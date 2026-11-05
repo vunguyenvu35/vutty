@@ -88,6 +88,7 @@ export function lockText(t: TFn, right: string, direct = false): string {
     case 'logs': return t('This login may not read logs')
     case 'exec': return t('This login may not open a shell in pods')
     case 'portforward': return t('This login may not forward ports')
+    case 'debug': return t('This login may not add a debug container to pods')
     case 'scale': return t('This login may not scale Deployments')
     case 'edit': return t('This login may not edit this workload')
     case 'restart': return t('This login may not restart or roll back Deployments')

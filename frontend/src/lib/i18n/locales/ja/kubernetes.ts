@@ -547,4 +547,13 @@ export default {
   "kubectl commands for {name}": "{name} の kubectl コマンド",
   "Copy a kubectl command": "kubectl コマンドをコピー",
   "Nothing here changes the cluster. The context and namespace are in the command.": "ここにあるコマンドはクラスターを変更しません。コンテキストと名前空間はコマンドに含まれます。",
+  "Debug": "デバッグ",
+  "This login may not add a debug container to pods": "このログインは Pod にデバッグコンテナを追加できません",
+  "Add a temporary tool box container to this pod and open a shell in it": "この Pod に一時的なツールボックスコンテナを追加し、その中でシェルを開く",
+  "Debug {name}": "{name} をデバッグ",
+  "Add and open a shell": "追加してシェルを開く",
+  "Image of the tool box": "ツールボックスのイメージ",
+  "See the processes of": "プロセスを見る対象",
+  "No container": "コンテナなし",
+  "The container is added to {name} on {ctx} and cannot be removed: it goes away when the pod does. It shares the network of the pod. The image is pulled by the node, so it must be reachable from there. The audit log records it.": "コンテナは {ctx} の {name} に追加され、削除できません。Pod と一緒に消えます。Pod のネットワークを共有します。イメージはノードが取得するため、そこから到達できる必要があります。監査ログに記録されます。",
 }
