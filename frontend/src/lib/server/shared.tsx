@@ -3,7 +3,7 @@ import {useBackend} from '../backend'
 import type {TFn} from '../i18n'
 import {useT} from '../i18n'
 import {AuthPrompt} from '../ui/AuthPrompt'
-import {IconChevron, IconRefresh} from '../ui/Icons'
+import {IconChevron, IconClose, IconRefresh} from '../ui/Icons'
 import {useMinBusy} from '../ui/useMinBusy'
 import {authenticity} from '../sftp/RemotePane'
 import {errMsg} from '../util'
@@ -15,7 +15,7 @@ export function FilterInput({value, onChange, label, placeholder, invalid, class
   return (
     <span className={'sp-filter sp-filter-box ' + className}>
       <input aria-label={label} placeholder={placeholder} aria-invalid={invalid || undefined} value={value} onChange={e => onChange(e.target.value)} />
-      {value !== '' && <button type="button" className="sp-filter-clear" aria-label={t('Clear filter')} title={t('Clear filter')} onClick={e => { onChange(''); e.currentTarget.previousElementSibling instanceof HTMLInputElement && e.currentTarget.previousElementSibling.focus() }}>×</button>}
+      {value !== '' && <button type="button" className="sp-filter-clear" aria-label={t('Clear filter')} title={t('Clear filter')} onClick={e => { onChange(''); e.currentTarget.previousElementSibling instanceof HTMLInputElement && e.currentTarget.previousElementSibling.focus() }}><IconClose size={10} /></button>}
     </span>
   )
 }
