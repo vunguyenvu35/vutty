@@ -300,15 +300,23 @@ type ServerPort struct {
 }
 
 // ServerPorts is the Ports section. Firewall is "active" or "inactive" for ufw, "unknown" when there is no ufw or the login may not ask it.
+// ServerRule is an allow rule of ufw for one port from anywhere: Proto is "tcp", "udp", or "" for both.
+type ServerRule struct {
+	Port  int    `json:"port"`
+	Proto string `json:"proto"`
+}
+
 type ServerPorts struct {
 	Firewall string       `json:"firewall"`
 	Ports    []ServerPort `json:"ports"`
+	Rules    []ServerRule `json:"rules"`
 }
 
 // parsePorts reads `ss -tlnpH` (state recv-q send-q local peer [users:(("name",pid=1,fd=3))]) and `ufw status`.
 func parsePorts(out string) ServerPorts {
-	res := ServerPorts{Firewall: "unknown", Ports: []ServerPort{}}
+	res := ServerPorts{Firewall: "unknown", Ports: []ServerPort{}, Rules: []ServerRule{}}
 	allowed := map[int]bool{}
+	seenRule := map[ServerRule]bool{}
 	switch ufw := section(out, "ufw"); {
 	case strings.Contains(ufw, "Status: active"):
 		res.Firewall = "active"
@@ -316,6 +324,10 @@ func parsePorts(out string) ServerPorts {
 			f := strings.Fields(ln)
 			if len(f) < 3 || f[1] != "ALLOW" {
 				continue
+			}
+			if r, ok := ufwRule(f); ok && !seenRule[r] {
+				seenRule[r] = true
+				res.Rules = append(res.Rules, r)
 			}
 			for _, p := range strings.Split(strings.SplitN(f[0], "/", 2)[0], ",") {
 				if n, err := strconv.Atoi(p); err == nil {
@@ -362,4 +374,18 @@ func parsePorts(out string) ServerPorts {
 	}
 	sort.SliceStable(res.Ports, func(i, j int) bool { return res.Ports[i].Port < res.Ports[j].Port })
 	return res
+}
+
+// ufwRule reads one line of `ufw status` (To, Action, From) that allows a single port from anywhere; the (v6) twin of a rule is the same rule.
+func ufwRule(f []string) (ServerRule, bool) {
+	to := f[0]
+	port, proto, _ := strings.Cut(to, "/")
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 || (proto != "" && proto != "tcp" && proto != "udp") {
+		return ServerRule{}, false
+	}
+	if len(f) < 3 || f[2] != "Anywhere" {
+		return ServerRule{}, false
+	}
+	return ServerRule{Port: n, Proto: proto}, true
 }

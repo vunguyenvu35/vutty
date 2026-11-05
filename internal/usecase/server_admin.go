@@ -174,20 +174,31 @@ $SUDO pkill -KILL -u %[1]s 2>/dev/null; $SUDO userdel %[2]s%[1]s`, name, flag))
 	return err
 }
 
-// FirewallAllow opens a port in ufw. It does not turn the firewall on.
+// FirewallAllow opens a port in ufw (proto "" opens it for tcp and udp). It does not turn the firewall on.
 func (s *ServerService) FirewallAllow(sid string, port int, proto string) error {
-	if port < 1 || port > 65535 || (proto != "tcp" && proto != "udp") {
-		return errors.New("a port is 1 to 65535, and the protocol tcp or udp")
+	if !validRule(port, proto) {
+		return errors.New("a port is 1 to 65535, and the protocol tcp, udp or both")
 	}
-	_, err := s.run(sid, asRoot+fmt.Sprintf("$SUDO ufw allow %d/%s", port, proto))
-	s.audit(sid, fmt.Sprintf("open port %d/%s", port, proto), err)
+	_, err := s.run(sid, asRoot+"$SUDO ufw allow "+ruleSpec(port, proto))
+	s.audit(sid, "open port "+ruleSpec(port, proto), err)
 	return err
+}
+
+func validRule(port int, proto string) bool {
+	return port >= 1 && port <= 65535 && (proto == "" || proto == "tcp" || proto == "udp")
+}
+
+func ruleSpec(port int, proto string) string {
+	if proto == "" {
+		return fmt.Sprintf("%d", port)
+	}
+	return fmt.Sprintf("%d/%s", port, proto)
 }
 
 // FirewallDelete closes a port that ufw has an allow rule for. The SSH port of this connection is refused.
 func (s *ServerService) FirewallDelete(sid string, port int, proto string) error {
-	if port < 1 || port > 65535 || (proto != "tcp" && proto != "udp") {
-		return errors.New("a port is 1 to 65535, and the protocol tcp or udp")
+	if !validRule(port, proto) {
+		return errors.New("a port is 1 to 65535, and the protocol tcp, udp or both")
 	}
 	x, err := s.get(sid)
 	if err != nil {
@@ -196,8 +207,8 @@ func (s *ServerService) FirewallDelete(sid string, port int, proto string) error
 	if port == x.sshPort {
 		return errors.New("that is the port the panel is connected through: closing it would cut it off")
 	}
-	_, err = s.run(sid, asRoot+fmt.Sprintf("$SUDO ufw delete allow %d/%s", port, proto))
-	s.audit(sid, fmt.Sprintf("close port %d/%s", port, proto), err)
+	_, err = s.run(sid, asRoot+"$SUDO ufw delete allow "+ruleSpec(port, proto))
+	s.audit(sid, "close port "+ruleSpec(port, proto), err)
 	return err
 }
 

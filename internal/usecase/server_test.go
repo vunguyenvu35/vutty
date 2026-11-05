@@ -464,3 +464,63 @@ func TestServerAdminRunsFixedCommands(t *testing.T) {
 		t.Fatal("the cron command is on the command line: it must travel on the standard input")
 	}
 }
+
+func TestParseNetworkAndDatabases(t *testing.T) {
+	n := parseNetworkPage(`##dev
+Inter-|   Receive                                                |  Transmit
+    lo: 100 1 0 0 0 0 0 0 100 1 0 0 0 0 0 0
+  eth0: 5000 10 0 0 0 0 0 0 7000 12 0 0 0 0 0 0
+##addr
+1: lo    inet 127.0.0.1/8 scope host lo
+2: eth0    inet 10.0.0.2/24 brd 10.0.0.255 scope global eth0
+2: eth0    inet6 fe80::1/64 scope link
+2: eth0    inet6 2001:db8::2/64 scope global
+##conn
+0      0      10.0.0.2:22      203.0.113.7:50000 users:(("sshd",pid=10,fd=4))
+0      0      10.0.0.2:443     198.51.100.2:41000
+`)
+	if len(n.Ifaces) != 1 || n.Ifaces[0].RX != 5000 || n.Ifaces[0].TX != 7000 || len(n.Ifaces[0].Addrs) != 2 {
+		t.Fatalf("%+v", n.Ifaces)
+	}
+	if n.Total != 2 || n.Conns[0].Process != "sshd" || n.Conns[1].Process != "" || n.Conns[0].Remote != "203.0.113.7:50000" {
+		t.Fatalf("%+v", n)
+	}
+	d := parseDatabases(`##postgres
+version=16.2
+conns=7
+max=100
+db=app|52428800
+db=postgres|8000000
+##redis
+r_redis_version=7.2.4
+r_connected_clients=3
+r_used_memory_human=1.50M
+`)
+	if len(d.Engines) != 2 || d.Engines[0].Kind != "postgres" || d.Engines[0].Connections != 7 || d.Engines[0].MaxConns != 100 || len(d.Engines[0].Databases) != 2 || d.Engines[0].Databases[0].Bytes != 52428800 {
+		t.Fatalf("%+v", d)
+	}
+	if d.Engines[1].Version != "7.2.4" || d.Engines[1].Memory != "1.50M" {
+		t.Fatalf("%+v", d.Engines[1])
+	}
+	if e := parseDatabases("##mysql\nversion=\nconns=\n").Engines; len(e) != 1 || e[0].Reachable {
+		t.Fatalf("a database that did not answer is not reachable: %+v", e)
+	}
+}
+
+func TestParsePortsRules(t *testing.T) {
+	p := parsePorts(`##ss
+LISTEN 0 128 0.0.0.0:22 0.0.0.0:*
+##ufw
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+80                         ALLOW       Anywhere
+8080/tcp                   ALLOW       10.0.0.5
+22/tcp (v6)                ALLOW       Anywhere (v6)
+`)
+	if len(p.Rules) != 2 || p.Rules[0] != (ServerRule{Port: 22, Proto: "tcp"}) || p.Rules[1] != (ServerRule{Port: 80}) {
+		t.Fatalf("%+v", p.Rules)
+	}
+}
