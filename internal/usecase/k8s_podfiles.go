@@ -186,6 +186,7 @@ func (s *ServerService) PodFilesFetch(hostID, remote, localDir string) (string, 
 	if name == "/" || name == "." || name == ".." || name == "" {
 		return "", errors.New("that is not a file")
 	}
+	name = localFileName(name)
 	p, err := s.podOf(hostID)
 	if err != nil {
 		return "", err
@@ -239,4 +240,30 @@ func createUnique(dir, name string) (*os.File, string, error) {
 		}
 	}
 	return nil, "", errors.New("there are too many files with that name in the folder")
+}
+
+// localFileName makes the name a file of a pod gets on this computer. The pod chooses the name, and a name that is one word to the pod
+// can be a path here (a \ is a separator on Windows, "C:x" names a drive, "NUL" a device): what the systems do not take in a name is
+// replaced, so the file lands in the folder that was chosen and nowhere else.
+func localFileName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f || strings.ContainsRune(`\/:*?"<>|`, r) {
+			r = '_'
+		}
+		b.WriteRune(r)
+	}
+	out := strings.TrimRight(b.String(), ". ") // Windows drops a trailing dot or space: "x." and "x" would be one file
+	if out == "" || strings.Trim(out, ".") == "" {
+		out = "file"
+	}
+	stem, _, _ := strings.Cut(out, ".")
+	switch strings.ToUpper(stem) {
+	case "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		out = "_" + out
+	}
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	return out
 }

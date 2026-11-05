@@ -225,3 +225,28 @@ func TestStatListParsing(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// The pod chooses the name of a file: it must land in the chosen folder whatever it is called.
+func TestLocalFileNameCannotLeaveTheFolderOrNameADevice(t *testing.T) {
+	for in, want := range map[string]string{
+		"report.txt":       "report.txt",
+		`..\..\evil.exe`:   ".._.._evil.exe",
+		`C:\Windows\x.dll`: "C__Windows_x.dll",
+		"a:b":              "a_b",
+		"NUL":              "_NUL",
+		"con.txt":          "_con.txt",
+		"name. ":           "name",
+		"...":              "file",
+		"tab\tx\x00":       "tab_x_",
+	} {
+		if got := localFileName(in); got != want {
+			t.Errorf("%q: got %q want %q", in, got, want)
+		}
+	}
+	for _, in := range []string{`..\..\x`, `\\srv\share\x`, "x/../../y", strings.Repeat("a", 500)} {
+		got := localFileName(in)
+		if strings.ContainsAny(got, `\/:`) || len(got) > 200 {
+			t.Errorf("%q → %q", in, got)
+		}
+	}
+}

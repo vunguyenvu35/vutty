@@ -30,10 +30,19 @@ var wellKnownExec = func() func(string) bool {
 		"rancher": true, "teleport": true, "linode-cli": true, "ibmcloud": true, "oci": true,
 	}
 	return func(command string) bool {
-		base := strings.ToLower(path.Base(strings.ReplaceAll(command, `\`, "/"))) // a Windows path, whichever system this runs on
+		slashed := strings.ReplaceAll(command, `\`, "/") // a Windows path, whichever system this runs on
+		base := strings.ToLower(path.Base(slashed))
 		base = strings.TrimSuffix(base, ".exe")
 		base = strings.TrimSuffix(base, ".cmd")
-		return names[base]
+		if !names[base] {
+			return false
+		}
+		// The name alone is not enough: /tmp/x/aws or \\server\share\aws.exe is whatever somebody put there. A bare name is looked up in
+		// the usual folders; a path must be in a folder that only an administrator writes.
+		if !strings.Contains(slashed, "/") {
+			return true
+		}
+		return inSystemFolder(slashed)
 	}
 }()
 
@@ -79,6 +88,10 @@ func searchPath() string {
 // lookup finds the program: a path as it is, a bare name in searchPath.
 func lookup(command string) (string, error) {
 	if strings.ContainsAny(command, `/\`) {
+		// a relative path would mean a different file depending on the folder the app was started in, which is not what was approved
+		if !filepath.IsAbs(command) && !strings.HasPrefix(command, `\\`) {
+			return "", fmt.Errorf("the login program %s is given as a relative path: the kubeconfig needs its full path", command)
+		}
 		return command, nil
 	}
 	for _, d := range filepath.SplitList(searchPath()) {
@@ -166,4 +179,39 @@ func runExec(ctx context.Context, cfg ExecConfig) (string, time.Time, error) {
 		}
 	}
 	return cred.Status.Token, exp, nil
+}
+
+// systemFolders are where a login helper installed by a package manager or by the provider's installer is (slashes as /, lower case).
+var systemFolders = []string{"/usr/", "/bin/", "/snap/bin/", "/opt/homebrew/", "c:/program files/", "c:/program files (x86)/"}
+
+// inSystemFolder says whether a path (slashes as /) is under one of systemFolders, and does not climb out of it with "..".
+func inSystemFolder(p string) bool {
+	if strings.Contains(p, "..") {
+		return false
+	}
+	low := strings.ToLower(p)
+	for _, f := range systemFolders {
+		if strings.HasPrefix(low, f) {
+			return true
+		}
+	}
+	return false
+}
+
+// safeExecEnv says whether a login helper may be started without asking with this variable set by the kubeconfig. The names a provider's
+// helper reads (AWS_PROFILE, AWS_REGION, AAD_*, AZURE_*) are fine; anything that changes which program or library runs, or where its
+// configuration is read from (LD_PRELOAD, DYLD_*, PATH, PYTHON*, AWS_CONFIG_FILE, CLOUDSDK_PYTHON…), asks first.
+func safeExecEnv(name string) bool {
+	n := strings.ToUpper(name)
+	for _, bad := range []string{"PATH", "PYTHON", "PRELOAD", "LD_", "DYLD_", "CONFIG", "CREDENTIALS_FILE", "CREDENTIAL_PROCESS", "SHELL", "ENV", "HOME", "OPTIONS", "BROWSER", "EDITOR", "PROXY"} {
+		if strings.Contains(n, bad) {
+			return false
+		}
+	}
+	for _, ok := range []string{"AWS_", "AAD_", "AZURE_", "ARM_", "GOOGLE_", "CLOUDSDK_CORE_", "KUBELOGIN_"} {
+		if strings.HasPrefix(n, ok) {
+			return true
+		}
+	}
+	return false
 }

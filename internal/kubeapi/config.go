@@ -155,11 +155,36 @@ func (c *Config) context(name string) (ContextSpec, bool) {
 type ExecSpec struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
+	// Env is what the file sets for the program, as NAME=value: part of what is approved, so a file cannot change it afterwards.
+	Env []string `json:"env,omitempty"`
+}
+
+// spec is the command of the file with the variables it sets.
+func (x *ExecConfig) spec() ExecSpec {
+	s := ExecSpec{Command: x.Command, Args: x.Args}
+	for _, e := range x.Env {
+		s.Env = append(s.Env, e.Name+"="+e.Value)
+	}
+	return s
+}
+
+// wellKnown says whether the program may start without asking: a well-known helper, and no variable that changes what runs.
+func (e ExecSpec) wellKnown() bool {
+	if !wellKnownExec(e.Command) {
+		return false
+	}
+	for _, v := range e.Env {
+		name, _, _ := strings.Cut(v, "=")
+		if !safeExecEnv(name) {
+			return false
+		}
+	}
+	return true
 }
 
 // String is the command line, the key of an approval.
 func (e ExecSpec) String() string {
-	return strings.Join(append([]string{e.Command}, e.Args...), " ")
+	return strings.Join(append(append(append([]string{}, e.Env...), e.Command), e.Args...), " ")
 }
 
 func authKind(u User) string {
@@ -185,7 +210,7 @@ func (c *Config) List() []ContextInfo {
 		info := ContextInfo{Name: x.Name, Cluster: x.Context.Cluster, Server: cl.Server, User: x.Context.User,
 			Namespace: x.Context.Namespace, Current: x.Name == c.Current, Auth: authKind(u), Insecure: cl.Insecure}
 		if u.Exec != nil {
-			info.Exec = ExecSpec{Command: u.Exec.Command, Args: u.Exec.Args}.String()
+			info.Exec = u.Exec.spec().String()
 		}
 		out = append(out, info)
 	}
@@ -202,7 +227,7 @@ func (c *Config) ExecOf(ctxName string) (ExecSpec, bool) {
 	if !ok || u.Exec == nil {
 		return ExecSpec{}, false
 	}
-	return ExecSpec{Command: u.Exec.Command, Args: u.Exec.Args}, true
+	return u.Exec.spec(), true
 }
 
 func decodeData(s string) ([]byte, error) {

@@ -414,3 +414,62 @@ func selfSigned(t *testing.T, cn string) (certPEM, keyPEM []byte) {
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kb})
 }
+
+// A name is not enough: the same name in a folder anybody can write, or on a network share, is not the helper.
+func TestAWellKnownNameInAFolderAnybodyCanWriteAsksFirst(t *testing.T) {
+	for _, c := range []string{"/tmp/evil/aws", "./aws", "aws/../../tmp/aws", `\\evil\share\aws.exe`, `C:\Users\x\Downloads\kubectl.exe`,
+		"/Users/x/Downloads/gcloud", "/usr/local/bin/../../../tmp/aws", `C:\Program Files\..\Users\x\aws.exe`, "relative/dir/az"} {
+		if wellKnownExec(c) {
+			t.Errorf("%s ran without asking", c)
+		}
+	}
+	for _, c := range []string{"aws", "/usr/local/bin/aws", "/usr/bin/gcloud", `C:\Program Files\Amazon\AWSCLIV2\aws.exe`, `c:\program files (x86)\Google\Cloud SDK\gcloud.cmd`} {
+		if !wellKnownExec(c) {
+			t.Errorf("%s should be well known", c)
+		}
+	}
+}
+
+// What the file sets for the program can change what runs: that asks first, and is part of what is approved.
+func TestAHelperWithAVariableThatChangesWhatRunsAsksFirstAndTheVariableIsPartOfTheApproval(t *testing.T) {
+	cfg := func(env string) *Config {
+		c, err := Parse(kubeconfig(nil, "    exec:\n      apiVersion: client.authentication.k8s.io/v1\n      command: aws\n      args: [eks, get-token]\n"+env))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	if _, err := New(cfg("      env:\n        - {name: AWS_PROFILE, value: prod}\n        - {name: AWS_REGION, value: eu-1}\n"), "c1", Options{}); err != nil {
+		var na *NeedsApprovalError
+		if errors.As(err, &na) {
+			t.Fatalf("a profile and a region must not ask: %v", err)
+		}
+	}
+	for _, name := range []string{"LD_PRELOAD", "DYLD_INSERT_LIBRARIES", "PATH", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "CLOUDSDK_PYTHON", "PYTHONSTARTUP", "BASH_ENV", "HOME", "NODE_OPTIONS"} {
+		_, err := New(cfg("      env:\n        - {name: "+name+", value: /tmp/x}\n"), "c1", Options{})
+		var na *NeedsApprovalError
+		if !errors.As(err, &na) {
+			t.Errorf("%s: err = %v", name, err)
+			continue
+		}
+		if !strings.Contains(na.Command(), name+"=/tmp/x") || !strings.Contains(na.Command(), "aws eks get-token") {
+			t.Errorf("%s: the person must see the variable: %q", name, na.Command())
+		}
+		// approving the same program without the variable does not approve it with the variable
+		if _, err := New(cfg("      env:\n        - {name: "+name+", value: /tmp/x}\n"), "c1", Options{ApproveExec: func(e ExecSpec) bool { return e.String() == "aws eks get-token" }}); err == nil {
+			t.Errorf("%s: approved by the command without the variable", name)
+		}
+	}
+}
+
+func TestALoginProgramGivenAsARelativePathIsRefusedEvenWhenApproved(t *testing.T) {
+	if _, err := lookup("./get-token"); err == nil || !strings.Contains(err.Error(), "full path") {
+		t.Fatalf("%v", err)
+	}
+	if _, err := lookup("bin/get-token"); err == nil {
+		t.Fatal("a relative path was accepted")
+	}
+	if p, err := lookup("/opt/x/get-token"); err != nil || p != "/opt/x/get-token" {
+		t.Fatalf("%q %v", p, err)
+	}
+}

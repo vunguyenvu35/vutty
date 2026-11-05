@@ -41,6 +41,25 @@ No secret, key or credential was found in the repository. The vault, host-key ch
 8. **Telnet and serial are unencrypted** by nature; the host form says so.
 9. **The CSP allows `connect-src` to local ports** (the development server needs it). A cross-site script is not possible today, so this is defence in depth only.
 
+## Update 2026-11-05: the Kubernetes panel
+
+> Scope: what was added after the review above: the kubeconfig client (`internal/kubeapi`), commands run with `kubectl` on a host, the changes (Edit YAML, Edit config, Add sidecar, Debug container), port-forward, and the files of a pod. Method: reading the code, plus a test for each defect. `govulncheck` (0 reachable), `npm audit --omit=dev` (0) and a secret scan were clean.
+
+| # | Severity | Finding | Status |
+|---|---|---|---|
+| 9 | High (Windows), Medium (elsewhere) | **A login program ran without asking when its file name was a well-known one, whatever its folder.** A kubeconfig with `command: \\evil\share\aws.exe`, or a path to any file the person had downloaded and called `aws`, `kubectl` or `gcloud`, was run at once. | Fixed: a bare name is looked up as before; a path runs without asking only inside a folder an administrator writes (`/usr`, `/bin`, `/snap/bin`, `/opt/homebrew`, `Program Files`), never with `..`. Any other path asks. |
+| 10 | Medium | **The kubeconfig could set any environment variable for the login program**, such as `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `PATH`, `AWS_CONFIG_FILE` or `CLOUDSDK_PYTHON`, and the variables were not part of what the person approved. | Fixed: only the names a provider's helper reads (`AWS_*`, `AAD_*`, `AZURE_*`, `ARM_*`, `GOOGLE_*`, `CLOUDSDK_CORE_*`, `KUBELOGIN_*`, none of them a path, a config file or a program) run without asking. The variables are shown in the approval, and are part of it: a file that adds one afterwards asks again. |
+| 11 | Low | An approved login program given as a **relative path** (`./get-token`) meant a different file depending on the folder the app was started in. | Fixed: refused, with a message asking for the full path. |
+| 12 | Low (Windows) | **The name of a file copied out of a pod** was chosen by the pod. `..\..\x` is one name to the pod and a way out of the folder on Windows; `NUL` or `C:x` are devices and drives. | Fixed: characters the systems do not take in a name are replaced, a trailing dot or space is dropped, device names get a prefix, and the length is limited. |
+
+Checked and found sound: every name that reaches a `kubectl` command line is checked (it starts with a letter or a digit, so it cannot be a flag) and quoted by `shq`; the key of a Secret goes into a go-template only after a pattern that has no quote; the paths in a pod are arguments of the command (`"$1"`), never its text; the audit log never carries the text of an error or a value (a Secret key is named, not shown); redirects are not followed, so a token is sent only to the server of the file; the object of a change made on a host goes in on the standard input of `kubectl replace`, so a variable's value is not in the command line there; a local port-forward listens on `127.0.0.1` only.
+
+Residual risks:
+
+10. **A port-forward on a host listens on `127.0.0.1:18000-18999` of that host** (that is how `kubectl port-forward` works), so another login on the same machine can reach the service while it runs. On a shared host, use a cluster opened with a kubeconfig instead, or do not forward.
+11. **A port-forward on this computer** can be reached by any process of this computer, as with `ssh -L`.
+12. **Approving a login program is trusting the author of the kubeconfig.** The approval shows the whole command and its variables; it cannot say what the program does.
+
 ## Reporting a problem
 
 Open a private security advisory on the repository rather than a public issue.

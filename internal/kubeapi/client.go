@@ -130,8 +130,8 @@ func New(cfg *Config, ctxName string, opt Options) (*Client, error) {
 		c.timeout = requestTimeout
 	}
 	if u.Exec != nil {
-		spec := ExecSpec{Command: u.Exec.Command, Args: u.Exec.Args}
-		if !wellKnownExec(spec.Command) && (opt.ApproveExec == nil || !opt.ApproveExec(spec)) {
+		spec := u.Exec.spec()
+		if !spec.wellKnown() && (opt.ApproveExec == nil || !opt.ApproveExec(spec)) {
 			return nil, &NeedsApprovalError{Spec: spec}
 		}
 		c.exec = &execSource{cfg: *u.Exec}
