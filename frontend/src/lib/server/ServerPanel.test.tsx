@@ -66,11 +66,13 @@ describe('Server panel (tab)', () => {
     expect(calls(be, 'server.serviceAction')).toHaveLength(0)
     await open('Docker')
     const api = (await screen.findByText('api')).closest('tr') as HTMLElement
-    await userEvent.click(within(api).getByRole('button', {name: 'Restart'}))
+    await userEvent.click(within(api).getByRole('button', {name: 'More actions for api'}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Restart'}))
     expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Restart the container api'))
     expect(calls(be, 'server.containerAction')).toHaveLength(0)
     ask.mockReturnValue(true)
-    await userEvent.click(within(api).getByRole('button', {name: 'Restart'}))
+    await userEvent.click(within(api).getByRole('button', {name: 'More actions for api'}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Restart'}))
     await waitFor(() => expect(calls(be, 'server.containerAction')).toEqual([['server.containerAction', 'api', 'restart']]))
   })
 })
@@ -88,7 +90,8 @@ describe('Server panel: Docker', () => {
     await waitFor(() => expect(onShell).toHaveBeenCalledWith(web, 'docker exec -it api sh', 'web-1 · api'))
     const stopped = screen.getByText('old-batch').closest('tr') as HTMLElement
     expect(within(stopped).queryByRole('button', {name: 'Shell'})).toBeNull() // only a running container has a shell
-    await userEvent.click(within(api).getByRole('button', {name: 'Details of api'}))
+    await userEvent.click(within(api).getByRole('button', {name: 'More actions for api'}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Details'}))
     expect(await screen.findByText('DB_PASSWORD')).toBeInTheDocument()
     expect(screen.queryByText('hunter2')).toBeNull()
     await userEvent.click(screen.getByRole('button', {name: 'Show DB_PASSWORD'}))

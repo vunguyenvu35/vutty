@@ -1,4 +1,6 @@
-import {useCallback, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {createPortal} from 'react-dom'
+import {useMenuAnchor} from './KubernetesShared'
 import {useBackend} from '../backend'
 import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
@@ -78,15 +80,14 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
         <td className="n m" title={s ? s.mem_pct.toFixed(1) + '%' : undefined}>{s ? s.mem_usage : '–'}</td>
         <td className="m">{c.ports || '–'}</td>
         <td><div className="sp-acts">
-          {c.state === 'running' ? (
-            <>
-              {onShell && <button onClick={() => void shell(c)}>{t('Shell')}</button>}
-              <button aria-busy={b} disabled={b} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
-              <button className="danger" aria-busy={b} disabled={b} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
-            </>
-          ) : <button className="primary" aria-busy={b} disabled={b} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
-          <button onClick={() => onLogs({kind: 'container', name: c.name})}>{t('Logs')}</button>
-          <button aria-label={t('Details of {name}', {name: c.name})} onClick={() => setLook(c.name)}>{t('Details')}</button>
+          {c.state === 'running'
+            ? (onShell ? <button onClick={() => void shell(c)}>{t('Shell')}</button> : <button onClick={() => onLogs({kind: 'container', name: c.name})}>{t('Logs')}</button>)
+            : <button className="primary" aria-busy={b} disabled={b} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
+          <RowMenu name={c.name} items={[
+            ...(c.state === 'running' ? [{label: t('Restart'), disabled: b, run: () => void act(c.name, 'restart')}, {label: t('Stop'), danger: true, disabled: b, run: () => void act(c.name, 'stop')}] : []),
+            ...(c.state === 'running' && !onShell ? [] : [{label: t('Logs'), run: () => onLogs({kind: 'container', name: c.name})}]),
+            {label: t('Details'), run: () => setLook(c.name)},
+          ]} />
         </div></td>
       </tr>
     )
@@ -120,6 +121,29 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
         </section>
       ))}
       {look && <Inspect sid={sid} name={look} onClose={() => setLook('')} />}
+    </>
+  )
+}
+
+/** the ⋮ of a row: the actions that are not the main one, in a small menu */
+function RowMenu({name, items}: {name: string; items: {label: string; danger?: boolean; disabled?: boolean; run(): void}[]}) {
+  const t = useT()
+  const {btn, menu, at, setAt, toggle, style} = useMenuAnchor()
+  useEffect(() => {
+    if (!at) return
+    const away = (e: MouseEvent) => { if (!(e.target as Element).closest?.('.k8s-menu') && !btn.current?.contains(e.target as Node)) setAt(null) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAt(null) }
+    document.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', away); window.removeEventListener('keydown', esc) }
+  }, [at]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <button ref={btn} className="row-more" aria-haspopup="menu" aria-expanded={!!at} aria-label={t('More actions for {name}', {name})} title={t('More actions')} onClick={toggle}>⋮</button>
+      {at && createPortal(
+        <div ref={menu} className="k8s-menu row-menu" role="menu" aria-label={t('More actions for {name}', {name})} style={style}>
+          {items.map(i => <button key={i.label} role="menuitem" className={'k8s-mi' + (i.danger ? ' danger' : '')} disabled={i.disabled} onClick={() => { setAt(null); i.run() }}>{i.label}</button>)}
+        </div>, document.body)}
     </>
   )
 }

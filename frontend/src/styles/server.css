@@ -113,3 +113,7 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-card > .sp-table th:last-child, .sp-card > .sp-table td:last-child { padding-right: 16px; }
 .sp-card > .sp-table tbody tr:hover { background: var(--bg-3); }
 .sp-card > .sp-table tbody tr:last-child:hover { border-radius: 0 0 8px 8px; }
+.row-more { width: 34px; padding: 0; font-size: 18px; line-height: 1; font-weight: 700; }
+.k8s-menu.row-menu { width: 180px; }
+.k8s-menu.row-menu .k8s-mi { flex-direction: row; align-items: center; padding: 8px 10px; width: 100%; }
+.k8s-menu.row-menu .k8s-mi.danger { color: var(--bad, #ee6b6b); }
