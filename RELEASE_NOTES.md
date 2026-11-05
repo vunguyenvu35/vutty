@@ -1,8 +1,13 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.3
+# Vutty 1.6.4
 
 Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.4
+
+- **Kubernetes: Execute shell dialog.** A pod with several containers no longer squeezes its name into a few lines: the pod name and its container buttons stack (#46).
+- **Kubernetes: ages keep moving.** The tabs reload every 3 s (was 5 s) and the Age column counts each second in between, so a table does not look stuck (#46).
 
 ## What's new in 1.6.3
 
