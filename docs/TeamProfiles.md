@@ -11,6 +11,8 @@ Decisions taken:
 - Servers accept **key login**. A server that only takes a shared password is not supported in a Team profile, because it cannot be "connect only".
 - Keys are installed on servers through Panel first; **SSH certificates** come later (M5).
 - Cluster credentials are per person, like server keys (§5).
+- **The repository stays encrypted** (decided). Host information is not a credential, but a leaked repository would otherwise be a map of the infrastructure, and encryption is what splits read access per space inside one repository.
+- Whether the whole feature is worth building is assessed below, with a recommended order. **It is not yet decided to build M2 onward.**
 
 ## Goal
 
@@ -232,6 +234,63 @@ These belong on the *New team* screen and in the user guide, in plain words:
 - **No recovery of a private key.** A new key replaces a lost one.
 - **Not real time.** Members see a change after the next sync.
 - **No SSO, no SLA, no compliance reports** of our own. Access to the repository is the Git host's.
+
+## Is it worth building? (assessment, for thinking over)
+
+Written after the design was reviewed. It is an opinion, not a measurement: nothing here comes from user research.
+
+### For
+
+- **Fits the positioning.** Local-first, the team's own Git, no account, free. A hosted competitor cannot copy this without changing how it earns money (Termius Team is a paid cloud service).
+- **A real pain: offboarding.** Removing a person from many servers is tedious and easy to get wrong. One place that removes their key, their account and their read access is concrete value, and Panel already manages users and SSH keys on a server.
+- **Reuses what exists:** Panel, Git sync, the vault, the process-per-window pattern.
+- **Reversible:** behind an experimental flag, a repository format of its own, Personal untouched.
+
+### Against
+
+- **No evidence of demand.** [PanelRoadmap.md](PanelRoadmap.md) already says its ideas are hypotheses, and this one is no different.
+- **A different audience.** The main users today are solo developers, freelancers and small agencies. A team of 15 to 20 people has other expectations.
+- **The competition is not only Termius.** Teams with infrastructure often already use a bastion or SSO (Teleport, Boundary), Tailscale SSH, AWS SSM, an SSH certificate authority, or a shared `ssh_config` in Git with a password manager. They tend to ask for SSO, central audit and SOC 2, which this design lists as non-goals.
+- **A large cost for one maintainer.** M2 (encryption, signature, sync, merge between admins) and M4 (Panel creating accounts and installing keys on many distributions, unreachable servers) are each big, on top of four languages of interface, tests, documentation and an outside review of the cryptography.
+- **A reputation risk.** A bug in the team part reads as "an SSH tool leaked a company's infrastructure", which is heavier than a bug in the personal app.
+
+### Scorecard
+
+| | Assessment |
+| --- | --- |
+| Fit with the strategy | High |
+| Difference from competitors | Medium to high for offboarding, low for the shared vault itself |
+| Evidence of demand | None yet |
+| Cost | High |
+| Risk | Medium to high (security) |
+| Reversibility | Medium |
+
+### What is worth doing even without a team
+
+- **M1 (profiles):** Work and Personal apart is useful to one person.
+- **Key and account management on many servers (the Panel part of M4):** "add this key to these five servers", "remove that one", "make an account for this person" helps **one admin of a few servers** too, with no team, no repository format and no new cryptography. It is the part with the most standalone value.
+- **M2 and M3 (encryption, signature, members)** only matter once a team uses them. They are the expensive and risky part.
+
+### Recommendation
+
+1. **Build M1 now.**
+2. **Build the Panel key and account management as a feature of its own**, shippable without Team.
+3. **Do not commit to M2 and M3 yet.** First find about three real teams willing to try, and give them a light version: sharing hosts through a private Git repository as today (the existing sync) plus the Panel key management. See what they miss.
+4. **Go on to M2 and M3 only if** several teams say plainly that they will use it and the pain they name is the one this design solves (offboarding, a shared host list). If they ask for SSO, central audit or SOC 2, **stop**: this design does not meet those and should not try to.
+
+## Open questions (to decide)
+
+| # | Question | Notes |
+| --- | --- | --- |
+| 1 | Is the demand real? Which three teams would try it? | Decides whether M2 starts at all |
+| 2 | Should the Panel key and account management ship on its own first? | Recommended: yes |
+| 3 | A **recovery recipient** (an extra key kept offline, always a recipient of every space)? | Without it, losing every admin key leaves the team unable to change anything: a member cannot add a new admin because they cannot write. At least two admins are required either way |
+| 4 | Hardware keys (`ed25519-sk`) cannot decrypt with `age`, which needs the private key. Acceptable? | A team that requires hardware keys would not fit |
+| 5 | One SSH key for decrypting and for logging in, or two? | One is simpler; two is the usual advice. A reviewer should decide |
+| 6 | Per-person Kubernetes credentials | Issuing them depends on the cluster. Left out of v1 |
+| 7 | Members need an account on the Git host. For outside contributors that may cost money | A shared read-only token is acceptable here (it only reads ciphertext) |
+| 8 | Per-person Unix accounts by default for prod hosts: which distributions does Panel support, and what about root-only servers? | A support matrix is needed before M4 |
+| 9 | What to call it: "Team" suggests more than it offers (no SSO, no audit). "Shared hosts for small teams"? | The limits are on the *New team* screen either way |
 
 ## Milestones
 
