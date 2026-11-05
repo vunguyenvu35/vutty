@@ -99,4 +99,9 @@ export default {
   "Restart the container {name}? Its connections drop for a moment.": "コンテナ {name} を再起動しますか？接続が一時的に切れます。",
   "Access host": "ホストにアクセス",
   "Open a terminal on this host in a new tab": "このホストのターミナルを新しいタブで開く",
+  "Chart range": "グラフの範囲",
+  "30 min": "30分",
+  "6 hours": "6時間",
+  "24 hours": "24時間",
+  "Read while this tab is open; a gap is a time it was closed.": "このタブを開いている間だけ記録します。途切れた所はタブを閉じていた時間です。",
 } as Record<string, string>

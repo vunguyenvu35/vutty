@@ -99,4 +99,9 @@ export default {
   "Restart the container {name}? Its connections drop for a moment.": "Khởi động lại container {name}? Các kết nối của nó sẽ ngắt trong giây lát.",
   "Access host": "Truy cập máy chủ",
   "Open a terminal on this host in a new tab": "Mở terminal tới máy chủ này trong tab mới",
+  "Chart range": "Khoảng của biểu đồ",
+  "30 min": "30 phút",
+  "6 hours": "6 giờ",
+  "24 hours": "24 giờ",
+  "Read while this tab is open; a gap is a time it was closed.": "Chỉ đo khi tab này đang mở; chỗ đứt là lúc tab đóng.",
 } as Record<string, string>

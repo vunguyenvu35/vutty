@@ -11,6 +11,7 @@ import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnectio
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker} from './Docker'
+import {addSample, bucketSeries, loadHistory, MINUTE, saveHistory, type HistPoint, type Series} from './history'
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
 import {Security} from './Security'
@@ -33,16 +34,21 @@ const FOLLOW_MS = 2000
 const HISTORY = 360
 
 /** The overview of the server, asked again every few seconds while the tab is shown (whatever section is open) and the samples kept for the charts. */
-function useOverviewFeed(sid: string, visible: boolean) {
+function useOverviewFeed(sid: string, hostId: string, visible: boolean) {
   const be = useBackend()
+  const points = useRef<HistPoint[]>(loadHistory(hostId)) // a point for each minute of the last day, kept on this computer
+  const [saved, setSaved] = useState(points.current)
   const [hist, setHist] = useState<{cpu: number[]; mem: number[]; disk: number[]; net: number[]}>({cpu: [], mem: [], disk: [], net: []})
   const load = useCallback(async () => {
     const o = await be.server.overview(sid)
     const keep = (h: number[], v: number) => [...h, v].slice(-HISTORY)
+    const prev = points.current[points.current.length - 1]
+    points.current = addSample(points.current, {cpu: o.cpu_pct, mem: pct(o.mem_used, o.mem_total), disk: pct(o.disk_used, o.disk_total), net: o.net_rx + o.net_tx})
+    if (!prev || prev.t !== points.current[points.current.length - 1].t) { saveHistory(hostId, points.current); setSaved(points.current) } // once a minute
     setHist(h => ({cpu: keep(h.cpu, o.cpu_pct), mem: keep(h.mem, pct(o.mem_used, o.mem_total)), disk: keep(h.disk, pct(o.disk_used, o.disk_total)), net: keep(h.net, o.net_rx + o.net_tx)}))
     return o
-  }, [be, sid])
-  return {...useLoad<ServerOverview>(load, visible ? POLL_MS : null), hist}
+  }, [be, sid, hostId])
+  return {...useLoad<ServerOverview>(load, visible ? POLL_MS : null), hist, saved}
 }
 type Feed = ReturnType<typeof useOverviewFeed>
 
@@ -75,7 +81,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
 /** The part of the panel that needs the connection: the section tabs and the open section. */
 function Ready({sid, host, visible, onAccess, onShell, section, setSection, source, setSource, sections, showLogs}: {sid: string; host: Host; visible: boolean; onAccess?(): void; onShell?(host: Host, command: string, title: string): void; section: Section; setSection(s: Section): void; source: LogSource; setSource(s: LogSource): void; sections: [Section, string][]; showLogs(s: LogSource): void}) {
   const t = useT()
-  const feed = useOverviewFeed(sid, visible)
+  const feed = useOverviewFeed(sid, host.id, visible)
   const [k8sCtx, setK8sCtx] = useState('') // the cluster the Kubernetes tab uses: the Logs tab lists its pods
   const [k8sNs, setK8sNs] = useState('') // and the namespaces it shows: a login that may not list the cluster has pods only there
   // once opened, the Kubernetes tab stays (hidden) while another section is open: its connection steps, view and filters are not done again
@@ -105,7 +111,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
   )
 }
 
-function Bar({label, value, note, data}: {label: string; value: number; note: string; data?: number[]}) {
+function Bar({label, value, note, data}: {label: string; value: number; note: string; data?: (number | null)[]}) {
   return (
     <div className="sp-card">
       <h3>{label}</h3>
@@ -117,17 +123,24 @@ function Bar({label, value, note, data}: {label: string; value: number; note: st
   )
 }
 
-function Spark({data, max}: {data: number[]; max: number}) {
-  if (data.length < 2) return <div className="sp-spark" aria-hidden="true" />
+/** a chart of readings; a null is a time nothing was read, and the line stops there */
+function Spark({data, max}: {data: (number | null)[]; max: number}) {
+  const known = data.filter((v): v is number => v !== null)
+  if (known.length < 2) return <div className="sp-spark" aria-hidden="true" />
   const w = 240, h = 44
-  const top = Math.max(max, ...data, 1)
-  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - 3 - (v / top) * (h - 8)] as const)
-  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
-  const last = pts[pts.length - 1]
+  const top = Math.max(max, ...known, 1)
+  const xy = (v: number, i: number) => [(i / (data.length - 1)) * w, h - 3 - (v / top) * (h - 8)] as const
+  const runs: (readonly [number, number])[][] = []
+  data.forEach((v, i) => { if (v === null) return; if (i > 0 && data[i - 1] !== null) runs[runs.length - 1].push(xy(v, i)); else runs.push([xy(v, i)]) })
+  const line = (r: (readonly [number, number])[]) => r.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
   return (
     <svg className="sp-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-      <path d={`${line} L${last[0].toFixed(1)} ${h} L${pts[0][0].toFixed(1)} ${h}Z`} fill="currentColor" fillOpacity=".12" />
-      <path d={line} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+      {runs.map((r, i) => r.length > 1 ? (
+        <g key={i}>
+          <path d={`${line(r)} L${r[r.length - 1][0].toFixed(1)} ${h} L${r[0][0].toFixed(1)} ${h}Z`} fill="currentColor" fillOpacity=".12" />
+          <path d={line(r)} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+        </g>
+      ) : <circle key={i} cx={r[0][0]} cy={r[0][1]} r="1.5" fill="currentColor" />)}
     </svg>
   )
 }
@@ -138,7 +151,9 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
   const be = useBackend()
   const t = useT()
   const tn = useTn()
-  const {data: o, error, busy, reload, hist} = feed
+  const {data: o, error, busy, reload, hist: live, saved} = feed
+  const [span, setSpan] = useState<'30m' | '6h' | '24h'>('30m')
+  const hist: {cpu: (number | null)[]; mem: (number | null)[]; disk: (number | null)[]; net: (number | null)[]} = useMemo<Series>(() => (span === '30m' ? live : bucketSeries(saved, (span === '6h' ? 6 : 24) * 60 * MINUTE, 120)), [span, live, saved])
   // what else may need attention: asked once, and left out quietly when the login cannot ask
   const loadUnits = useCallback(() => be.server.services(sid), [be, sid])
   const {data: units} = useLoad<ServerUnit[]>(loadUnits, null)
@@ -152,7 +167,7 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
   if (!o) return <><Err error={error} /><div className="muted">{t('Loading…')}</div></>
   const ram = pct(o.mem_used, o.mem_total), disk = pct(o.disk_used, o.disk_total)
   const failed = (units ?? []).filter(u => u.active === 'failed')
-  const minutes = Math.max(1, Math.round((hist.cpu.length * POLL_MS) / 60000))
+  const minutes = Math.max(1, Math.round((live.cpu.length * POLL_MS) / 60000))
   const expiring = (certs?.certs ?? []).filter(c => certLevel(c.days_left) !== 'ok')
   const attention: {key: string; tone: 'bad' | 'warn'; text: string; go: Section}[] = [
     ...failed.map(u => ({key: 'u' + u.name, tone: 'bad' as const, text: t('{name} has failed', {name: u.name}), go: 'services' as const})),
@@ -173,7 +188,12 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
         <Bar label={t('Disk /')} value={disk} data={hist.disk} note={`${formatBytes(o.disk_used)} / ${formatBytes(o.disk_total)}`} />
         <div className="sp-card"><h3>{t('Network')}</h3><div className="sp-big sp-big-sm">↓ {formatRate(o.net_rx)}</div><div className="sp-note">↑ {formatRate(o.net_tx)}</div><Spark data={hist.net} max={1024} /></div>
       </div>
-      <div className="sp-note">{t('The charts show the last {n} min while this tab is open.', {n: minutes})}</div>
+      <div className="sp-bar">
+        <div className="segmented" role="group" aria-label={t('Chart range')}>
+          {([['30m', t('30 min')], ['6h', t('6 hours')], ['24h', t('24 hours')]] as const).map(([k, label]) => <button key={k} aria-pressed={span === k} className={span === k ? 'on' : ''} onClick={() => setSpan(k)}>{label}</button>)}
+        </div>
+        <div className="sp-note">{span === '30m' ? t('The charts show the last {n} min while this tab is open.', {n: minutes}) : t('Read while this tab is open; a gap is a time it was closed.')}</div>
+      </div>
       <div className="sp-grid sp-grid-2">
         <div className="sp-card">
           <h3>{t('Needs attention')}</h3>

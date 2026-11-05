@@ -116,3 +116,19 @@ describe('Server panel: Docker', () => {
     expect(await screen.findByText('shop_default')).toBeInTheDocument()
   })
 })
+
+describe('Server panel: history', () => {
+  it('shows the last half hour at first, and a longer range from what this computer kept', async () => {
+    localStorage.clear()
+    const now = Date.now()
+    localStorage.setItem('vutty.panel.history.h1', JSON.stringify([{t: Math.floor((now - 3 * 3600_000) / 60000) * 60000, n: 1, cpu: 40, mem: 50, disk: 78, net: 10}, {t: Math.floor((now - 2 * 3600_000) / 60000) * 60000, n: 1, cpu: 60, mem: 50, disk: 78, net: 10}]))
+    const be = makeFake({hosts: [web]})
+    render(<Providers be={be}><ServerPanel host={web} visible /></Providers>)
+    expect(await screen.findByText(/The charts show the last/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: '6 hours'}))
+    expect(screen.getByText(/a gap is a time it was closed/)).toBeInTheDocument()
+    expect(screen.getByRole('button', {name: '6 hours'})).toHaveAttribute('aria-pressed', 'true')
+    expect(JSON.parse(localStorage.getItem('vutty.panel.history.h1') || '[]').length).toBeGreaterThanOrEqual(2) // what was kept stays
+    localStorage.clear()
+  })
+})

@@ -99,4 +99,9 @@ export default {
   "Restart the container {name}? Its connections drop for a moment.": "重启容器 {name}？它的连接会短暂中断。",
   "Access host": "访问主机",
   "Open a terminal on this host in a new tab": "在新标签页中打开此主机的终端",
+  "Chart range": "图表范围",
+  "30 min": "30 分钟",
+  "6 hours": "6 小时",
+  "24 hours": "24 小时",
+  "Read while this tab is open; a gap is a time it was closed.": "仅在此标签页打开时记录;断开处是标签页关闭的时间。",
 } as Record<string, string>
