@@ -1,14 +1,23 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.5.1
+# Vutty 1.6.0
 
-Release date: 2026-11-04 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.6.0
 
 - **Panel: a server dashboard in a tab.** On the protocol screen, **Panel** opens a dashboard of a Linux server instead of a terminal: Overview (CPU, memory, disk, network), Processes, systemd Services, Docker containers, Logs, and Ports & firewall (read only). Every change (end a process, start, restart or stop a service or container) asks first. It runs fixed commands over its own SSH connection and installs nothing. Verified against a real Ubuntu 24.04 for the overview, processes, ports and logs (the journal); the systemd and Docker parts are covered by tests with sample output only.
 
 - **Panel grows into a VPS toolbox.** New tabs: **Web** (Let's Encrypt certificates with the time left, and the sites of nginx or Caddy with *Test configuration* and a *Reload* that tests first and reloads only if the test passes), **Maintenance** (pending updates with the security ones marked, disks, a cleanup that says how much it frees, and a folder-size scan), **Security** (failed SSH logins, fail2ban jails with *Unban*, the SSH settings) and **Schedule** (systemd timers with *Run now*, cron jobs, and a backup check: name a folder and see how old its newest file is). **Docker** groups containers by Compose project, with *Update* (pull, then up -d), Restart, Stop and Logs for the whole stack. **Logs** has *Follow* (reads again every 2 seconds). **Overview** keeps half an hour of CPU, memory, disk and network history while the tab is open, and warns about a certificate that runs out, security updates, a reboot and a stale backup. A new **Fleet** page lists every saved host (up or down, CPU, memory, disk, failed services), each over a short connection that never asks a question. Every change still asks first; docker volumes are never cleaned from the Panel. Covered by tests with sample output; not yet run against a real server.
+
+- **Kubernetes in Panel.** A **Kubernetes** tab on a host runs `kubectl` there over the SSH connection the Panel already has, and installs nothing. A **cluster from a kubeconfig** (*Clusters*, with the kubeconfig kept in the vault) is reached by Vutty itself, with no `kubectl` and no server. Views: Overview, Pods, Workloads, Network, Config & storage, Resources, Apps, Nodes and Events, with a Shell in a pod, Logs, Scale, Restart, Roll back, Cordon and Drain. Every change asks first, is audited (never with its output) and is locked, with the reason, when `kubectl auth can-i` says the login may not do it; a production cluster keeps its red frame. A login that may only see some namespaces (a Rancher project) adds them by name. See [docs/KubernetesPanel.md](docs/KubernetesPanel.md).
+- **Resources: any kind, CRDs included, read only.** Every kind the cluster serves is listed (discovery); pick one, read its objects with the columns a CRD asks for, and open one as YAML. Buttons for Namespaces, PersistentVolumes, StorageClasses and HorizontalPodAutoscalers. The Secrets of the core group are never shown here.
+- **Apps: Helm releases, read only.** Releases are read from the Secrets Helm 3 keeps in the cluster, so nothing is installed. A release shows its chart, notes, manifest (the Secrets in it without their data) and its revisions; its **values** ask first and are audited, because they often hold passwords. *Copy rollback* puts the `helm rollback` command on the clipboard for a terminal: Vutty does not change releases. Chart repositories are not in the cluster and are not listed.
+- **Logs of all the pods.** *Logs* on a Deployment, StatefulSet, DaemonSet, Job or Service reads every pod it selects (up to 20), merged by time, each line with its pod in a colour of its own.
+- **Numbers on the tabs:** how many pods, workloads and network objects there are.
+- **Edit a workload** (Edit YAML with a preview of what changes, Edit config, Add sidecar) for a cluster opened with a kubeconfig.
+- **Fixes.** A screen that takes longer to load than its refresh interval (the Overview of a cluster behind Rancher) no longer stays on "Loading" for ever, and the loading ring keeps turning when *Reduce motion* is on.
+- **Verified** against a real kind cluster (Kubernetes 1.37 with Helm 4) through both ways in, for Resources, Apps, the merged logs and the numbers (`TestLiveCluster`, see [docs/Development.md](docs/Development.md)). Not yet run against Rancher, a managed cloud cluster, or by clicking through the screens of the app; the rest of the tab is covered by tests with sample answers. Port-forward works for a host only, and editing a workload for a kubeconfig only.
 
 ## What's new in 1.5.1
 
@@ -318,6 +327,7 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 14. **New in 1.3.0 and not yet exercised on real hardware:** installing an update by itself (every step is covered by tests, including the real swap script; the first whole update of the packaged app is the one from 1.3.0 to 1.4.0), the `ssh://` registration in the macOS bundle, a verification-code prompt against a real bastion, and a hardware (FIDO2) key through ssh-agent. Run the checklist in [docs/TestPlan.md](docs/TestPlan.md) and tell us what you find.
 15. A port forward that starts with the app cannot answer a verification code: it waits three minutes and fails. Start it from the Port Forwarding page. *Run on hosts* never asks anything, so a host with an untrusted key or that wants a code fails there: open it once in a terminal tab first.
 16. Session logs are not rotated or deleted, and hold everything that was shown on screen. No tmux integration, no X11 forwarding, no Mosh.
+17. **The Kubernetes tab** was run against a real kind cluster for Resources, Apps, the merged logs and the numbers, and is covered by tests with sample answers for the rest; it was not run against Rancher or a managed cloud cluster, and its screens were not clicked through in the app on a real cluster. Port-forward needs a host with `kubectl`; editing a workload needs a cluster opened with a kubeconfig. Apps does not read Helm 2, releases kept in ConfigMaps or SQL, or chart repositories.
 
 ## Changes from the original design
 
