@@ -4,7 +4,7 @@ Status: **design (revision 5), nothing built yet.**
 
 Decisions taken:
 
-- Teams of 15 to 20 people. A few **admins** manage the team; everyone else is a **member who can only connect**: they cannot view credentials, edit hosts or change the team.
+- The typical case: a small DevOps team (2 or 3 **admins**) gives access to about **20 developers**, who are **members who can only connect**: they cannot view credentials, edit hosts or change the team. This is the size the design is made for (about 25 people in all).
 - The **admin creates the private Git repository**. Git is the shared database and **everything in it is encrypted on each client**.
 - **No shared passwords at all.** Every person has their own SSH key. A member's key opens the spaces they were given and logs in to the servers; nobody hands anyone a secret.
 - **Members have read-only access** to the repository on the Git host; only admins can write. The Git host enforces it. This is a sharing model from the admin: members do not write.
@@ -156,6 +156,8 @@ The Team profile has its own **local vault** (the existing `vault` package, unlo
 5. **Panel installs the public key** on the servers of those spaces (`authorized_keys`, using the key management Panel already has) and records which servers have it.
 6. The member syncs, finds their spaces, and connects. Nobody typed or received a password.
 
+*Shortcut, an option for M3:* the admin adds a member by their **Git host username** and Vutty reads their public SSH keys from the host (GitHub and GitLab publish them at `/<user>.keys`). There is no key to send and no fingerprint to compare, and the Git host has already confirmed who the person is. Only `ssh-ed25519` and `ssh-rsa` keys can be used (`age` cannot encrypt to hardware `-sk` keys), and the developer must make the matching private key available to Vutty in their Team profile.
+
 ### Removing a member
 
 ![Removing a member](diagrams/05-remove-a-member.svg)
@@ -178,7 +180,7 @@ There is no recovery of a private key. The person makes a new key and sends the 
 A member connects with **their own key**; no server credential is stored in the repository.
 
 - **Key install through Panel (first).** The admin installs a member's public key on the servers of a space, and removes it later. Panel already manages SSH keys of users on a server, so this is one more action over the existing connection, and the app keeps the list of servers per member for removal.
-- **SSH certificates (later).** An admin signs a short-lived certificate for each member (`ssh-keygen -s`), the servers trust the team's certificate authority once (`TrustedUserCAKeys`), and certificates are public files that can sit in the repository. Removal is the end of the lifetime, so nothing has to reach every server. This scales better than installing keys on many servers.
+- **SSH certificates (later).** An admin signs a short-lived certificate for each member (`ssh-keygen -s`), the servers trust the team's certificate authority once (`TrustedUserCAKeys`), and certificates are public files that can sit in the repository. Removal is the end of the lifetime, so nothing has to reach every server. This scales better than installing keys on many servers. A certificate's **key ID** is written in the server's login log, so even a shared account shows who logged in. For about 20 developers installing keys directly is enough; certificates become the main path when the number of people or servers makes per-server work too heavy (roughly beyond 50 people), and then **who signs the certificates** needs an answer (an admin signing in batches, or a signer that is always on).
 - **Servers that only take a shared password** cannot be made connect-only: a client that can log in holds the credential. They are not supported in a Team profile; the setup says so.
 - **Kubernetes.** A cluster in a space holds its address and certificate authority only. Each member uses **their own credential** for it (a client certificate or token issued to that person, bound on their machine). The earlier idea of a shared kubeconfig is dropped, because a shared token is a credential a member could read.
 - **Host keys.** The admin verifies each server's host key once and stores it in the space. A member's client uses those and refuses a mismatch, so a new member never has to trust a host on first use.
@@ -245,6 +247,7 @@ Written after the design was reviewed. It is an opinion, not a measurement: noth
 - **A real pain: offboarding.** Removing a person from many servers is tedious and easy to get wrong. One place that removes their key, their account and their read access is concrete value, and Panel already manages users and SSH keys on a server.
 - **Reuses what exists:** Panel, Git sync, the vault, the process-per-window pattern.
 - **Reversible:** behind an experimental flag, a repository format of its own, Personal untouched.
+- **The typical case matches the design.** A small DevOps team gives about 20 developers access to servers. That is two or three writers and many readers, which is the admin and member split here. Developers already have an account on the Git host, so read access costs nothing, and at this size installing keys directly is workable without certificates.
 
 ### Against
 
@@ -291,6 +294,10 @@ Written after the design was reviewed. It is an opinion, not a measurement: noth
 | 7 | Members need an account on the Git host. For outside contributors that may cost money | A shared read-only token is acceptable here (it only reads ciphertext) |
 | 8 | Per-person Unix accounts by default for prod hosts: which distributions does Panel support, and what about root-only servers? | A support matrix is needed before M4 |
 | 9 | What to call it: "Team" suggests more than it offers (no SSO, no audit). "Shared hosts for small teams"? | The limits are on the *New team* screen either way |
+| 10 | How do DevOps teams give developers SSH access today (one shared key, a shared password, a bastion, keys added by hand)? | The answer shows what the feature replaces and how big the pain is. Ask the pilot teams |
+| 11 | What do developers need to reach: dev and staging machines, production, Kubernetes? | Decides the default `login` (shared on dev, per person on prod) and whether Kubernetes cannot wait |
+| 12 | Add members by Git host username (the shortcut in §4)? | Saves the key exchange for 20 people; needs the private key to be available to Vutty |
+| 13 | At what size do SSH certificates become the main path, and who signs them? | About 20 developers does not need them; beyond roughly 50 it probably does |
 
 ## Milestones
 
