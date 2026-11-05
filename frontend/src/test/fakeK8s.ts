@@ -1,5 +1,5 @@
 import type {Backend} from '../lib/backend'
-import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, RemoteEntry, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
+import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, RemoteEntry, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
 
 /** What the fake cluster answers: the data of the design boards (docs/screenshots/k8s), so tests and demos read like them. */
 export interface K8sFake {
@@ -29,6 +29,8 @@ export interface K8sFake {
   /** what the files of a pod are, by folder (podFilesList) */
   podFiles: Record<string, RemoteEntry[]>
   /** Helm releases (k8sHelmReleases), the detail of each by name (k8sHelmRelease answers with the revision asked for), and the values k8sHelmValues answers with */
+  /** what k8sSecurity answers (a namespace gets the findings of that namespace) */
+  security: K8sSecurity
   helm: K8sHelmRelease[]
   helmDetail: Record<string, K8sHelmDetail>
   helmValues: string
@@ -178,6 +180,11 @@ export function makeK8s(): K8sFake {
         {name: 'laravel.log', path: '/app/storage/laravel.log', size: 4072955, mode: '-rw-r--r--', mod_time: '2026-11-05T04:00:00Z', is_dir: false, is_link: false},
       ],
     },
+    security: {pods: 3, services: 2, findings: [
+      {severity: 'high', rule: 'privileged', kind: 'Deployment', namespace: 'shop', name: 'web', container: 'app', detail: 'runs privileged: it has the rights of root on the node', count: 2},
+      {severity: 'medium', rule: 'plain-secret', kind: 'StatefulSet', namespace: 'data', name: 'db', container: 'pg', detail: 'has a value written in plain in the environment: DB_PASSWORD (a Secret keeps it out of the manifest)', count: 1},
+      {severity: 'low', rule: 'image-tag', kind: 'Deployment', namespace: 'shop', name: 'web', container: 'app', detail: 'uses nginx: the tag is missing or latest, so the image can change under it', count: 2},
+    ]},
     helm: [
       {name: 'web', namespace: 'shop', revision: 3, status: 'deployed', age_sec: 2 * 86400},
       {name: 'db', namespace: 'data', revision: 1, status: 'failed', age_sec: 3600},
@@ -250,6 +257,7 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sLogsMulti: async (s, c, n, kind, name, o): Promise<K8sMultiLogs> => { rec('server.k8sLogsMulti', c, n, kind, name, o); return {text: k().logs.split('\n').map((l, i) => `[${name}-${i % 2 + 1}] ${l}`).join('\n'), pods: 2, skipped: 0, failed: []} },
     k8sYAML: async (s, c, kind, n, name) => { rec('server.k8sYAML', c, kind, n, name); return k().yaml },
     k8sCounts: async (s, c, n) => { rec('server.k8sCounts', c, n); const x = k(); return {pods: inNs(x.pods, n).length, workloads: inNs(x.workloads, n).length, network: inNs(x.network.services, n).length + inNs(x.network.ingresses, n).length} },
+    k8sSecurity: async (s, c, n) => { rec('server.k8sSecurity', c, n); const x = k().security; return copy({...x, findings: inNs(x.findings, n)}) },
     k8sHelmReleases: async (s, c, n) => { rec('server.k8sHelmReleases', c, n); return copy(inNs(k().helm, n)) },
     k8sHelmRelease: async (s, c, n, name, rev) => { rec('server.k8sHelmRelease', c, n, name, rev); const d = k().helmDetail[name]; if (!d) throw new Error('no such release'); return copy(rev ? {...d, release: {...d.release, revision: rev}} : d) },
     k8sHelmValues: async (s, c, n, name, rev) => { rec('server.k8sHelmValues', c, n, name, rev); return k().helmValues },

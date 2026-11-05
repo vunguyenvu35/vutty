@@ -7,6 +7,7 @@ import {Select} from '../ui/Select'
 import {IconChevron} from '../ui/Icons'
 import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
 import {ActBtn, age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort, useMenuAnchor} from './KubernetesShared'
+import {CopyMenu} from './KubernetesCopy'
 import type {K8sPod, K8sPodDetail} from '../types'
 
 type PodSort = 'name' | 'status' | 'ready' | 'restarts' | 'node' | 'age'
@@ -188,6 +189,7 @@ export function PodDetail({ns, name}: {ns: string; name: string}) {
           <ActBtn right="logs" onClick={() => k.onLogs({ns, name})}>{t('Logs')}</ActBtn>
           <button onClick={() => k.open({k: 'yaml', kind: 'pod', ns, name, label: t('Pod {name}', {name}), back: {k: 'pod', ns, name}})}>{t('YAML')}</button>
           <ShellButton pod={p} />
+          <CopyMenu target={{kind: 'pod', ns, name}} />
           <ActBtn id={'delete:' + ns + '/' + name} right="delete_pod" className="danger" onClick={() => void del(p)}>{t('Delete')}</ActBtn>
         </span>
       </div>

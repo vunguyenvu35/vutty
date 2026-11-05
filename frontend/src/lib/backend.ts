@@ -1,6 +1,6 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
-import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
+import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
 import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
@@ -268,6 +268,7 @@ export interface Backend {
     k8sLogsMulti(sid: string, ctx: string, ns: string, kind: string, name: string, opts: K8sLogOpts): Promise<K8sMultiLogs>
     k8sYAML(sid: string, ctx: string, kind: string, ns: string, name: string): Promise<string>
     k8sCounts(sid: string, ctx: string, ns: string): Promise<Record<string, number>>
+    k8sSecurity(sid: string, ctx: string, ns: string): Promise<K8sSecurity>
     k8sHelmReleases(sid: string, ctx: string, ns: string): Promise<K8sHelmRelease[]>
     k8sHelmRelease(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<K8sHelmDetail>
     k8sHelmValues(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<string>
@@ -614,6 +615,7 @@ export function wailsBackend(): Backend {
       k8sLogsMulti: async (s, c, n, k, m, o) => { const r = await u<K8sMultiLogs>('ServerService', 'K8sLogsMulti', s, c, n, k, m, o); return {...r, failed: r.failed ?? []} },
       k8sYAML: (s, c, k, n, m) => u('ServerService', 'K8sYAML', s, c, k, n, m),
       k8sCounts: async (s, c, n) => (await u<Record<string, number>>('ServerService', 'K8sCounts', s, c, n)) ?? {},
+      k8sSecurity: async (s, c, n) => { const r = await u<K8sSecurity>('ServerService', 'K8sSecurity', s, c, n); return {...r, findings: r.findings ?? []} },
       k8sHelmReleases: async (s, c, n) => (await u<K8sHelmRelease[]>('ServerService', 'K8sHelmReleases', s, c, n)) ?? [],
       k8sHelmRelease: async (s, c, n, m, r) => { const d = await u<K8sHelmDetail>('ServerService', 'K8sHelmRelease', s, c, n, m, r); return {...d, history: d.history ?? []} },
       k8sHelmValues: (s, c, n, m, r) => u('ServerService', 'K8sHelmValues', s, c, n, m, r),

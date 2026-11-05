@@ -6,6 +6,7 @@ import {useToast} from '../ui/Toast'
 import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
 import {ActBtn, age, Crumb, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
 import {WorkloadMenu} from './KubernetesWorkloadMenu'
+import {CopyMenu} from './KubernetesCopy'
 import type {K8sDeployment, K8sWorkload, K8sWorkloads} from '../types'
 
 type Kind = K8sWorkload['kind']
@@ -174,6 +175,7 @@ export function DeploymentDetail({ns, name}: {ns: string; name: string}) {
           <ActBtn id={'pause:' + rid(w)} right="restart" title={d.paused ? t('Resume the orchestration: the changes that waited are rolled out') : t('Pause orchestration: changes to it wait until you resume')} onClick={() => void act.pause(w, !d.paused)}>{d.paused ? t('Resume') : t('Pause')}</ActBtn>
           <ActBtn id={'logs:' + rid(w)} right="logs" onClick={() => void act.logs(w)}>{t('Logs')}</ActBtn>
           <button onClick={() => act.yaml(w)}>{t('YAML')}</button>
+          <CopyMenu target={{kind: 'deployment', ns: w.namespace, name: w.name}} />
           <WorkloadMenu w={w} />
         </span>
       </div>

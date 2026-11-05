@@ -167,6 +167,17 @@ The **Files** section of the terminal sidebar also works for a shell in a pod of
 - **Limits.** A file up to 256 MB; a folder cannot be copied out yet (open it and copy its files); a copy never replaces a file that is there (`name (1)`), is readable by this user only, and a half copy is removed. A link is shown as what it points to, and a link that points nowhere is not listed.
 - **Tried on real pods** (busybox from Alpine, GNU from Debian) with names that hold spaces, `|` and accents, a folder called `..hidden_dir`, links, an empty file and a 3 MB file; 5000 files list in about a tenth of a second.
 
+## 25 · Security (read only)
+
+The **Security** tab reads the pods, services and ingresses of the namespace (or all of them) and lists what is worth a second look. It works for a host with kubectl and for a cluster opened with a kubeconfig, and installs nothing.
+
+- **Pods:** privileged containers, the host network, process space or IPC, host paths (the Docker socket, `/etc`, `/proc` and the like are high, others medium), dangerous capabilities (`ALL`, `SYS_ADMIN`, `NET_ADMIN`…), user 0, a variable with a name like password, token or key written in plain (a `secretKeyRef` is fine), and an image with no tag, `latest` and no digest.
+- **Network:** NodePort and LoadBalancer services, and an Ingress with no TLS.
+- **The replicas of one workload are one finding** ("2 pods"), named by the Deployment, StatefulSet or DaemonSet; Low findings are hidden until they are switched on.
+- **No Secret is read, and a value of a variable is never shown**, only its name. It is a hint, not a verdict: a network plugin has good reasons to be privileged.
+
+**Copy kubectl** (Pod and Deployment pages, Nodes rows) copies the kubectl line that does what the screen does (get as YAML, describe, follow the logs, shell, port-forward, rollout status, top, the pods of a node, `ssh` to a node, through the host as a jump host when there is one), with `--context` and `-n` in it. Nothing is run and nothing changes.
+
 ## Command map
 
 ![Command map](screenshots/k8s/26-command-map.png)

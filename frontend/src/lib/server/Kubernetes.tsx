@@ -14,6 +14,7 @@ import {KubernetesConfig} from './KubernetesConfig'
 import {Drain, Nodes} from './KubernetesNodes'
 import {Events} from './KubernetesEvents'
 import {KubernetesResources} from './KubernetesResources'
+import {KubernetesSecurity} from './KubernetesSecurity'
 import {HelmDetail, KubernetesHelm} from './KubernetesHelm'
 import {YamlPage} from './KubernetesYaml'
 import type {Host} from '../types'
@@ -145,7 +146,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
     setNs: (n: string) => { setNs(n); setPage(null) },
   }), [be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep, remember])
 
-  const views: [K8sView, string][] = [['overview', t('Overview')], ['pods', t('Pods')], ['workloads', t('Workloads')], ['network', t('Network')], ['config', t('Config & storage')], ['apps', t('Apps')], ['resources', t('Resources')], ['nodes', t('Nodes')], ['events', t('Events')]]
+  const views: [K8sView, string][] = [['overview', t('Overview')], ['pods', t('Pods')], ['workloads', t('Workloads')], ['network', t('Network')], ['config', t('Config & storage')], ['apps', t('Apps')], ['resources', t('Resources')], ['security', t('Security')],['nodes', t('Nodes')], ['events', t('Events')]]
   const key = ctx + '|' + ns
   return (
     <K8sProvider value={api}>
@@ -185,6 +186,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
               {view === 'config' && <KubernetesConfig />}
               {view === 'apps' && <KubernetesHelm />}
               {view === 'resources' && <KubernetesResources />}
+              {view === 'security' && <KubernetesSecurity />}
               {view === 'nodes' && <Nodes />}
               {view === 'events' && <Events />}
             </>

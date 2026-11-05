@@ -6,7 +6,7 @@ import {useBackend, type Backend} from '../backend'
 import {useLoad} from './shared'
 import type {Host, K8sResRef} from '../types'
 
-export type K8sView = 'overview' | 'pods' | 'workloads' | 'network' | 'config' | 'apps' | 'resources' | 'nodes' | 'events'
+export type K8sView = 'overview' | 'pods' | 'workloads' | 'network' | 'config' | 'apps' | 'resources' | 'security' | 'nodes' | 'events'
 /** a page that takes the place of a view (with a way back): a pod, a deployment, a YAML, a drain */
 export type K8sPage =
   | {k: 'pod'; ns: string; name: string}

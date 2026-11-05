@@ -3,6 +3,7 @@ import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {Err, Loading, Toolbar} from './shared'
 import {ActBtn, age, Crumb, Meter, Pill, useK8s, useKLoad, useSort} from './KubernetesShared'
+import {CopyMenu} from './KubernetesCopy'
 import type {K8sDrainOpts, K8sDrainPlan, K8sNode} from '../types'
 
 type NodeSort = 'name' | 'status' | 'role' | 'cpu' | 'mem' | 'pods' | 'age'
@@ -45,6 +46,7 @@ export function Nodes() {
             <td className="n m">{n.pods} / {n.pods_max}</td><td className="n">{age(n.age_sec)}</td>
             <td><div className="sp-acts">
               <ActBtn id={'cordon:' + n.name} right="cordon" className={n.unschedulable ? 'primary' : ''} label={(n.unschedulable ? t('Uncordon {name}', {name: n.name}) : t('Cordon {name}', {name: n.name}))} onClick={() => void cordon(n.name, !n.unschedulable)}>{n.unschedulable ? t('Uncordon') : t('Cordon')}</ActBtn>
+              <CopyMenu target={{kind: 'node', name: n.name, ip: n.ip || undefined, jump: k.direct ? undefined : `${k.host.username}@${k.host.hostname}`}} />
               <ActBtn id={'drain:' + n.name} right="drain" label={t('Drain {name}', {name: n.name})} onClick={() => k.open({k: 'drain', node: n.name})}>{t('Drain')}</ActBtn>
             </div></td>
           </tr>))}</tbody>

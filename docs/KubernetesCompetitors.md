@@ -25,6 +25,9 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | Giải thích vì sao pod lỗi (CrashLoop, OOM, ImagePull…) | ✅ | ? | ? | ? | ? | ? |
 | `can-i` trước khi bấm | ✅ | ❌ | ❌ | ◐ | ✅ | ✅ |
 | Audit log | ✅ | ❌ | ❌ | ❌ | trả phí | ✅ |
+| Quét bảo mật (pod đặc quyền, hostPath, secret viết thẳng, NodePort, Ingress không TLS) | ✅ (chỉ đọc) | ❌ | ❌ | plugin ? | ◐ | ✅ (trả phí ?) |
+| Copy lệnh kubectl tương đương | ✅ | ◐ | ❌ | ❌ | ❌ | ◐ |
+| File của pod, không cài gì vào pod | ✅ (chỉ đọc) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Đánh dấu production | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Gộp SSH/SFTP/Docker/VPS | ✅ | ❌ | ❌ | ❌ | ◐ | ❌ |
 
@@ -61,6 +64,8 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 1. Mở rộng sửa YAML sang resource khác và CRD không (mục 6), và làm cho đường host (mục 7)?
 2. Helm: đã chọn chỉ xem release (tab Apps). Có cần ghi thay đổi (rollback, upgrade) không? Hiện dùng terminal; nút Copy rollback có sẵn.
 3. Hướng chính: sysadmin/dev (làm 3, 4, 7, giữ gọn) hay DevOps/SRE (thêm 5, 6, đối đầu Lens)?
+
+Ngày 2026-11-05 (sau #29): thêm tab **Security** và nút **Copy kubectl** ([KubernetesPanel.md](KubernetesPanel.md) mục 25); dòng File của pod bổ sung vào bảng. Ô đối thủ mới ghi `?` là chưa kiểm.
 
 Tiến độ: mục 1 và 2 đã xong; mục 3 làm một phần; mục 4, 5, 7 chưa làm; mục 6 chờ quyết định.
 
