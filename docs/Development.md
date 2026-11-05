@@ -54,6 +54,20 @@ Dependencies point inward (`app → usecase → domain`, adapters implement the 
 
 The complete list of cases is generated into [TestInventory.md](TestInventory.md); the plan and the manual pre-release checklist are in [TestPlan.md](TestPlan.md).
 
+**A real Kubernetes cluster.** The Kubernetes tab is also run against a real cluster by `TestLiveCluster`, through both ways in (a kubeconfig, and a host whose `kubectl` is the real one). It is skipped unless `VUTTY_LIVE_KUBECONFIG` (and `VUTTY_LIVE_CONTEXT`) are set. With [kind](https://kind.sigs.k8s.io/) and Helm:
+
+```sh
+kind create cluster --name vutty-test --kubeconfig /tmp/vutty-kube
+export KUBECONFIG=/tmp/vutty-kube
+kubectl create ns shop
+helm create demo && printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: {{ include "demo.fullname" . }}-auth\nstringData:\n  password: {{ .Values.auth.password | quote }}\n' > demo/templates/secret.yaml && echo 'auth: {password: changeme}' >> demo/values.yaml
+helm install web ./demo -n shop --set replicaCount=3 --set image.tag=alpine --set auth.password=hunter2
+helm upgrade web ./demo -n shop --set replicaCount=3 --set image.tag=alpine --set auth.password=hunter2 --set service.port=8080
+# a CRD widgets.example.com (printer columns Size .spec.size and Phase .status.phase) and a Widget w1 in shop: spec.size large, status.phase Ready
+VUTTY_LIVE_KUBECONFIG=/tmp/vutty-kube VUTTY_LIVE_CONTEXT=kind-vutty-test go test ./internal/usecase -run TestLiveCluster -v
+kind delete cluster --name vutty-test
+```
+
 **E2E notes.** `wails dev -browser` opens your default browser at the dev server, so the scripts make `open` do nothing for it (an extra tab on the unlock screen has a focused password field, and macOS then turns on secure input for every app, which stops input tools such as OpenKey). If you start `wails dev -browser` yourself, do the same or close that tab. `make e2e` starts `wails dev -browser` on a **free port** with a throw-away data directory, so it never collides with a `wails dev` you already have open, plus two demo SSH servers on 2201/2202 (stop `docker compose --profile dev` first: the containers use the same ports; `run.sh` checks). Never open the E2E server's URL yourself while it runs: its backend is shared, so a second tab disturbs the run.
 
 ## Docker
