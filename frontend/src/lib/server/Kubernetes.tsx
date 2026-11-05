@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useBackend} from '../backend'
 import {useT} from '../i18n'
+import {IconArrowLeft} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {Err, useLoad} from './shared'
 import {KubernetesConnect, remember, savedNamespaces, saveNamespaces, type K8sSession} from './KubernetesConnect'
@@ -58,6 +59,31 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   const [seed, setSeed] = useState('')
   useEffect(() => { if (seed) setSeed('') }, [seed]) // a seed is used once, by the view it was meant for: a view built again later (another namespace) must not take it again
   const [page, setPage] = useState<K8sPage | null>(null)
+  // the screens left behind, so that Back (the button, the back button of a mouse, Alt+Left, Cmd+[) returns to them
+  const [hist, setHist] = useState<{view: K8sView; page: K8sPage | null}[]>([])
+  const here = useRef({view, page})
+  here.current = {view, page}
+  const remember = useCallback(() => setHist(h => [...h.slice(-29), here.current]), [])
+  const back = useCallback(() => {
+    let i = hist.length - 1
+    while (i >= 0 && hist[i].view === here.current.view && hist[i].page === here.current.page) i-- // what is already shown is not a place to go back to
+    if (i < 0) return
+    setView(hist[i].view); setPage(hist[i].page); setSeed(''); setHist(hist.slice(0, i))
+  }, [hist])
+  const canBack = hist.some(h => h.view !== view || h.page !== page)
+  useEffect(() => {
+    if (!visible) return
+    const onMouse = (e: MouseEvent) => { if (e.button === 3) { e.preventDefault(); if (e.type === 'mouseup') back() } }
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement | null)?.isContentEditable) return
+      if ((e.altKey && e.key === 'ArrowLeft') || (e.metaKey && e.key === '[')) { e.preventDefault(); back() }
+    }
+    window.addEventListener('mouseup', onMouse)
+    window.addEventListener('mousedown', onMouse)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mouseup', onMouse); window.removeEventListener('mousedown', onMouse); window.removeEventListener('keydown', onKey) }
+  }, [visible, back])
   const [kept, setKept] = useState<Record<string, unknown>>({})
   const keep = useCallback((key: string, value: unknown) => setKept(m => ({...m, [key]: value})), [])
   const [rev, setRev] = useState(0)
@@ -107,10 +133,10 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   const api: K8sApi = useMemo(() => ({
     be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep,
     can: id => !(direct && id === 'portforward') && rights?.[id] !== false,
-    go: (v, f = '') => { setView(v); setSeed(f); setPage(null) },
-    open: setPage,
+    go: (v, f = '') => { remember(); setView(v); setSeed(f); setPage(null) },
+    open: (p: K8sPage | null) => { if (p) remember(); setPage(p) },
     setNs: (n: string) => { setNs(n); setPage(null) },
-  }), [be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep])
+  }), [be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep, remember])
 
   const views: [K8sView, string][] = [['overview', t('Overview')], ['pods', t('Pods')], ['workloads', t('Workloads')], ['network', t('Network')], ['config', t('Config & storage')], ['nodes', t('Nodes')], ['events', t('Events')]]
   const key = ctx + '|' + ns
@@ -136,8 +162,11 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
         </div>
         {draftErr && <div className="sp-note k8s-hint" role="alert">{draftErr}</div>}
         {noList ? <div className="sp-note k8s-hint">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
+        <div className="k8s-nav">
+        <button className="k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={15} /></button>
         <div className="sp-tabs k8s-sub" role="tablist" aria-label={t('Kubernetes views')}>
-          {views.map(([id, label]) => <button key={id} role="tab" aria-selected={view === id} onClick={() => { setView(id); setSeed(''); setPage(null) }}>{label}</button>)}
+          {views.map(([id, label]) => <button key={id} role="tab" aria-selected={view === id} onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>{label}</button>)}
+        </div>
         </div>
         <div className="k8s-body" key={key}>
           {page ? <Page page={page} /> : (

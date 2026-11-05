@@ -1,6 +1,7 @@
 export default {
   "Fleet": "服务器总览",
   "Filter servers": "筛选服务器",
+  "Back to the previous screen": "返回上一屏",
   "Clear filter": "清除筛选",
   "{up} of {n} servers answered": "{n} 台中有 {up} 台响应",
   "Check all servers again": "重新检查所有服务器",

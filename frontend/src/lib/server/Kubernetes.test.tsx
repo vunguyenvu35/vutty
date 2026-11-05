@@ -891,3 +891,22 @@ describe('Loading', () => {
     expect(screen.queryByRole('status', {busy: true})).toBeNull()
   })
 })
+
+describe('Back', () => {
+  const backBtn = () => screen.getByRole('button', {name: 'Back to the previous screen'})
+  it('goes back to the view before, by the button, the back button of a mouse and Alt+Left', async () => {
+    await openOn('Overview')
+    expect(backBtn()).toBeDisabled()
+    await goTo('Pods')
+    await goTo('Events')
+    expect(subTab('Events')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.click(backBtn())
+    expect(subTab('Pods')).toHaveAttribute('aria-selected', 'true')
+    await goTo('Events')
+    act(() => { window.dispatchEvent(new MouseEvent('mouseup', {button: 3, bubbles: true, cancelable: true})) })
+    expect(subTab('Pods')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Alt>}{ArrowLeft}{/Alt}')
+    expect(subTab('Overview')).toHaveAttribute('aria-selected', 'true')
+    expect(backBtn()).toBeDisabled()
+  })
+})

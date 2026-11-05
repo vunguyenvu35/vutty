@@ -141,3 +141,9 @@
 
 .k8s-seen-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 28px; align-items: center; gap: 10px; width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .k8s-seen-row:hover { background: var(--bg-3); }
+
+/* Back, and the views beside it */
+.k8s-nav { display: flex; align-items: flex-end; gap: 6px; }
+.k8s-nav .sp-tabs { flex: 1 1 auto; min-width: 0; }
+.k8s-back { flex: none; width: 30px; height: 30px; margin-bottom: 5px; padding: 0; display: grid; place-items: center; }
+.k8s-back:disabled { opacity: .35; cursor: default; }

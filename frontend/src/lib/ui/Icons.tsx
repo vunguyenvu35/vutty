@@ -38,6 +38,7 @@ export const IconEye = (p: P) => <Icon {...p}><path d="M2 12s3.6-7 10-7 10 7 10 
 export const IconEyeOff = (p: P) => <Icon {...p}><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Icon>
 export const IconOpenInTab = (p: P) => <Icon {...p}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></Icon>
 export const IconArrowUpRight = (p: P) => <Icon {...p}><path d="M7 17 17 7M8 7h9v9" /></Icon>
+export const IconArrowLeft = (p: P) => <Icon {...p}><path d="M19 12H5m6-6-6 6 6 6" /></Icon>
 export const IconArrowUp = (p: P) => <Icon {...p}><path d="M12 19V5m-6 6 6-6 6 6" /></Icon>
 export const IconArrowDown = (p: P) => <Icon {...p}><path d="M12 5v14m-6-6 6 6 6-6" /></Icon>
 export const IconEnterKey = (p: P) => <Icon {...p}><path d="M20 5v7a3 3 0 0 1-3 3H5m0 0 4-4m-4 4 4 4" /></Icon>
