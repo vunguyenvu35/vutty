@@ -155,6 +155,9 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const [version, setVersion] = useState('')
   const [logFolder, setLogFolder] = useState('')
   const [scroll, setScroll] = useState(String(s.scrollback))
+  const [zoomText, setZoomText] = useState(String(s.zoom))
+  useEffect(() => { setZoomText(String(s.zoom)) }, [s.zoom])
+  const commitZoom = () => { const n = Math.round(Number(zoomText)); const v = Number.isFinite(n) && zoomText.trim() !== '' ? Math.max(80, Math.min(160, n)) : s.zoom; setZoomText(String(v)); if (v !== s.zoom) update({zoom: v}) }
   const [auto, setAuto] = useState(String(vault.auto_lock_minutes))
   const [hint, setHint] = useState(vault.hint ?? '')
   const [oldPw, setOldPw] = useState('')
@@ -192,7 +195,10 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
     const fit = () => { setView(measure()); setOffset({x: 0, y: 0}) } // another window size: centred again
     fit()
     window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
+    // the interface zoom changes the room in the window without resizing it: measure again when the backdrop changes
+    const ro = typeof ResizeObserver === 'undefined' || !backdrop.current ? null : new ResizeObserver(() => { const m = measure(); setView(v => (v.w === m.w && v.h === m.h ? v : m)) })
+    if (ro && backdrop.current) ro.observe(backdrop.current)
+    return () => { window.removeEventListener('resize', fit); ro?.disconnect() }
   }, [])
   const size = popupSize(view, share)
   const panel = useRef<HTMLDivElement>(null)
@@ -390,7 +396,11 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       <div><b>{t('Zoom')}</b><div className="muted">{t('Make the whole interface larger or smaller (80% to 160%).')}</div></div>
                       <div className="stepper">
                         <button aria-label={t('Zoom out')} disabled={s.zoom <= 80} onClick={() => update({zoom: Math.max(80, s.zoom - 10)})}>−</button>
-                        <output aria-label={t('Zoom level')} className="zoom-level">{s.zoom}%</output>
+                        <label className="zoom-field">
+                          <input aria-label={t('Zoom level')} type="number" inputMode="numeric" min={80} max={160} step={10} value={zoomText}
+                            onChange={e => setZoomText(e.target.value)} onBlur={commitZoom} onKeyDown={e => { if (e.key === 'Enter') commitZoom() }} />
+                          <span aria-hidden="true">%</span>
+                        </label>
                         <button aria-label={t('Zoom in')} disabled={s.zoom >= 160} onClick={() => update({zoom: Math.min(160, s.zoom + 10)})}>+</button>
                         <button className="stepper-text" aria-label={t('Reset zoom')} disabled={s.zoom === 100} onClick={() => update({zoom: 100})}>{t('Reset')}</button>
                       </div>

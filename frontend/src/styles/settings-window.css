@@ -1,6 +1,6 @@
 /* ---------- Settings popup (like VS Code's): a bordered panel over the app ---------- */
 .win-back { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 56px 52px 44px; background: #0006; } /* below the top bar (46px, with the macOS window buttons) */
-:root[data-os=mac] .win-back { padding-top: 62px; } /* the top bar is 52px on a Mac */
+:root[data-os=mac] .win-back:not(.maximized):not(.page) { padding-top: calc(52px / var(--ui-zoom, 1) + 10px); } /* the top bar is 52px on a Mac */
 .win { position: relative; width: 100%; max-width: 1280px; height: 100%; margin: 0 auto; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 24px 70px #000a; overflow: hidden; }
 .win-title { flex: none; height: 34px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--bg-2); border-bottom: 1px solid var(--line); user-select: none; cursor: grab; touch-action: none; }
 .win-title.dragging { cursor: grabbing; }
@@ -52,7 +52,11 @@
 .win-actions { margin-left: auto; display: flex; gap: 4px; }
 .win-act { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
 .win-act:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
-.zoom-level { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+.zoom-field { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-3); cursor: text; }
+.zoom-field:focus-within { border-color: var(--accent, #6d8cff); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6d8cff) 25%, transparent); }
+.zoom-field input, .zoom-field input:focus { width: 4ch !important; height: 100% !important; padding: 0 !important; border: 0 !important; outline: 0; background: transparent !important; border-radius: 0; color: inherit; font: inherit; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
+.zoom-field input::-webkit-inner-spin-button, .zoom-field input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.zoom-field span { font-weight: 600; opacity: .6; }
 .account-card .profile { display: flex; gap: 16px; align-items: center; }
 .profile-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #5b8cff, #a78bfa); }
@@ -78,3 +82,6 @@
 [data-motion='reduced'] *, [data-motion='reduced'] *::before, [data-motion='reduced'] *::after { animation: none !important; transition: none !important; }
 /* the one animation that stays with Reduce motion: a loading ring that does not turn looks like a hang (slowly, and nothing else moves) */
 [data-motion='reduced'] .ld-ring { animation: ld-spin 1.8s linear infinite !important; }
+/* maximized on a Mac the popup runs under the window buttons: its title bar is as tall as the top bar would be, and leaves room for them (neither scales with the interface zoom) */
+:root[data-os=mac] .win.max .win-title { height: calc(52px / var(--ui-zoom, 1)); padding-left: calc(84px / var(--ui-zoom, 1)); --wails-draggable: drag; }
+:root[data-os=mac] .win.max .win-title button { --wails-draggable: no-drag; }

@@ -547,7 +547,7 @@ describe('SettingsWindow: General', () => {
   it('opens on General with zoom, reduce motion and confirm-before-close', () => {
     setup()
     expect(screen.getByRole('tab', {name: 'General', selected: true})).toBeInTheDocument()
-    expect(screen.getByLabelText('Zoom level')).toHaveTextContent('100%')
+    expect(screen.getByLabelText('Zoom level')).toHaveValue(100)
     expect(screen.getByRole('switch', {name: 'Confirm before closing a tab'})).toHaveAttribute('aria-checked', 'false') // closing a tab does not ask unless you want it to
     expect(screen.getByRole('switch', {name: 'Reduce motion'})).toHaveAttribute('aria-checked', 'false')
   })
@@ -837,7 +837,7 @@ describe('SettingsWindow: Storage', () => {
     expect(be.state.settings.account_name).toBe('Vu')
     expect(onVault).toHaveBeenCalled()
     await tab('General')
-    expect(screen.getByLabelText('Zoom level')).toHaveTextContent('100%')
+    expect(screen.getByLabelText('Zoom level')).toHaveValue(100)
   })
 })
 

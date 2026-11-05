@@ -230,7 +230,7 @@ export default function App({initial}: {/** an app window opened for this place 
   }, [])
 
   // interface zoom and reduced motion
-  useEffect(() => { document.documentElement.style.setProperty('zoom', String((settings.zoom || 100) / 100)) }, [settings.zoom])
+  useEffect(() => { const z = (settings.zoom || 100) / 100; document.documentElement.style.setProperty('zoom', String(z)); document.documentElement.style.setProperty('--ui-zoom', String(z)) }, [settings.zoom])
   useEffect(() => { setLanguageSetting(settings.language) }, [settings.language])
   useEffect(() => { document.documentElement.dataset.motion = settings.reduce_motion ? 'reduced' : 'full' }, [settings.reduce_motion])
   useEffect(() => { document.documentElement.dataset.os = isMac() ? 'mac' : 'other' }, []) // the window buttons of macOS sit in a bar taller than the top bar: see base.css

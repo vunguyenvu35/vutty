@@ -76,10 +76,10 @@ label.field > span { display: block; color: var(--muted); font-size: 11px; margi
 
 .topbar { display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 12px; background: var(--bg-2); border-bottom: 1px solid #00000040; flex: none; --wails-draggable: drag; }
 /* on a Mac the three window buttons are drawn by macOS, centred in a toolbar 52pt high (the title bar is transparent and the page runs under it); the bar has the same height, so its tabs are centred with the buttons. Windows and Linux have a frame of their own */
-:root[data-os=mac] .topbar { height: 52px; }
+:root[data-os=mac] .topbar { height: calc(52px / var(--ui-zoom, 1)); } /* the window buttons do not scale with the page zoom, so the bar and the room left for them are divided by it */
 /* custom properties inherit: only the empty parts of the bar drag the window */
 .topbar .tab, .topbar button, .topbar .top-tools, .topbar .snippet-picker { --wails-draggable: no-drag; }
-.traffic-space { width: 78px; flex: none; }
+.traffic-space { width: calc(78px / var(--ui-zoom, 1)); flex: none; }
 :root[data-fullscreen=true] .traffic-space { width: 0; }
 .tab { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 9px; cursor: pointer; color: var(--muted); background: transparent; border: 1px solid transparent; max-width: 220px; white-space: nowrap; }
 .tab:hover { background: var(--bg-3); color: var(--text); }
