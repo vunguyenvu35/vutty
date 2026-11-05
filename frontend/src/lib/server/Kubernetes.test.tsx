@@ -472,11 +472,14 @@ describe('Workloads', () => {
     await waitFor(() => expect(calls(be, 'server.k8sDeleteJob')).toEqual([['server.k8sDeleteJob', CTX, 'shop', 'migrate-20261103']]))
   })
 
-  it('opens the logs of a pod of the Deployment', async () => {
+  it('opens the merged log of every pod of the Deployment', async () => {
     const {be} = await openOn('Workloads')
     await screen.findByText('registry/api:1.8')
     await userEvent.click(screen.getByRole('button', {name: 'Logs of api'}))
-    await waitFor(() => expect(calls(be, 'server.k8sLogs').pop()![3]).toBe('api-7d9f6c-x2kq8'))
+    await waitFor(() => expect(calls(be, 'server.k8sLogsMulti').pop()!.slice(2, 5)).toEqual(['shop', 'deployment', 'api']))
+    expect(await screen.findByText('2 pods read')).toBeInTheDocument()
+    expect(await screen.findByText(/ECONNREFUSED 10.96.0.15:5432/)).toBeInTheDocument()
+    expect(calls(be, 'server.k8sLogs')).toHaveLength(0) // not the log of one pod picked for it
   })
 })
 
@@ -545,7 +548,7 @@ describe('Network', () => {
     expect(await screen.findByText('10.96.14.8')).toBeInTheDocument()
     expect(within(rowOf('10.96.14.8')).getByText('1 ready, 2 not')).toHaveClass('warn')
     expect(within(rowOf('10.96.7.2')).getByText('0 ready')).toHaveClass('bad')
-    expect(within(rowOf('10.96.7.2')).queryByRole('button')).toBeNull() // no endpoint: nothing to forward to
+    expect(within(rowOf('10.96.7.2')).queryByRole('button', {name: /Port-forward/})).toBeNull() // no endpoint: nothing to forward to
     expect(screen.getAllByText('expires in 9 days')[0]).toHaveClass('warn')
     expect(screen.getByText('valid 71 days')).toHaveClass('ok')
     expect(screen.getByText(/Address of the ingress controller: 162.43.38.137/)).toBeInTheDocument()

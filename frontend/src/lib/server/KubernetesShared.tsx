@@ -4,15 +4,20 @@ import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
 import {useBackend, type Backend} from '../backend'
 import {useLoad} from './shared'
-import type {Host} from '../types'
+import type {Host, K8sResRef} from '../types'
 
-export type K8sView = 'overview' | 'pods' | 'workloads' | 'network' | 'config' | 'nodes' | 'events'
+export type K8sView = 'overview' | 'pods' | 'workloads' | 'network' | 'config' | 'apps' | 'resources' | 'nodes' | 'events'
 /** a page that takes the place of a view (with a way back): a pod, a deployment, a YAML, a drain */
 export type K8sPage =
   | {k: 'pod'; ns: string; name: string}
   | {k: 'deploy'; ns: string; name: string}
-  | {k: 'yaml'; kind: string; ns: string; name: string; label: string; back: K8sPage | null}
+  /** ref: any kind of the cluster (the Resources view); without it kind is one of the fixed kinds */
+  | {k: 'yaml'; kind: string; ns: string; name: string; label: string; back: K8sPage | null; ref?: K8sResRef}
+  | {k: 'helm'; ns: string; name: string; rev: number}
   | {k: 'drain'; node: string}
+
+/** what the Logs tab is asked to open: one pod (and its container), or every pod of a workload or Service (kind) */
+export interface K8sLogTarget {ns: string; name: string; container?: string; previous?: boolean; kind?: 'deployment' | 'statefulset' | 'daemonset' | 'job' | 'service'}
 
 export interface K8sApi {
   be: Backend
@@ -42,7 +47,7 @@ export interface K8sApi {
   /** a cluster opened with a kubeconfig opens a shell as a terminal tab of its own: the id of that terminal and a name for the tab */
   onPodShell?(hostId: string, title: string, prod: boolean): void
   onAccess?(): void
-  onLogs(pod: {ns: string; name: string; container?: string; previous?: boolean}): void
+  onLogs(pod: K8sLogTarget): void
 }
 
 const Ctx = createContext<K8sApi | null>(null)

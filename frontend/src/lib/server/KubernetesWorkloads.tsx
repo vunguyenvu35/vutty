@@ -21,7 +21,7 @@ function useWorkloadActions() {
   const confirm = useConfirm()
   const where = (w: K8sWorkload) => ({name: w.name, ns: w.namespace, ctx: k.ctx})
   return {
-    logs: (w: K8sWorkload) => k.run('logs:' + rid(w), async () => {
+    logs: (w: K8sWorkload) => w.kind !== 'CronJob' ? Promise.resolve(k.onLogs({ns: w.namespace, name: w.name, kind: w.kind.toLowerCase() as 'deployment'})) : k.run('logs:' + rid(w), async () => {
       const pods = await k.be.server.k8sPods(k.sid, k.ctx, w.namespace)
       const mine = pods.filter(p => p.owner.includes(w.name) || p.name.startsWith(w.name + '-'))
       const p = mine.find(x => x.tone === 'ok') ?? mine[0]

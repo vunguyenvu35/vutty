@@ -95,3 +95,5 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-filter-box input[aria-invalid=true] { border-color: var(--danger); }
 .sp-filter-clear { position: absolute; right: 6px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--bg-3); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; }
 .sp-filter-clear:hover { color: var(--text); }
+
+.sp-pod { font-weight: 600; }

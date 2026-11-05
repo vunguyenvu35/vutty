@@ -4,7 +4,7 @@ import {useT} from '../i18n'
 import {errMsg} from '../util'
 import {Kubernetes} from './Kubernetes'
 import {Loading} from './shared'
-import {Logs, type LogSource} from './ServerPanel'
+import {Logs, logSourceOf, type LogSource} from './ServerPanel'
 import type {Cluster, Host} from '../types'
 
 /** The Host that the Kubernetes tab is given for a cluster: it has no address to connect to, only a name, an id (the key of what is remembered) and an environment. */
@@ -70,7 +70,7 @@ export function ClusterPanel({cluster, visible, onPodShell}: {cluster: Cluster; 
           <div className="sp-body">
             <div className="sp-keep" hidden={section !== 'kubernetes'}>
               <Kubernetes key={sid + ':' + attempt} sid={sid} host={host} clusterId={cluster.id} visible={visible && section === 'kubernetes'} onPodShell={onPodShell} onContext={setCtx} onNamespace={setNs} onReopen={() => setAttempt(a => a + 1)}
-                onLogs={p => { setSource({kind: 'pod', name: p.ns + '/' + p.name, container: p.container, previous: p.previous}); setSection('logs') }} />
+                onLogs={p => { setSource(logSourceOf(p)); setSection('logs') }} />
             </div>
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={ctx} k8sNs={ns} podsOnly />}
           </div>

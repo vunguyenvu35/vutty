@@ -91,7 +91,7 @@ export function KubernetesNetwork() {
           <tbody>{services.map(s => (
             <tr key={s.namespace + '/' + s.name}>
               <td className="k8s-name"><b>{s.name}</b><small>{s.namespace}</small></td><td>{s.type}</td><td className="m">{s.cluster_ip === 'None' ? t('None (headless)') : s.cluster_ip}</td><td className="m">{s.ports || '–'}</td><td>{endpoints(s)}</td>
-              <td><div className="sp-acts">{s.ready_endpoints > 0 && servicePorts(s.ports).length > 0 && <ActBtn id={'forward:' + s.namespace + '/' + s.name} right="portforward" label={t('Port-forward {name}', {name: s.name})} onClick={() => setForwarding(s)}>{t('Port-forward')}</ActBtn>}</div></td>
+              <td><div className="sp-acts"><ActBtn right="logs" label={t('Logs of {name}', {name: s.name})} onClick={() => k.onLogs({ns: s.namespace, name: s.name, kind: 'service'})}>{t('Logs')}</ActBtn>{s.ready_endpoints > 0 && servicePorts(s.ports).length > 0 && <ActBtn id={'forward:' + s.namespace + '/' + s.name} right="portforward" label={t('Port-forward {name}', {name: s.name})} onClick={() => setForwarding(s)}>{t('Port-forward')}</ActBtn>}</div></td>
             </tr>))}</tbody>
         </table>{data && data.services.length === 0 && <div className="sp-empty">{t('No Services.')}</div>}{data && data.services.length > 0 && services.length === 0 && <div className="sp-empty">{t('No Service matches.')}</div>}</div>
       </Card>

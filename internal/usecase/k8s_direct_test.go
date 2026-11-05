@@ -142,6 +142,22 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 			ok(`{"metadata":{"name":"tagged","annotations":{"kubectl.kubernetes.io/default-container":"nginx"}},"spec":{"containers":[{"name":"aws-ssm"},{"name":"nginx"}]}}`)
 		case p == "/version":
 			ok(`{"major":"1","minor":"30","gitVersion":"v1.30.2"}`)
+		case p == "/api/v1", strings.HasPrefix(p, "/apis/cert-manager.io"), strings.HasPrefix(p, "/apis/apiextensions.k8s.io/v1/customresourcedefinitions/"), p == "/apis":
+			if body, found := discoveryFixtures[r.URL.RequestURI()]; found {
+				ok(body)
+				return
+			}
+			w.WriteHeader(404)
+			ok(`{"kind":"Status","message":"not found: ` + p + `"}`)
+		case strings.HasPrefix(p, "/api/v1/") && strings.Contains(r.URL.RawQuery, "owner%3Dhelm"):
+			ok(helmItems(r.URL.Query().Get("labelSelector")))
+		case strings.Contains(p, "/secrets/sh.helm.release.v1.web.v"):
+			if strings.HasSuffix(p, ".v9") {
+				w.WriteHeader(404)
+				ok(`{"kind":"Status","message":"secrets not found"}`)
+				return
+			}
+			ok(`{"data":{"release":"` + helmEnc(t, helmRelease(3, "deployed")) + `"}}`)
 		case p == "/api/v1/namespaces":
 			ok(`{"items":[{"metadata":{"name":"shop"}},{"metadata":{"name":"kube-system"}}]}`)
 		case strings.HasSuffix(p, "/events"):

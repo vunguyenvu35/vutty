@@ -1,5 +1,5 @@
 import type {Backend} from '../lib/backend'
-import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
+import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
 
 /** What the fake cluster answers: the data of the design boards (docs/screenshots/k8s), so tests and demos read like them. */
 export interface K8sFake {
@@ -22,6 +22,14 @@ export interface K8sFake {
   events: K8sEvent[]
   logs: string
   yaml: string
+  /** the kinds the cluster serves, the objects of each by plural, and the YAML that any object answers with (k8sResources, k8sObjects, k8sObjectYAML) */
+  resources: K8sAPIResource[]
+  objects: Record<string, K8sObjList>
+  objectYaml: string
+  /** Helm releases (k8sHelmReleases), the detail of each by name (k8sHelmRelease answers with the revision asked for), and the values k8sHelmValues answers with */
+  helm: K8sHelmRelease[]
+  helmDetail: Record<string, K8sHelmDetail>
+  helmValues: string
   drain: K8sDrainPlan
   forwards: K8sForward[]
   /** how the containers of a workload are set up (k8sWorkloadSpec; any workload answers with it) */
@@ -145,6 +153,32 @@ export function makeK8s(): K8sFake {
     ],
     logs: '2026-11-04T11:41:07Z Error: ECONNREFUSED 10.96.0.15:5432 (db.data.svc)\n2026-11-04T11:41:08Z Fatal: could not open the database, retrying in 5s: ECONNREFUSED\n2026-11-04T11:41:09Z listening on :3000',
     yaml: 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\n  namespace: shop\nspec:\n  replicas: 3\n',
+    resources: [
+      {group: '', version: 'v1', plural: 'nodes', kind: 'Node', namespaced: false},
+      {group: '', version: 'v1', plural: 'pods', kind: 'Pod', namespaced: true},
+      {group: 'cert-manager.io', version: 'v1', plural: 'certificates', kind: 'Certificate', namespaced: true, short: ['cert']},
+    ],
+    objects: {
+      certificates: {namespaced: true, columns: ['Ready', 'Secret'], more: false, rows: [
+        {namespace: 'shop', name: 'web', age_sec: 5 * 86400, cells: ['True', 'web-tls']},
+        {namespace: 'data', name: 'db', age_sec: 3600, cells: ['False', 'db-tls']},
+      ]},
+      nodes: {namespaced: false, columns: [], more: false, rows: [{namespace: '', name: 'worker-1', age_sec: 40 * 86400, cells: []}]},
+    },
+    objectYaml: 'apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: web\n  namespace: shop\nspec:\n  secretName: web-tls\n',
+    helm: [
+      {name: 'web', namespace: 'shop', revision: 3, status: 'deployed', age_sec: 2 * 86400},
+      {name: 'db', namespace: 'data', revision: 1, status: 'failed', age_sec: 3600},
+    ],
+    helmDetail: {
+      web: {release: {name: 'web', namespace: 'shop', revision: 3, status: 'deployed', age_sec: 2 * 86400}, chart: 'nginx', chart_version: '15.1.0', app_version: '1.25.3', description: 'Upgrade complete', notes: 'Visit http://web', has_values: true,
+        manifest: 'kind: Deployment\nmetadata:\n  name: web\n', history: [
+          {name: 'web', namespace: 'shop', revision: 3, status: 'deployed', age_sec: 2 * 86400},
+          {name: 'web', namespace: 'shop', revision: 2, status: 'superseded', age_sec: 9 * 86400},
+        ]},
+      db: {release: {name: 'db', namespace: 'data', revision: 1, status: 'failed', age_sec: 3600}, chart: 'postgresql', chart_version: '13.0.0', app_version: '16.1', description: 'Install failed', notes: '', has_values: false, manifest: '', history: [{name: 'db', namespace: 'data', revision: 1, status: 'failed', age_sec: 3600}]},
+    },
+    helmValues: 'replicas: 3\n',
     drain: {node: 'worker-1', moved: 14, daemonsets: 2, emptydir: ['cache-0', 'cache-1'], bare: ['batch-debug'], pdb: [{namespace: 'shop', name: 'api', detail: 'allows 1 pod down and this would take 2'}], blocked: true},
     forwards: [],
     spec: {kind: 'Deployment', name: 'api', namespace: 'shop', replicas: 3, service_account: 'api', containers: [
@@ -201,7 +235,15 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sConfigMap: async (s, c, n, name) => { rec('server.k8sConfigMap', c, n, name); return {...(k().configMaps[name] ?? {})} },
     k8sEvents: async (s, c, n) => { rec('server.k8sEvents', c, n); return copy(inNs(k().events, n)) },
     k8sLogs: async (s, c, n, p, o) => { rec('server.k8sLogs', c, n, p, o); return k().logs },
+    k8sLogsMulti: async (s, c, n, kind, name, o): Promise<K8sMultiLogs> => { rec('server.k8sLogsMulti', c, n, kind, name, o); return {text: k().logs.split('\n').map((l, i) => `[${name}-${i % 2 + 1}] ${l}`).join('\n'), pods: 2, skipped: 0, failed: []} },
     k8sYAML: async (s, c, kind, n, name) => { rec('server.k8sYAML', c, kind, n, name); return k().yaml },
+    k8sCounts: async (s, c, n) => { rec('server.k8sCounts', c, n); const x = k(); return {pods: inNs(x.pods, n).length, workloads: inNs(x.workloads, n).length, network: inNs(x.network.services, n).length + inNs(x.network.ingresses, n).length} },
+    k8sHelmReleases: async (s, c, n) => { rec('server.k8sHelmReleases', c, n); return copy(inNs(k().helm, n)) },
+    k8sHelmRelease: async (s, c, n, name, rev) => { rec('server.k8sHelmRelease', c, n, name, rev); const d = k().helmDetail[name]; if (!d) throw new Error('no such release'); return copy(rev ? {...d, release: {...d.release, revision: rev}} : d) },
+    k8sHelmValues: async (s, c, n, name, rev) => { rec('server.k8sHelmValues', c, n, name, rev); return k().helmValues },
+    k8sResources: async (s, c) => { rec('server.k8sResources', c); return copy(k().resources) },
+    k8sObjects: async (s, c, n, ref) => { rec('server.k8sObjects', c, n, ref); const l = copy(k().objects[ref.plural] ?? {namespaced: true, columns: [], more: false, rows: []}); return {...l, rows: l.rows.filter(r => !n || !r.namespace || n.split(',').includes(r.namespace))} },
+    k8sObjectYAML: async (s, c, n, ref, name) => { rec('server.k8sObjectYAML', c, n, ref, name); return k().objectYaml },
     k8sDrainPlan: async (s, c, node, o) => { rec('server.k8sDrainPlan', c, node, o); return copy({...k().drain, node}) },
     k8sScale: async (s, c, n, name, r) => {
       await change('k8sScale', c, n, name, r)

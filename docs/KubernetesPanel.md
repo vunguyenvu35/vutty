@@ -129,6 +129,34 @@ The screens of each step:
 
 ![Logs of a pod](screenshots/k8s/25-logs-k8s.png)
 
+
+## 20 · Resources: any kind, CRDs included (read only)
+
+The **Resources** view lists every kind the cluster serves (discovery: `/api`, `/apis`, one request per API group, kept for 5 minutes), picks one, lists its objects and opens one as YAML.
+
+- **Both ways in use the same paths.** A host runs `kubectl get --raw <path>`; a cluster opened with a kubeconfig asks the API server itself. The groups are discovered in one round trip on a host.
+- **Only what discovery listed.** The screen sends `{group, version, plural}`; the backend checks each part against a strict pattern and against the list the cluster gave, so there is no path of the screen's own. A kind without the `list` and `get` verbs, a subresource, and the **Secrets of the core group** are never offered or opened here (the Secret screens show names only).
+- **Columns.** A CRD's `additionalPrinterColumns` of the version shown (not the wide ones), read with a small JSONPath (`.a.b`, `[n]`, `[*]`, `[?(@.k=="v")]`); Namespaces, PersistentVolumes, StorageClasses and HorizontalPodAutoscalers have columns of their own, and each has a button at the top. Every row ends with its age.
+- **Size.** 200 objects for each namespace asked; the screen says when the cluster has more.
+
+## 21 · Apps: Helm releases (read only)
+
+Helm 3 keeps each revision of a release in a Secret `helm.sh/release.v1` (labels `owner=helm`, `name`, `version`, `status`; the value is base64 of gzip of JSON), so nothing is installed anywhere.
+
+- **The list** reads labels only (the latest revision of each release); on a host it asks kubectl for a template of labels, so no Secret data leaves the cluster.
+- **A release** is read when it is opened: chart, versions, notes, manifest and the revisions kept. The **Secrets inside the manifest are shown without their data**.
+- **Values** often hold passwords: a call of its own, asked first, and audited (that they were shown, never the values).
+- **No changes.** A previous revision has *Copy rollback*, which copies `helm rollback <name> <revision> -n <namespace>` for a terminal.
+- **Not read:** Helm 2, releases stored in ConfigMaps or SQL, and chart repositories (kept by Helm or Rancher, not by the cluster).
+
+## 22 · Logs of all the pods
+
+*Logs* on a Deployment, StatefulSet, DaemonSet, Job or Service (and in Deployment detail) reads every pod it selects: the pods are found by its selector (`matchLabels`, `matchExpressions`, or the Service's selector), at most 20 pods and 40 containers, five at a time, each with `--timestamps`; the lines are put in the order of their time, the newest `Last N lines` are kept, and each line starts with its pod (`pod` or `pod/container`) in a colour of its own. Pods that have not started are left out; a pod that cannot be read is named above the log. The filter finds a pod by name; *Follow* works as for one pod.
+
+## 23 · Numbers on the tabs
+
+Pods, Workloads and Network show how many there are, from one request for each kind asking for a single item (the API server says how many are left). A tab with a kind that could not be counted shows nothing, not zero. Events and Config show none: what they list is not a count of the kinds.
+
 ## Command map
 
 ![Command map](screenshots/k8s/26-command-map.png)
@@ -137,8 +165,8 @@ The screens of each step:
 
 | Phase | What | Mode |
 |-------|------|------|
-| **1** | Connect (3a–3e), Overview, Pods, Pod detail, Workloads, Network, Config and storage (Secrets by name only), Nodes, Events, Logs, YAML | read only |
+| **1** | Connect (3a–3e), Overview, Pods, Pod detail, Workloads, Network, Config and storage (Secrets by name only), Resources (any kind), Apps (Helm releases), Nodes, Events, Logs (one pod, or all the pods of a workload), YAML | read only |
 | **2** | Shell, Port-forward, Scale, Restart, Pause and resume, Roll back, Delete pod, CronJob run now and suspend, Cordon and uncordon, Drain | each asks first, audited |
 | **3** | Reveal one Secret key (30 s on screen, audited) | asks first, audited |
 
-Not planned: `apply`, `edit` and `delete` of anything but a pod, Helm. Use the terminal.
+Not planned: `apply` of new objects, `delete` of anything but a pod or a Job, and any change to a Helm release (install, upgrade, rollback, uninstall): use the terminal. The Apps view copies the `helm rollback` command instead.

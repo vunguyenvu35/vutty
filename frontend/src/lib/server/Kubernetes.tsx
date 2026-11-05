@@ -5,7 +5,7 @@ import {IconArrowLeft} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {Err, useLoad} from './shared'
 import {KubernetesConnect, remember, savedNamespaces, saveNamespaces, type K8sSession} from './KubernetesConnect'
-import {K8sProvider, useRunner, type K8sApi, type K8sPage, type K8sView} from './KubernetesShared'
+import {K8sProvider, useRunner, type K8sLogTarget, type K8sApi, type K8sPage, type K8sView} from './KubernetesShared'
 import {KubernetesOverview} from './KubernetesOverview'
 import {KubernetesPods, PodDetail} from './KubernetesPods'
 import {Workloads, DeploymentDetail} from './KubernetesWorkloads'
@@ -13,6 +13,8 @@ import {KubernetesNetwork} from './KubernetesNetwork'
 import {KubernetesConfig} from './KubernetesConfig'
 import {Drain, Nodes} from './KubernetesNodes'
 import {Events} from './KubernetesEvents'
+import {KubernetesResources} from './KubernetesResources'
+import {HelmDetail, KubernetesHelm} from './KubernetesHelm'
 import {YamlPage} from './KubernetesYaml'
 import type {Host} from '../types'
 
@@ -32,7 +34,7 @@ export function Kubernetes({sid, host, visible, clusterId, onReopen, onShell, on
   onShell?(host: Host, command: string, title: string): void
   onPodShell?(hostId: string, title: string, prod: boolean): void
   onAccess?(): void
-  onLogs(pod: {ns: string; name: string; container?: string; previous?: boolean}): void
+  onLogs(pod: K8sLogTarget): void
   /** the cluster in use, for the Logs tab (which lists its pods) */
   onContext?(ctx: string): void
   /** the namespaces shown ('' is all of them; a list is separated by commas), for the Logs tab, which lists the pods of the same */
@@ -48,7 +50,7 @@ export function Kubernetes({sid, host, visible, clusterId, onReopen, onShell, on
   return <Main sid={sid} host={host} visible={visible} session={session} onSwitch={switchTo} onShell={onShell} onPodShell={onPodShell} onAccess={onAccess} onLogs={onLogs} onNamespace={onNamespace} />
 }
 
-function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAccess, onLogs, onNamespace}: {onNamespace?(ns: string): void; sid: string; host: Host; visible: boolean; session: K8sSession; onSwitch(ctx: string): void; onShell?(host: Host, command: string, title: string): void; onPodShell?(hostId: string, title: string, prod: boolean): void; onAccess?(): void; onLogs(pod: {ns: string; name: string; container?: string; previous?: boolean}): void}) {
+function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAccess, onLogs, onNamespace}: {onNamespace?(ns: string): void; sid: string; host: Host; visible: boolean; session: K8sSession; onSwitch(ctx: string): void; onShell?(host: Host, command: string, title: string): void; onPodShell?(hostId: string, title: string, prod: boolean): void; onAccess?(): void; onLogs(pod: K8sLogTarget): void}) {
   const be = useBackend()
   const t = useT()
   const ctx = session.ctx
@@ -87,6 +89,11 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   const [kept, setKept] = useState<Record<string, unknown>>({})
   const keep = useCallback((key: string, value: unknown) => setKept(m => ({...m, [key]: value})), [])
   const [rev, setRev] = useState(0)
+  // how many pods, workloads and network objects there are, for the tabs: asked again after a change and now and then (a number may be late, never wrong for long)
+  const loadCounts = useCallback(() => be.server.k8sCounts(sid, ctx, ns), [be, sid, ctx, ns])
+  const {data: counts, reload: reloadCounts} = useLoad<Record<string, number>>(loadCounts, 60000)
+  const countsFor = useRef(ctx + '|' + ns + '|' + rev)
+  useEffect(() => { const now = ctx + '|' + ns + '|' + rev; if (countsFor.current !== now) { countsFor.current = now; reloadCounts() } }, [ctx, ns, rev, reloadCounts])
   const [rights, setRights] = useState<Record<string, boolean> | null>(session.rights)
   const {busy, run} = useRunner(useCallback(() => setRev(r => r + 1), []))
   const loadNs = useCallback(() => be.server.k8sNamespaces(sid, ctx), [be, sid, ctx])
@@ -138,7 +145,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
     setNs: (n: string) => { setNs(n); setPage(null) },
   }), [be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep, remember])
 
-  const views: [K8sView, string][] = [['overview', t('Overview')], ['pods', t('Pods')], ['workloads', t('Workloads')], ['network', t('Network')], ['config', t('Config & storage')], ['nodes', t('Nodes')], ['events', t('Events')]]
+  const views: [K8sView, string][] = [['overview', t('Overview')], ['pods', t('Pods')], ['workloads', t('Workloads')], ['network', t('Network')], ['config', t('Config & storage')], ['apps', t('Apps')], ['resources', t('Resources')], ['nodes', t('Nodes')], ['events', t('Events')]]
   const key = ctx + '|' + ns
   return (
     <K8sProvider value={api}>
@@ -165,7 +172,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
         <div className="k8s-nav">
         <button className="k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={15} /></button>
         <div className="sp-tabs k8s-sub" role="tablist" aria-label={t('Kubernetes views')}>
-          {views.map(([id, label]) => <button key={id} role="tab" aria-selected={view === id} onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>{label}</button>)}
+          {views.map(([id, label]) => <button key={id} role="tab" aria-selected={view === id} onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>{label}{counts?.[id] !== undefined && <em aria-hidden="true">{counts[id]}</em>}</button>)}
         </div>
         </div>
         <div className="k8s-body" key={key}>
@@ -176,6 +183,8 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
               {view === 'workloads' && <Workloads />}
               {view === 'network' && <KubernetesNetwork />}
               {view === 'config' && <KubernetesConfig />}
+              {view === 'apps' && <KubernetesHelm />}
+              {view === 'resources' && <KubernetesResources />}
               {view === 'nodes' && <Nodes />}
               {view === 'events' && <Events />}
             </>
@@ -190,5 +199,6 @@ function Page({page}: {page: K8sPage}) {
   if (page.k === 'pod') return <PodDetail ns={page.ns} name={page.name} />
   if (page.k === 'deploy') return <DeploymentDetail ns={page.ns} name={page.name} />
   if (page.k === 'yaml') return <YamlPage page={page} />
+  if (page.k === 'helm') return <HelmDetail key={page.ns + '/' + page.name + '@' + page.rev} page={page} /> // a revision is a fresh load
   return <Drain node={page.node} />
 }

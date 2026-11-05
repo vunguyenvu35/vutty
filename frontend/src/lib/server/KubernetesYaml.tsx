@@ -36,7 +36,7 @@ export function YamlPage({page}: {page: YamlPage}) {
   const t = useT()
   const toast = useToast()
   const [q, setQ] = useState('')
-  const load = useCallback(() => k.be.server.k8sYAML(k.sid, k.ctx, page.kind, page.ns, page.name), [k.be, k.sid, k.ctx, page.kind, page.ns, page.name])
+  const load = useCallback(() => (page.ref ? k.be.server.k8sObjectYAML(k.sid, k.ctx, page.ns, page.ref, page.name) : k.be.server.k8sYAML(k.sid, k.ctx, page.kind, page.ns, page.name)), [k.be, k.sid, k.ctx, page.kind, page.ns, page.name, page.ref])
   const {data, error, busy, reload} = useKLoad<string>(load, false)
   const lines = useMemo(() => (data ?? '').replace(/\n$/, '').split('\n'), [data])
   const find = useMemo(() => (q.trim() ? new RegExp(escapeRe(q.trim()), 'gi') : null), [q])
@@ -48,7 +48,7 @@ export function YamlPage({page}: {page: YamlPage}) {
       if (path) toast.info(t('Saved to {path}', {path}))
     } catch (e) { toast.error(errMsg(e)) }
   }
-  const cmd = `kubectl get ${page.kind} ${page.name}${page.ns ? ' -n ' + page.ns : ''} -o yaml`
+  const cmd = `kubectl get ${page.ref ? page.ref.plural + (page.ref.group ? '.' + page.ref.group : '') : page.kind} ${page.name}${page.ns ? ' -n ' + page.ns : ''} -o yaml`
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}><Crumb path={[t('Back'), page.label, t('YAML')]} onBack={() => k.open(page.back)} /></Toolbar>

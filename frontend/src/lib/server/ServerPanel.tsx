@@ -15,11 +15,16 @@ import {Maintenance} from './Maintenance'
 import {Security} from './Security'
 import {Schedule} from './Schedule'
 import {Kubernetes} from './Kubernetes'
-import type {Host, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
+import type {K8sLogTarget} from './KubernetesShared'
+import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
 type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule'
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
-export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod'; name: string; container?: string; previous?: boolean}
+/** kind 'workload': every pod of a workload or Service, the name being ns/kind/name */
+export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean}
+
+/** the log source of what the Kubernetes tab asked to open */
+export const logSourceOf = (p: K8sLogTarget): LogSource => (p.kind ? {kind: 'workload', name: p.ns + '/' + p.kind + '/' + p.name} : {kind: 'pod', name: p.ns + '/' + p.name, container: p.container, previous: p.previous})
 
 const POLL_MS = 5000
 const FOLLOW_MS = 2000
@@ -87,7 +92,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'processes' && <Processes sid={sid} visible={visible} />}
             {section === 'services' && <Services sid={sid} onLogs={name => showLogs({kind: 'service', name})} />}
             {section === 'docker' && <Docker sid={sid} onLogs={showLogs} />}
-            {k8sOpened && <div className="sp-keep" hidden={section !== 'kubernetes'}><Kubernetes sid={sid} host={host} visible={visible && section === 'kubernetes'} onShell={onShell} onAccess={onAccess} onContext={setK8sCtx} onNamespace={setK8sNs} onLogs={p => showLogs({kind: 'pod', name: p.ns + '/' + p.name, container: p.container, previous: p.previous})} /></div>}
+            {k8sOpened && <div className="sp-keep" hidden={section !== 'kubernetes'}><Kubernetes sid={sid} host={host} visible={visible && section === 'kubernetes'} onShell={onShell} onAccess={onAccess} onContext={setK8sCtx} onNamespace={setK8sNs} onLogs={p => showLogs(logSourceOf(p))} /></div>}
             {section === 'web' && <Web sid={sid} onLogs={(kind, name) => showLogs({kind, name})} />}
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={k8sCtx} k8sNs={k8sNs} />}
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
@@ -397,6 +402,9 @@ const parseSource = (v: string): LogSource => {
 }
 
 /** every log the panel can read, by kind: the whole system first, then what the server runs; the one open is always among them */
+/** a colour for a pod name: the same pod has the same colour in every merged log */
+const podColor = (name: string) => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h} 70% 68%)` }
+
 function logSources(t: TFn, units: ServerUnit[], boxes: ServerContainer[], pods: K8sPod[], now: LogSource, podsOnly = false) {
   const group = (label: string, kind: LogSource['kind'], names: string[]) => names.map(n => ({value: kind + ':' + n, label: n, hint: label}))
   const list = podsOnly ? pods.map(p => ({value: 'pod:' + p.namespace + '/' + p.name, label: p.name, hint: t('Pods') + ' · ' + p.namespace})) : [
@@ -408,6 +416,7 @@ function logSources(t: TFn, units: ServerUnit[], boxes: ServerContainer[], pods:
     ...pods.map(p => ({value: 'pod:' + p.namespace + '/' + p.name, label: p.name, hint: t('Pods') + ' · ' + p.namespace})),
   ]
   const key = sourceKey(now)
+  if (now.kind === 'workload') { const [ns, , name] = now.name.split('/'); return list.some(o => o.value === key) ? list : [...list, {value: key, label: t('{name} (all pods)', {name}), hint: t('Pods') + ' · ' + ns}] }
   return list.some(o => o.value === key) || (podsOnly && !now.name) ? list : [...list, {value: key, label: now.name, hint: now.kind}]
 }
 
@@ -443,6 +452,7 @@ function highlight(line: string, re: RegExp): ReactNode {
 export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOnly = false}: {sid: string; visible: boolean; source: LogSource; onSource(s: LogSource): void; k8sCtx: string; /** the namespaces the Kubernetes tab shows: a login that may not list the whole cluster has pods to choose from only there */ k8sNs?: string; podsOnly?: boolean}) {
   const be = useBackend()
   const t = useT()
+  const tn = useTn()
   const [filter, setFilter] = useState('')
   const [lv, setLv] = useState<'all' | 'err' | 'warn' | 'info'>('all')
   const [follow, setFollow] = useState(false)
@@ -467,6 +477,8 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   useEffect(() => { setContainer(source.container ?? ''); setPrevious(!!source.previous) }, [source.kind, source.name, source.container, source.previous])
   const sources = useMemo(() => logSources(t, units ?? [], boxes?.containers ?? [], pods ?? [], source, podsOnly), [t, units, boxes, pods, source, podsOnly])
   const isPod = source.kind === 'pod'
+  const isMulti = source.kind === 'workload' // every pod of a workload or Service: its name is ns/kind/name
+  const multiOf = isMulti ? source.name.split('/') : []
   const podOf = isPod ? source.name.split('/') : []
   // the containers of the pod being read come from that pod, not from a list of the whole cluster (which a login of one namespace may not read)
   const loadDetail = useCallback(() => (isPod && k8sCtx ? be.server.k8sPod(sid, k8sCtx, podOf[0], podOf[1]) : Promise.resolve(null)), [be, sid, k8sCtx, source.kind, source.name]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -476,10 +488,13 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const podInfo = isPod ? (detail && detail.pod.namespace === podOf[0] && detail.pod.name === podOf[1] ? detail.pod : (pods ?? []).find(p => p.namespace === podOf[0] && p.name === podOf[1])) : undefined
   const containers = [{value: '', label: t('Default container')}, ...(podInfo?.containers ?? []).map(c => ({value: c.name, label: c.init ? t('{name} (init)', {name: c.name}) : c.name}))]
   const opts = lineCount === '300' && since === '' ? undefined : {lines: Number(lineCount), since}
-  const podKey = isPod ? `${k8sCtx}:${container}:${previous}:${timestamps}` : ''
-  const load = useCallback(() => (podsOnly && !isPod ? Promise.resolve('') : isPod
+  const podKey = isPod || isMulti ? `${k8sCtx}:${container}:${previous}:${timestamps}` : ''
+  const [multi, setMulti] = useState<K8sMultiLogs | null>(null)
+  const load = useCallback(() => (podsOnly && !isPod && !isMulti ? Promise.resolve('') : isMulti
+    ? (k8sCtx ? be.server.k8sLogsMulti(sid, k8sCtx, multiOf[0], multiOf[1], multiOf[2], {container: '', lines: Number(lineCount) as 100, since, previous: false, timestamps}).then(r => { setMulti(r); return r.text }) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))
+    : isPod
     ? (k8sCtx ? be.server.k8sLogs(sid, k8sCtx, podOf[0], podOf[1], {container, lines: Number(lineCount) as 100, since, previous, timestamps}) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))
-    : be.server.logs(sid, source.kind as Exclude<LogSource['kind'], 'pod'>, source.name, opts)), [be, sid, source.kind, source.name, lineCount, since, podKey, podsOnly]) // eslint-disable-line react-hooks/exhaustive-deps
+    : be.server.logs(sid, source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>, source.name, opts)), [be, sid, source.kind, source.name, lineCount, since, podKey, podsOnly]) // eslint-disable-line react-hooks/exhaustive-deps
   const {data, error, busy, reload} = useLoad<string>(load, follow && visible ? FOLLOW_MS : null)
   // useLoad reads again by itself only on a timer: another source, number of lines or time is asked for here
   const asked = useRef(`${source.kind}:${source.name}:${lineCount}:${since}:${podKey}`)
@@ -520,16 +535,21 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
           options={[{value: '', label: t('Any time')}, {value: '15m', label: t('Last 15 minutes')}, {value: '1h', label: t('Last hour')}, {value: '24h', label: t('Last 24 hours')}]} />
         {isPod && <Select className="sp-pick" label={t('Container')} value={container} onChange={setContainer} options={container && !containers.some(c => c.value === container) ? [...containers, {value: container, label: container}] : containers} />}
         {isPod && previous && <button aria-pressed className="primary" aria-label={t('Previous container')} title={t('The container that ran before the last restart: press to read the current one')} onClick={() => setPrevious(false)}>{t('Previous container')} ×</button>}
-        {isPod && <button aria-pressed={timestamps} className={timestamps ? 'primary' : ''} onClick={() => setTimestamps(v => !v)}>{t('Timestamps')}</button>}
+        {(isPod || isMulti) && <button aria-pressed={timestamps} className={timestamps ? 'primary' : ''} onClick={() => setTimestamps(v => !v)}>{t('Timestamps')}</button>}
         <button disabled={lines.length === 0} title={t('Save the lines shown to a file')} onClick={() => void save()}><IconDownload size={14} /> {t('Download')}</button>
         <span className="sp-source" role="status">{data !== null && (filter || lv !== 'all') ? t('{shown} of {total} lines', {shown: lines.length, total: all.length}) : ''}</span>
       </div>
+      {isMulti && multi && <div className="sp-note k8s-hint" role="status">{tn(multi.pods, '{n} pod read', '{n} pods read')}{multi.skipped > 0 && ' · ' + t('{n} more pods are not shown', {n: multi.skipped})}{multi.failed.length > 0 && ' · ' + t('Could not read: {list}', {list: multi.failed.join('; ')})}</div>}
       <Err error={error} />
       <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !follow} onScroll={onScroll}>
         {lines.map((l, i) => {
           const p = stripAnsi(l)
           // the colours of the program, unless a search is on (a match is marked on the plain text) or the line is an error or a warning (its own colour)
-          const body = matcher.mark ? highlight(p, matcher.mark) : p === l || logLevel(p) ? p : ansiSpans(l).map((s, k) => (s.style ? <span key={k} style={s.style}>{s.text}</span> : s.text))
+          const pre = isMulti ? /^\[([^\]]+)\] /.exec(p) : null // a merged log: the pod each line came from, in a colour of its own
+          const rest = pre ? l.replace(/^\[[^\]]+\] /, '') : l
+          const text = pre ? p.slice(pre[0].length) : p
+          const inner = text === rest || logLevel(p) ? text : ansiSpans(rest).map((s, k) => (s.style ? <span key={k} style={s.style}>{s.text}</span> : s.text))
+          const body = matcher.mark ? highlight(p, matcher.mark) : pre ? <><span className="sp-pod" style={{color: podColor(pre[1])}}>[{pre[1]}]</span> {inner}</> : inner
           return <div key={i} className={'sp-log-line ' + logLevel(p)}>{body}</div>
         })}
         {data !== null && lines.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}

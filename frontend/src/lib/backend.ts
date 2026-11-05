@@ -1,6 +1,6 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
-import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
+import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
 import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
@@ -265,7 +265,15 @@ export interface Backend {
     k8sConfigMap(sid: string, ctx: string, ns: string, name: string): Promise<Record<string, string>>
     k8sEvents(sid: string, ctx: string, ns: string): Promise<K8sEvent[]>
     k8sLogs(sid: string, ctx: string, ns: string, pod: string, opts: K8sLogOpts): Promise<string>
+    k8sLogsMulti(sid: string, ctx: string, ns: string, kind: string, name: string, opts: K8sLogOpts): Promise<K8sMultiLogs>
     k8sYAML(sid: string, ctx: string, kind: string, ns: string, name: string): Promise<string>
+    k8sCounts(sid: string, ctx: string, ns: string): Promise<Record<string, number>>
+    k8sHelmReleases(sid: string, ctx: string, ns: string): Promise<K8sHelmRelease[]>
+    k8sHelmRelease(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<K8sHelmDetail>
+    k8sHelmValues(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<string>
+    k8sResources(sid: string, ctx: string): Promise<K8sAPIResource[]>
+    k8sObjects(sid: string, ctx: string, ns: string, ref: K8sResRef): Promise<K8sObjList>
+    k8sObjectYAML(sid: string, ctx: string, ns: string, ref: K8sResRef, name: string): Promise<string>
     k8sDrainPlan(sid: string, ctx: string, node: string, opts: K8sDrainOpts): Promise<K8sDrainPlan>
     k8sScale(sid: string, ctx: string, ns: string, name: string, replicas: number): Promise<void>
     k8sRestart(sid: string, ctx: string, ns: string, kind: 'deployment' | 'statefulset' | 'daemonset', name: string): Promise<void>
@@ -600,7 +608,15 @@ export function wailsBackend(): Backend {
       k8sConfigMap: async (s, c, n, m) => (await u<Record<string, string>>('ServerService', 'K8sConfigMap', s, c, n, m)) ?? {},
       k8sEvents: async (s, c, n) => (await u<K8sEvent[]>('ServerService', 'K8sEvents', s, c, n)) ?? [],
       k8sLogs: (s, c, n, p, o) => u('ServerService', 'K8sLogs', s, c, n, p, o),
+      k8sLogsMulti: async (s, c, n, k, m, o) => { const r = await u<K8sMultiLogs>('ServerService', 'K8sLogsMulti', s, c, n, k, m, o); return {...r, failed: r.failed ?? []} },
       k8sYAML: (s, c, k, n, m) => u('ServerService', 'K8sYAML', s, c, k, n, m),
+      k8sCounts: async (s, c, n) => (await u<Record<string, number>>('ServerService', 'K8sCounts', s, c, n)) ?? {},
+      k8sHelmReleases: async (s, c, n) => (await u<K8sHelmRelease[]>('ServerService', 'K8sHelmReleases', s, c, n)) ?? [],
+      k8sHelmRelease: async (s, c, n, m, r) => { const d = await u<K8sHelmDetail>('ServerService', 'K8sHelmRelease', s, c, n, m, r); return {...d, history: d.history ?? []} },
+      k8sHelmValues: (s, c, n, m, r) => u('ServerService', 'K8sHelmValues', s, c, n, m, r),
+      k8sResources: async (s, c) => (await u<K8sAPIResource[]>('ServerService', 'K8sResources', s, c)) ?? [],
+      k8sObjects: async (s, c, n, r) => { const l = await u<K8sObjList>('ServerService', 'K8sObjects', s, c, n, r); return {...l, columns: l.columns ?? [], rows: (l.rows ?? []).map(x => ({...x, cells: x.cells ?? []}))} },
+      k8sObjectYAML: (s, c, n, r, m) => u('ServerService', 'K8sObjectYAML', s, c, n, r, m),
       k8sDrainPlan: async (s, c, n, o) => { const r = await u<K8sDrainPlan>('ServerService', 'K8sDrainPlan', s, c, n, o); return {...r, emptydir: r.emptydir ?? [], bare: r.bare ?? [], pdb: r.pdb ?? []} },
       k8sScale: (s, c, n, d, r) => u('ServerService', 'K8sScale', s, c, n, d, r),
       k8sRestart: (s, c, n, k, d) => u('ServerService', 'K8sRestart', s, c, n, k, d),

@@ -700,6 +700,13 @@ export interface K8sCheck {ok: boolean; kind: '' | K8sFailKind | 'approval'; raw
 export interface K8sAccess {rights: Record<string, boolean>}
 export interface K8sNamespaces {names: string[]}
 export interface K8sNode {name: string; status: 'Ready' | 'NotReady' | 'Unknown'; roles: string; version: string; ip: string; unschedulable: boolean; cpu_pct: number | null; mem_pct: number | null; pods: number; pods_max: number; age_sec: number}
+export interface K8sAPIResource {group: string; version: string; plural: string; kind: string; namespaced: boolean; short?: string[]}
+export interface K8sResRef {group: string; version: string; plural: string}
+export interface K8sObjRow {namespace: string; name: string; age_sec: number; cells: string[]}
+export interface K8sObjList {namespaced: boolean; columns: string[]; rows: K8sObjRow[]; more: boolean}
+export interface K8sMultiLogs {text: string; pods: number; skipped: number; failed: string[]}
+export interface K8sHelmRelease {name: string; namespace: string; revision: number; status: string; age_sec: number}
+export interface K8sHelmDetail {release: K8sHelmRelease; chart: string; chart_version: string; app_version: string; description: string; notes: string; manifest: string; has_values: boolean; history: K8sHelmRelease[]}
 export interface K8sEvent {age_sec: number; type: 'Normal' | 'Warning'; reason: string; object: string; namespace: string; message: string; count: number}
 export interface K8sPodContainer {name: string; image: string; init: boolean; ready: boolean; running: boolean; state: string; restarts: number; resources: string; probes: string}
 export interface K8sPod {name: string; namespace: string; status: string; tone: 'ok' | 'warn' | 'bad' | ''; ready: string; restarts: number; node: string; age_sec: number; why: string; owner: string; containers: K8sPodContainer[]}

@@ -127,6 +127,7 @@ type k8sState struct {
 	sudo       bool   // the kubeconfig is only for root: commands run as $SUDO
 	notRoot    bool   // the login is not root (sudo would be needed)
 	certs      map[string]k8sCert
+	res        map[string]k8sResCache // the kinds a cluster serves, by context
 	fwds       map[string]*k8sFwd
 	order      []string
 }
