@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import {IconClose, IconCloud, IconFolder, IconGear, IconKey, IconPlus, IconServer, IconSidebar, IconSplitH, IconSplitV} from '../ui/Icons'
 import {draggingPane, isTerminalTab, PANE_DRAG, setDraggingPane, setDraggingTab, TAB_DRAG, type Tab} from '../layout'
 import {TabStatus} from './TabStatus'
+import {isMac} from '../shortcuts/shortcuts'
 import {OS_INFO, OsIcon} from '../ui/OsIcon'
 import {leaves} from '../layout'
 import {SnippetPicker} from '../snippets/SnippetPicker'
@@ -104,7 +105,7 @@ export function TopBar(p: Props) {
         endPaneDrag()
         p.onPaneOut?.(dp.tabId, dp.paneId)
       }}>
-      <div className="traffic-space" />
+      {isMac() && <div className="traffic-space" />} {/* room for the red, yellow and green buttons of macOS: Windows and Linux have a frame of their own */}
       <button role="tab" aria-selected={p.active === 'home'} className={'tab tab-home' + (p.active === 'home' ? ' active' : '')} onClick={p.onHome}>
         <IconKey size={15} /> <span>{t('Vaults')}</span>
       </button>

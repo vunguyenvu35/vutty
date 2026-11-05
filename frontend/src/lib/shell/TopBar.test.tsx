@@ -7,6 +7,17 @@ import {host} from '../../test/fakeBackend'
 const base = {snippets: [], onRunSnippet: vi.fn(), onSplit: vi.fn(), onNew: vi.fn(), onSettings: vi.fn()}
 
 describe('TopBar', () => {
+  it('leaves room for the window buttons of macOS only: Windows and Linux have a frame of their own', () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get')
+    for (const [name, mac] of [['MacIntel', true], ['Win32', false], ['Linux x86_64', false]] as const) {
+      platform.mockReturnValue(name)
+      const {container, unmount} = render(<TopBar tabs={[]} active="home" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} {...base} />)
+      expect(container.querySelector('.traffic-space') !== null, name).toBe(mac)
+      unmount()
+    }
+    platform.mockRestore()
+  })
+
   it('the Vaults tab does not reuse the .home page-container class (regression: it stretched to 220px)', () => {
     render(<TopBar tabs={[]} active="home" onHome={vi.fn()} onSelect={vi.fn()} onClose={vi.fn()} {...base} />)
     expect(screen.getByRole('tab', {name: 'Vaults'})).not.toHaveClass('home')
@@ -114,12 +125,14 @@ describe('TopBar: double click zooms the window like a Mac app', () => {
     return onToggleMaximise
   }
 
-  it('toggles on the empty part of the bar', async () => {
+  it('toggles on the empty part of the bar, and on the room left for the window buttons on a Mac', async () => {
+    const platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
     const toggle = mount()
     await userEvent.dblClick(document.querySelector('.topbar .spacer')!)
     expect(toggle).toHaveBeenCalledTimes(1)
     await userEvent.dblClick(document.querySelector('.topbar .traffic-space')!)
     expect(toggle).toHaveBeenCalledTimes(2)
+    platform.mockRestore()
   })
 
   it('does not toggle when the double click lands on a tab or a button', async () => {
