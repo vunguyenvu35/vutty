@@ -40,7 +40,7 @@
 .sp-sort { background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; }
 .sp-sort:hover:not(:disabled) { background: none; color: var(--text, inherit); }
 .sp-table td { padding: 12px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.sp-table tr:last-child td { border-bottom: 0; padding-bottom: 16px; }
+.sp-table tr:last-child td { border-bottom: 0; }
 .sp-table .n { text-align: right; font-variant-numeric: tabular-nums; }
 .sp-table .m, .sp-note.m { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .sp-cmd { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
@@ -104,3 +104,12 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-inspect td { padding: 5px 10px 5px 0; vertical-align: top; word-break: break-all; }
 .sp-inspect table:first-of-type td:first-child { width: 140px; color: var(--muted); word-break: normal; }
 .sp-inspect h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+/* a table in a card runs edge to edge under the card's title, like a list: one border, not a box inside a box; rows breathe evenly */
+.sp-card > .sp-table { border: 0; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; margin: 6px -14px -12px; }
+.sp-card > .sp-table th { background: transparent; padding-top: 10px; padding-bottom: 8px; }
+.sp-card > .sp-table td { padding-top: 13px; padding-bottom: 13px; }
+.sp-card > .sp-table tr:last-child td { padding-bottom: 13px; }
+.sp-card > .sp-table th:first-child, .sp-card > .sp-table td:first-child { padding-left: 16px; }
+.sp-card > .sp-table th:last-child, .sp-card > .sp-table td:last-child { padding-right: 16px; }
+.sp-card > .sp-table tbody tr:hover { background: var(--bg-3); }
+.sp-card > .sp-table tbody tr:last-child:hover { border-radius: 0 0 8px 8px; }
