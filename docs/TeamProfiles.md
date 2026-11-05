@@ -263,7 +263,7 @@ Written after the design was reviewed. It is an opinion, not a measurement: noth
 | --- | --- |
 | Fit with the strategy | High |
 | Difference from competitors | Medium to high for offboarding, low for the shared vault itself |
-| Evidence of demand | None yet |
+| Evidence of demand | One data point (the author's own team hands out passwords through a password management page); nothing from outside yet |
 | Cost | High |
 | Risk | Medium to high (security) |
 | Reversibility | Medium |
@@ -294,7 +294,7 @@ Written after the design was reviewed. It is an opinion, not a measurement: noth
 | 7 | Members need an account on the Git host. For outside contributors that may cost money | A shared read-only token is acceptable here (it only reads ciphertext) |
 | 8 | Per-person Unix accounts by default for prod hosts: which distributions does Panel support, and what about root-only servers? | A support matrix is needed before M4 |
 | 9 | What to call it: "Team" suggests more than it offers (no SSO, no audit). "Shared hosts for small teams"? | The limits are on the *New team* screen either way |
-| 10 | How do DevOps teams give developers SSH access today (one shared key, a shared password, a bastion, keys added by hand)? | The answer shows what the feature replaces and how big the pain is. Ask the pilot teams |
+| 10 | How do DevOps teams give developers SSH access today (one shared key, a shared password, a bastion, keys added by hand)? | The answer shows what the feature replaces and how big the pain is. **One answer so far (the author's own team): passwords are issued through a password management web page.** That is one data point from one team, so ask the pilot teams too. If the passwords are per person or one per server is still to find out |
 | 11 | What do developers need to reach: dev and staging machines, production, Kubernetes? | Decides the default `login` (shared on dev, per person on prod) and whether Kubernetes cannot wait |
 | 12 | Add members by Git host username (the shortcut in §4)? | Saves the key exchange for 20 people; needs the private key to be available to Vutty |
 | 13 | At what size do SSH certificates become the main path, and who signs them? | About 20 developers does not need them; beyond roughly 50 it probably does |
