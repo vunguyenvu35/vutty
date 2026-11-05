@@ -11,17 +11,20 @@ import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnectio
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker} from './Docker'
+import {alertsOf} from './alerts'
 import {addSample, bucketSeries, loadHistory, MINUTE, saveHistory, type HistPoint, type Series} from './history'
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
 import {Security} from './Security'
 import {Users} from './Users'
+import {Network} from './Network'
+import {Database} from './Database'
 import {Schedule} from './Schedule'
 import {Kubernetes} from './Kubernetes'
 import type {K8sLogTarget} from './KubernetesShared'
 import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
-type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
+type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users' | 'network' | 'database'
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
 /** kind 'workload': every pod of a workload or Service, the name being ns/kind/name */
 export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean}
@@ -63,7 +66,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
   const {phase, sid, notice} = useServerConnection(host)
   const [section, setSection] = useState<Section>('overview')
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
-  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
+  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['network', t('Connections')], ['database', t('Database')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
   const showLogs = (s: LogSource) => { setSource(s); setSection('logs') }
   return (
     <div className="sp" role="region" aria-label={t('Server panel of {name}', {name: host.label})}>
@@ -79,10 +82,42 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
   )
 }
 
+/**
+ * Tells, once for each problem, when something goes wrong on the server while the tab is open (not what was wrong already when it opened): a toast, and a notification of the system
+ * when the person has allowed them (it is never asked for here). It reads the services and the certificates now and then of its own.
+ */
+function useAlerts(sid: string, host: Host, feed: Feed, visible: boolean) {
+  const be = useBackend()
+  const t = useT()
+  const toast = useToast()
+  const loadUnits = useCallback(() => be.server.services(sid).catch((): ServerUnit[] => []), [be, sid])
+  const units = useLoad<ServerUnit[]>(loadUnits, visible ? 60_000 : null).data
+  const loadCerts = useCallback(() => be.server.certificates(sid).catch((): ServerCerts => ({found: false, certs: []})), [be, sid])
+  const certs = useLoad<ServerCerts>(loadCerts, visible ? 600_000 : null).data
+  const told = useRef(new Set<string>())
+  const baseline = useRef(false)
+  const now = alertsOf(t, feed.data, units, certs)
+  const ready = !!feed.data && !!units && !!certs
+  const keys = now.map(a => a.key).join('|')
+  useEffect(() => {
+    if (!ready) return
+    const current = new Set(now.map(a => a.key))
+    if (!baseline.current) { baseline.current = true; for (const k of current) told.current.add(k); return } // what was already wrong when the tab opened is on the Overview: only what goes wrong later is announced
+    for (const k of [...told.current]) if (!current.has(k)) told.current.delete(k) // fixed: if it happens again, say so again
+    for (const a of now) {
+      if (told.current.has(a.key)) continue
+      told.current.add(a.key)
+      toast.error(host.label + ': ' + a.text)
+      try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(host.label, {body: a.text}) } catch { /* the system refused: the toast was shown */ }
+    }
+  }, [keys, ready]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 /** The part of the panel that needs the connection: the section tabs and the open section. */
 function Ready({sid, host, visible, onAccess, onShell, section, setSection, source, setSource, sections, showLogs}: {sid: string; host: Host; visible: boolean; onAccess?(): void; onShell?(host: Host, command: string, title: string): void; section: Section; setSection(s: Section): void; source: LogSource; setSource(s: LogSource): void; sections: [Section, string][]; showLogs(s: LogSource): void}) {
   const t = useT()
   const feed = useOverviewFeed(sid, host.id, visible)
+  useAlerts(sid, host, feed, visible)
   const [k8sCtx, setK8sCtx] = useState('') // the cluster the Kubernetes tab uses: the Logs tab lists its pods
   const [k8sNs, setK8sNs] = useState('') // and the namespaces it shows: a login that may not list the cluster has pods only there
   // once opened, the Kubernetes tab stays (hidden) while another section is open: its connection steps, view and filters are not done again
@@ -106,7 +141,9 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
             {section === 'maintenance' && <Maintenance sid={sid} />}
             {section === 'security' && <Security sid={sid} />}
-            {section === 'users' && <Users sid={sid} />}
+            {section === 'network' && <Network sid={sid} visible={visible} />}
+            {section === 'database' && <Database sid={sid} />}
+            {section === 'users' && <Users sid={sid} host={host} />}
             {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
           </div>
         </>
@@ -501,6 +538,47 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   )
 }
 
+function FirewallRules({sid, sshPort, rules, active, onChanged}: {sid: string; sshPort: number; rules: ServerPorts['rules']; active: boolean; onChanged(): void}) {
+  const be = useBackend()
+  const t = useT()
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [port, setPort] = useState('')
+  const [proto, setProto] = useState<'' | 'tcp' | 'udp'>('tcp')
+  const n = Number(port)
+  const valid = Number.isInteger(n) && n >= 1 && n <= 65535
+  const spec = (p: number, pr: string) => (pr ? p + '/' + pr : String(p))
+  const open = async () => {
+    if (!(await confirm(t('Open port {port} to everyone?', {port: spec(n, proto)}), {confirmLabel: t('Open port')}))) return
+    try { await be.server.firewallAllow(sid, n, proto); toast.info(t('{name}: done', {name: spec(n, proto)})); setPort('') } catch (e) { toast.error(errMsg(e)) }
+    onChanged()
+  }
+  const close = async (r: ServerPorts['rules'][number]) => {
+    if (!(await confirm(t('Close port {port}? Nothing new can reach it from outside.', {port: spec(r.port, r.proto)}), {confirmLabel: t('Close port'), danger: true}))) return
+    try { await be.server.firewallDelete(sid, r.port, r.proto); toast.info(t('{name}: done', {name: spec(r.port, r.proto)})) } catch (e) { toast.error(errMsg(e)) }
+    onChanged()
+  }
+  return (
+    <section className="sp-card sp-wide" aria-label={t('Firewall rules')}>
+      <div className="sp-card-head"><h3>{t('Firewall rules')}</h3></div>
+      {!active && <div className="sp-note">{t('The firewall is off: these rules apply once it is turned on (in the terminal).')}</div>}
+      <div className="sp-table"><table>
+        <thead><tr><th>{t('Port')}</th><th>{t('Protocol')}</th><th /></tr></thead>
+        <tbody>{rules.map(r => (
+          <tr key={spec(r.port, r.proto)}><td className="m">{r.port}</td><td className="m">{r.proto || t('tcp and udp')}</td>
+            <td><div className="sp-acts">{r.port === sshPort ? <span className="sp-note">{t('SSH of this connection')}</span> : <button className="danger" aria-label={t('Close port {port}', {port: spec(r.port, r.proto)})} onClick={() => void close(r)}>{t('Close port')}</button>}</div></td></tr>
+        ))}</tbody>
+      </table>{rules.length === 0 && <div className="sp-empty">{t('No allow rules.')}</div>}</div>
+      <div className="sp-acts">
+        <input className="control narrow" type="number" min={1} max={65535} aria-label={t('Port')} placeholder={t('Port')} value={port} onChange={e => setPort(e.target.value)} />
+        <Select className="inline" label={t('Protocol')} value={proto} onChange={v => setProto(v as '' | 'tcp' | 'udp')} options={[{value: 'tcp', label: 'tcp'}, {value: 'udp', label: 'udp'}, {value: '', label: t('tcp and udp')}]} />
+        <button className="primary" disabled={!valid} onClick={() => void open()}>{t('Open port')}</button>
+      </div>
+      <div className="sp-note">{t('Only ports for everyone. Rules for one address, and turning the firewall on or off, stay in the terminal.')}</div>
+    </section>
+  )
+}
+
 function Ports({sid, sshPort}: {sid: string; sshPort: number}) {
   const be = useBackend()
   const t = useT()
@@ -524,7 +602,7 @@ function Ports({sid, sshPort}: {sid: string; sshPort: number}) {
           ))}
         </tbody>
       </table>{data && data.ports.length === 0 && <div className="sp-empty">{t('No listening ports found.')}</div>}</div>
-      <div className="sp-note">{t('The firewall is only shown here. To change it, use the terminal.')}</div>
+      {data && data.firewall !== 'unknown' && <FirewallRules sid={sid} sshPort={sshPort} rules={data.rules} active={data.firewall === 'active'} onChanged={reload} />}
       {exposed.length > 0 && <div className="sp-note">{t('Open to the outside: {ports}. Limit them by address or put them behind a web server if they should not be public.', {ports: exposed.map(p => p.port).join(', ')})}</div>}
     </div>
   )

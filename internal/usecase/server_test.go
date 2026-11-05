@@ -348,3 +348,179 @@ deploy                                                     **Never logged in**
 		t.Fatalf("%+v", u.Sessions)
 	}
 }
+
+func TestServerAdminChecksBeforeItTouchesTheServer(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	sid, cmds := h.serverSession(t, func(cmd string) (string, string, int) { return "", "", 0 })
+	x, err := h.app.Server.get(sid)
+	if err != nil || x.login == "" || x.sshPort == 0 {
+		t.Fatalf("%+v %v", x, err)
+	}
+	good := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl laptop"
+	fp := "SHA256:" + strings.Repeat("a", 43)
+	before := len(*cmds)
+	for _, bad := range []string{"", "Root", "a b", "x;reboot", "$(id)", "-rf", "a/b"} {
+		if _, err := h.app.Server.SSHKeys(sid, bad); err == nil {
+			t.Fatalf("%q accepted for keys", bad)
+		}
+		if err := h.app.Server.AddSSHKey(sid, bad, good); err == nil {
+			t.Fatalf("%q accepted for a new key", bad)
+		}
+		if err := h.app.Server.RemoveSSHKey(sid, bad, fp); err == nil {
+			t.Fatalf("%q accepted for a key removal", bad)
+		}
+		if err := h.app.Server.AddUser(sid, bad, false); err == nil {
+			t.Fatalf("%q accepted as a new account", bad)
+		}
+		if err := h.app.Server.DeleteUser(sid, bad, true); err == nil {
+			t.Fatalf("%q accepted for deletion", bad)
+		}
+	}
+	for _, key := range []string{"", "not a key", good + "\nssh-rsa AAAA x", "command=\"rm -rf /\" " + good, "ssh-ed25519 AAAA$(id)"} {
+		if err := h.app.Server.AddSSHKey(sid, "deploy", key); err == nil {
+			t.Fatalf("%q accepted as a key", key)
+		}
+	}
+	for _, f := range []string{"", "SHA256:short", fp + ";id", "MD5:aa"} {
+		if err := h.app.Server.RemoveSSHKey(sid, "deploy", f); err == nil {
+			t.Fatalf("%q accepted as a fingerprint", f)
+		}
+	}
+	for _, p := range []int{0, -1, 65536} {
+		if err := h.app.Server.FirewallAllow(sid, p, "tcp"); err == nil {
+			t.Fatalf("port %d accepted", p)
+		}
+	}
+	if err := h.app.Server.FirewallAllow(sid, 80, "icmp"); err == nil {
+		t.Fatal("a protocol was accepted")
+	}
+	if err := h.app.Server.FirewallDelete(sid, x.sshPort, "tcp"); err == nil {
+		t.Fatal("the SSH port of the connection can be closed")
+	}
+	if err := h.app.Server.DeleteUser(sid, "root", false); err == nil {
+		t.Fatal("root can be deleted")
+	}
+	if err := h.app.Server.DeleteUser(sid, x.login, false); err == nil {
+		t.Fatal("the account of the panel can be deleted")
+	}
+	if err := h.app.Server.SetSudo(sid, x.login, false); err == nil {
+		t.Fatal("the account of the panel can lose sudo")
+	}
+	if _, err := h.app.Server.CertRenew(sid, "a b;id", false); err == nil {
+		t.Fatal("an odd certificate name was accepted")
+	}
+	for _, w := range []string{"", "* * *", "0 3 * * * rm", "$(id) * * * *", "0 3 * * *; id"} {
+		if err := h.app.Server.CronAdd(sid, w, "echo hi"); err == nil {
+			t.Fatalf("%q accepted as a schedule", w)
+		}
+	}
+	for _, c := range []string{"", "echo a\nrm -rf /", strings.Repeat("x", 501)} {
+		if err := h.app.Server.CronAdd(sid, "0 3 * * *", c); err == nil {
+			t.Fatalf("%q accepted as a command", c)
+		}
+	}
+	if err := h.app.Server.CronRemove(sid, "a\nb"); err == nil {
+		t.Fatal("a two-line removal was accepted")
+	}
+	if len(*cmds) != before {
+		t.Fatalf("a refused call reached the server: %v", (*cmds)[before:])
+	}
+}
+
+func TestServerAdminRunsFixedCommands(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	sid, cmds := h.serverSession(t, func(cmd string) (string, string, int) {
+		if strings.Contains(cmd, "ssh-keygen -lf /dev/stdin 2>/dev/null\ndone") {
+			return "256 SHA256:" + strings.Repeat("b", 43) + " me@laptop (ED25519)\n", "", 0
+		}
+		return "", "", 0
+	})
+	keys, err := h.app.Server.SSHKeys(sid, "deploy")
+	if err != nil || len(keys) != 1 || keys[0].Type != "ED25519" || keys[0].Comment != "me@laptop" {
+		t.Fatalf("%+v %v", keys, err)
+	}
+	if err := h.app.Server.FirewallAllow(sid, 8080, "tcp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.FirewallDelete(sid, 8080, "tcp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.AddUser(sid, "deploy", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.CronAdd(sid, "0 3 * * *", "/usr/local/bin/backup.sh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.app.Server.CertRenew(sid, "example.com", true); err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(*cmds, "\n")
+	for _, want := range []string{"ufw allow 8080/tcp", "ufw delete allow 8080/tcp", "useradd -m -s /bin/bash deploy", "certbot renew --cert-name example.com --dry-run", "crontab \"$tmp\""} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("%q was not run:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "backup.sh") {
+		t.Fatal("the cron command is on the command line: it must travel on the standard input")
+	}
+}
+
+func TestParseNetworkAndDatabases(t *testing.T) {
+	n := parseNetworkPage(`##dev
+Inter-|   Receive                                                |  Transmit
+    lo: 100 1 0 0 0 0 0 0 100 1 0 0 0 0 0 0
+  eth0: 5000 10 0 0 0 0 0 0 7000 12 0 0 0 0 0 0
+##addr
+1: lo    inet 127.0.0.1/8 scope host lo
+2: eth0    inet 10.0.0.2/24 brd 10.0.0.255 scope global eth0
+2: eth0    inet6 fe80::1/64 scope link
+2: eth0    inet6 2001:db8::2/64 scope global
+##conn
+0      0      10.0.0.2:22      203.0.113.7:50000 users:(("sshd",pid=10,fd=4))
+0      0      10.0.0.2:443     198.51.100.2:41000
+`)
+	if len(n.Ifaces) != 1 || n.Ifaces[0].RX != 5000 || n.Ifaces[0].TX != 7000 || len(n.Ifaces[0].Addrs) != 2 {
+		t.Fatalf("%+v", n.Ifaces)
+	}
+	if n.Total != 2 || n.Conns[0].Process != "sshd" || n.Conns[1].Process != "" || n.Conns[0].Remote != "203.0.113.7:50000" {
+		t.Fatalf("%+v", n)
+	}
+	d := parseDatabases(`##postgres
+version=16.2
+conns=7
+max=100
+db=app|52428800
+db=postgres|8000000
+##redis
+r_redis_version=7.2.4
+r_connected_clients=3
+r_used_memory_human=1.50M
+`)
+	if len(d.Engines) != 2 || d.Engines[0].Kind != "postgres" || d.Engines[0].Connections != 7 || d.Engines[0].MaxConns != 100 || len(d.Engines[0].Databases) != 2 || d.Engines[0].Databases[0].Bytes != 52428800 {
+		t.Fatalf("%+v", d)
+	}
+	if d.Engines[1].Version != "7.2.4" || d.Engines[1].Memory != "1.50M" {
+		t.Fatalf("%+v", d.Engines[1])
+	}
+	if e := parseDatabases("##mysql\nversion=\nconns=\n").Engines; len(e) != 1 || e[0].Reachable {
+		t.Fatalf("a database that did not answer is not reachable: %+v", e)
+	}
+}
+
+func TestParsePortsRules(t *testing.T) {
+	p := parsePorts(`##ss
+LISTEN 0 128 0.0.0.0:22 0.0.0.0:*
+##ufw
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+80                         ALLOW       Anywhere
+8080/tcp                   ALLOW       10.0.0.5
+22/tcp (v6)                ALLOW       Anywhere (v6)
+`)
+	if len(p.Rules) != 2 || p.Rules[0] != (ServerRule{Port: 22, Proto: "tcp"}) || p.Rules[1] != (ServerRule{Port: 80}) {
+		t.Fatalf("%+v", p.Rules)
+	}
+}

@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerKey, ServerNetwork, ServerDatabases, ServerUsers, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -67,6 +67,9 @@ export interface Fake extends Backend {
       folders: Record<string, ServerFolder[]>
       security: ServerSecurity
       users: ServerUsers
+      keys: Record<string, ServerKey[]>
+      network: ServerNetwork
+      databases: ServerDatabases
       schedule: ServerSchedule
       backup: ServerBackup
       /** what fleetHost answers per host id: an error text means the host did not answer */
@@ -190,13 +193,16 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp', project: 'shop'}, {id: 'c3', name: 'db', image: 'postgres:16', state: 'running', status: 'Up 2 hours', ports: '', project: 'shop'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: '', project: ''}]},
       dockerObjects: {images: [{id: 'aa11bb22', name: 'registry/api:1.8', size: '210MB', created: '2 days ago', in_use: true}, {id: 'cc33dd44', name: '<none>', size: '95MB', created: '1 month ago', in_use: false}], volumes: [{name: 'pgdata', driver: 'local', in_use: true}, {name: 'old-cache', driver: 'local', in_use: false}], networks: [{id: 'n1', name: 'bridge', driver: 'bridge', scope: 'local'}, {id: 'n2', name: 'shop_default', driver: 'bridge', scope: 'local'}]},
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
-      ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}]},
+      ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}], rules: [{port: 22, proto: 'tcp'}, {port: 80, proto: ''}]},
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
       cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
       folders: {'/var': [{path: '/var/lib', size: 12 * GB}, {path: '/var/log', size: 2 * GB}], '/var/lib': [{path: '/var/lib/docker', size: 10 * GB}]},
+      keys: {root: [{fingerprint: 'SHA256:' + 'a'.repeat(43), type: 'ED25519', comment: 'me@laptop'}, {fingerprint: 'SHA256:' + 'b'.repeat(43), type: 'RSA', comment: 'old-ci'}]},
+      network: {ifaces: [{name: 'eth0', addrs: ['10.0.0.2/24', '2001:db8::2/64'], rx: 5_000_000_000, tx: 1_200_000_000}], conns: [{process: 'sshd', local: '10.0.0.2:22', remote: '203.0.113.7:50000'}, {process: '', local: '10.0.0.2:443', remote: '198.51.100.2:41000'}], total: 2},
+      databases: {engines: [{kind: 'postgres', version: '16.2', reachable: true, connections: 7, max_connections: 100, memory: '', databases: [{name: 'app', bytes: 52428800}]}, {kind: 'redis', version: '7.2.4', reachable: true, connections: 3, max_connections: 10000, memory: '1.50M', databases: []}]},
       users: {users: [{name: 'root', uid: 0, home: '/root', shell: '/bin/bash', sudo: true, keys: 1, login: 'Thu Nov  5 09:00:00 +0700 2026'}, {name: 'deploy', uid: 1001, home: '/home/deploy', shell: '/bin/bash', sudo: false, keys: -1, login: ''}], sessions: [{user: 'root', tty: 'pts/0', since: '2026-11-05 09:00', from: '203.0.113.7'}]},
       security: {fail2ban: {installed: true, running: true, jails: [{name: 'sshd', banned: 2, total_banned: 41, ips: ['203.0.113.5', '198.51.100.7']}]}, ssh: {known: true, port: 22, root_login: 'yes', password_auth: 'yes'}, failed: {known: true, total: 240, top: [{ip: '203.0.113.9', count: 180}]}},
       schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}]},
@@ -585,7 +591,56 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         else state.server.dockerObjects.volumes = state.server.dockerObjects.volumes.filter(v => v.name !== id)
       },
       logs: async (sid, kind, name, opts) => { rec('server.logs', kind, name, ...(opts ? [opts] : [])); return state.server.logs },
-      ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),
+      ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p})), rules: state.server.ports.rules.map(r => ({...r}))}),
+      sshKeys: async (sid, user) => (state.server.keys[user] ?? []).map(k => ({...k})),
+      addSshKey: async (sid, user, key) => {
+        rec('server.addSshKey', user, key)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.keys[user] = [...(state.server.keys[user] ?? []), {fingerprint: 'SHA256:' + 'c'.repeat(43), type: 'ED25519', comment: key.split(' ')[2] ?? ''}]
+      },
+      removeSshKey: async (sid, user, fp) => {
+        rec('server.removeSshKey', user, fp)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.keys[user] = (state.server.keys[user] ?? []).filter(k => k.fingerprint !== fp)
+      },
+      addUser: async (sid, name, sudo) => {
+        rec('server.addUser', name, sudo)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users = {...state.server.users, users: [...state.server.users.users, {name, uid: 1100, home: '/home/' + name, shell: '/bin/bash', sudo, keys: 0, login: ''}]}
+      },
+      setSudo: async (sid, name, on) => {
+        rec('server.setSudo', name, on)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users = {...state.server.users, users: state.server.users.users.map(u => (u.name === name ? {...u, sudo: on} : u))}
+      },
+      deleteUser: async (sid, name, home) => {
+        rec('server.deleteUser', name, home)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users = {...state.server.users, users: state.server.users.users.filter(u => u.name !== name)}
+      },
+      firewallAllow: async (sid, port, proto) => {
+        rec('server.firewallAllow', port, proto)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.ports = {...state.server.ports, rules: [...state.server.ports.rules, {port, proto}]}
+      },
+      firewallDelete: async (sid, port, proto) => {
+        rec('server.firewallDelete', port, proto)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.ports = {...state.server.ports, rules: state.server.ports.rules.filter(r => !(r.port === port && r.proto === proto))}
+      },
+      certRenew: async (sid, name, dry) => { rec('server.certRenew', name, dry); if (state.server.failAction) throw state.server.failAction; return 'Congratulations, all simulated renewals succeeded' },
+      cronAdd: async (sid, when, command) => {
+        rec('server.cronAdd', when, command)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.schedule = {...state.server.schedule, cron: [...state.server.schedule.cron, {source: 'crontab', user: '', schedule: when, command}]}
+      },
+      cronRemove: async (sid, line) => {
+        rec('server.cronRemove', line)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.schedule = {...state.server.schedule, cron: state.server.schedule.cron.filter(c => c.schedule + ' ' + c.command !== line)}
+      },
+      network: async () => JSON.parse(JSON.stringify(state.server.network)),
+      databases: async () => JSON.parse(JSON.stringify(state.server.databases)),
       stackAction: async (sid, project, action) => {
         rec('server.stackAction', project, action)
         if (state.server.failAction) throw state.server.failAction
