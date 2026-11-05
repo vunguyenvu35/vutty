@@ -174,7 +174,7 @@ export function PodDetail({ns, name}: {ns: string; name: string}) {
   const k = useK8s()
   const t = useT()
   const load = useCallback(() => k.be.server.k8sPod(k.sid, k.ctx, ns, name), [k.be, k.sid, k.ctx, ns, name])
-  const {data: d, error, busy, reload} = useKLoad<K8sPodDetail>(load, false)
+  const {data: d, error, busy, reload} = useKLoad<K8sPodDetail>(load, true)
   const del = useDeletePod(() => k.open(null))
   const back = <Crumb path={[t('Pods'), ns, name]} onBack={() => k.open(null)} />
   if (!d) return <div className="sp-view"><Toolbar busy={busy} onReload={reload}>{back}</Toolbar><Err error={error} />{!error && <Loading kind="detail" />}</div>

@@ -336,6 +336,8 @@ export default {
   "Previous container": "以前のコンテナー",
   "Timestamps": "タイムスタンプ",
   "This login may not read the nodes of the cluster.": "このログインではクラスターのノードを読み取れません。",
+  "nodes the pods run on": "Pod が動いているノード",
+  "{n} pods": "{n} Pod",
   "Needs the nodes: this login may not read them.": "ノードが必要です: このログインでは読み取れません。",
   "That is not a namespace name: lowercase letters, digits and -.": "名前空間の名前ではありません: 小文字、数字、- のみ使えます。",
   "Namespace name": "名前空間の名前",

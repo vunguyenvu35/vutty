@@ -264,6 +264,12 @@ type K8sAttention struct {
 	Text      string `json:"text"`
 }
 
+// K8sNodeSeen is a node known only by the pods that run on it.
+type K8sNodeSeen struct {
+	Name string `json:"name"`
+	Pods int    `json:"pods"`
+}
+
 type K8sOverview struct {
 	ServerVersion string `json:"server_version"`
 	Nodes         struct {
@@ -280,7 +286,9 @@ type K8sOverview struct {
 	// Capacity is what the cluster can hold and how much of it is taken, as the Capacity boxes of Rancher show it.
 	Capacity K8sCapacity `json:"capacity"`
 	// NodesHidden is true when the login may not read the nodes (they are cluster-wide): the node card and the usage are empty.
-	NodesHidden     bool               `json:"nodes_hidden"`
+	NodesHidden bool `json:"nodes_hidden"`
+	// NodesSeen is the nodes the pods run on, with how many pods each holds: what can still be told when the nodes are not readable.
+	NodesSeen       []K8sNodeSeen      `json:"nodes_seen"`
 	CPURequestedPct *float64           `json:"cpu_requested_pct"`
 	MemRequestedPct *float64           `json:"mem_requested_pct"`
 	CPUCores        *float64           `json:"cpu_cores"`
@@ -1878,7 +1886,8 @@ func k8sOverviewFrom(nodesJSON, podsJSON, depsJSON, pvcJSON string, ingresses []
 	pods, err2 := k8sList[kPod](podsJSON)
 	var o K8sOverview
 	o.ServerVersion = version
-	o.Namespaces, o.Attention = []K8sNamespaceStat{}, []K8sAttention{}
+	o.Namespaces, o.Attention, o.NodesSeen = []K8sNamespaceStat{}, []K8sAttention{}, []K8sNodeSeen{}
+	seen := map[string]int{}
 	if err1 != nil {
 		return o, err1
 	}
@@ -1911,6 +1920,9 @@ func k8sOverviewFrom(nodesJSON, podsJSON, depsJSON, pvcJSON string, ingresses []
 		p := &pods[i]
 		kp := k8sPodFrom(p, "", now)
 		o.Pods.Total++
+		if p.Spec.NodeName != "" && p.Status.Phase != "Succeeded" && p.Status.Phase != "Failed" {
+			seen[p.Spec.NodeName]++
+		}
 		s := stats[kp.Namespace]
 		if s == nil {
 			s = &K8sNamespaceStat{Name: kp.Namespace}
@@ -1947,6 +1959,10 @@ func k8sOverviewFrom(nodesJSON, podsJSON, depsJSON, pvcJSON string, ingresses []
 	for _, s := range stats {
 		o.Namespaces = append(o.Namespaces, *s)
 	}
+	for name, n := range seen {
+		o.NodesSeen = append(o.NodesSeen, K8sNodeSeen{name, n})
+	}
+	sort.Slice(o.NodesSeen, func(i, j int) bool { return o.NodesSeen[i].Name < o.NodesSeen[j].Name })
 	sort.Slice(o.Namespaces, func(i, j int) bool {
 		a, b := o.Namespaces[i], o.Namespaces[j]
 		if a.NotReady != b.NotReady {

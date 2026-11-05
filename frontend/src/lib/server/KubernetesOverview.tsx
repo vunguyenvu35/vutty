@@ -33,7 +33,19 @@ export function KubernetesOverview() {
       <Err error={error} />
       <div className="sp-grid">
         <div className="sp-card"><h3>{t('Nodes')}</h3>
-          {o.nodes_hidden ? <div className="sp-note">{t('This login may not read the nodes of the cluster.')}</div> : <><div className="sp-big">{o.nodes.ready} / {o.nodes.total}</div><div className="sp-note">{t('ready · {n} cordoned', {n: o.nodes.cordoned})}</div></>}
+          {o.nodes_hidden ? <>
+            <div className="k8s-seen-head"><span className="sp-big">{(o.nodes_seen ?? []).length}</span><span className="sp-note">{t('nodes the pods run on')}</span></div>
+            <div className="k8s-seen-hint">{t('This login may not read the nodes of the cluster.')}</div>
+            <ul className="k8s-seen">
+              {(o.nodes_seen ?? []).map(n => (
+                <li key={n.name}><button className="k8s-seen-row" title={n.name} onClick={() => k.go('pods', n.name)}>
+                  <span className="k8s-seen-name">{n.name.split('.')[0]}</span>
+                  <span className="k8s-seen-bar"><i style={{width: Math.max(4, n.pods / Math.max(...(o.nodes_seen ?? []).map(x => x.pods), 1) * 100) + '%'}} /></span>
+                  <b>{n.pods}</b>
+                </button></li>
+              ))}
+            </ul>
+          </> : <><div className="sp-big">{o.nodes.ready} / {o.nodes.total}</div><div className="sp-note">{t('ready · {n} cordoned', {n: o.nodes.cordoned})}</div></>}
         </div>
         <div className="sp-card"><h3>{t('Pods')}</h3><div className="sp-big">{o.pods.running} / {o.pods.total}</div><div className="sp-note">{t('running · {pending} pending · {failing} failing', {pending: o.pods.pending, failing: o.pods.failing})}</div></div>
       </div>

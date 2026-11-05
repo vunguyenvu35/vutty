@@ -84,7 +84,7 @@ export function Workloads() {
   const [scaling, setScaling] = useState<K8sWorkload | null>(null)
   const act = useWorkloadActions()
   const load = useCallback(() => k.be.server.k8sWorkloads(k.sid, k.ctx, k.ns), [k.be, k.sid, k.ctx, k.ns])
-  const {data, error, busy, reload} = useKLoad<K8sWorkloads>(load, false)
+  const {data, error, busy, reload} = useKLoad<K8sWorkloads>(load, true)
   const {th, apply} = useSort<WSort>(['name', 'image', 'schedule', 'result'])
   const all = data?.items ?? []
   const label: Record<Kind, string> = {Deployment: t('Deployments'), StatefulSet: t('StatefulSets'), DaemonSet: t('DaemonSets'), Job: t('Jobs'), CronJob: t('CronJobs')}
@@ -148,7 +148,7 @@ export function DeploymentDetail({ns, name}: {ns: string; name: string}) {
   const act = useWorkloadActions()
   const [scaling, setScaling] = useState(false)
   const load = useCallback(() => k.be.server.k8sDeployment(k.sid, k.ctx, ns, name), [k.be, k.sid, k.ctx, ns, name])
-  const {data: d, error, busy, reload} = useKLoad<K8sDeployment>(load, false)
+  const {data: d, error, busy, reload} = useKLoad<K8sDeployment>(load, true)
   const back = <Crumb path={[t('Workloads'), t('Deployments'), `${ns} / ${name}`]} onBack={() => k.open(null)} />
   if (!d) return <div className="sp-view"><Toolbar busy={busy} onReload={reload}>{back}</Toolbar><Err error={error} />{!error && <Loading kind="detail" />}</div>
   const w = d.workload

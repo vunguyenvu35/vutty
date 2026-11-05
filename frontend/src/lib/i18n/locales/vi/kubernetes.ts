@@ -336,6 +336,8 @@ export default {
   "Previous container": "Container trước đó",
   "Timestamps": "Dấu thời gian",
   "This login may not read the nodes of the cluster.": "Tài khoản này không được đọc các node của cluster.",
+  "nodes the pods run on": "node đang chạy pod",
+  "{n} pods": "{n} pod",
   "Needs the nodes: this login may not read them.": "Cần đọc node: tài khoản này không được phép.",
   "That is not a namespace name: lowercase letters, digits and -.": "Đó không phải tên namespace: chỉ gồm chữ thường, số và dấu -.",
   "Namespace name": "Tên namespace",

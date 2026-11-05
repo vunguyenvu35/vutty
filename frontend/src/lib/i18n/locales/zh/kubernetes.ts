@@ -336,6 +336,8 @@ export default {
   "Previous container": "上一个容器",
   "Timestamps": "时间戳",
   "This login may not read the nodes of the cluster.": "此登录无权读取集群的节点。",
+  "nodes the pods run on": "运行 Pod 的节点",
+  "{n} pods": "{n} 个 Pod",
   "Needs the nodes: this login may not read them.": "需要节点信息：此登录无权读取。",
   "That is not a namespace name: lowercase letters, digits and -.": "这不是有效的命名空间名称：只能包含小写字母、数字和 -。",
   "Namespace name": "命名空间名称",

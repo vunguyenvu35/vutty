@@ -724,6 +724,8 @@ export interface K8sOverview {
   pods: {total: number; running: number; pending: number; failing: number}
   /** the login may not read the nodes (they are cluster-wide): the node and usage cards are empty */
   nodes_hidden?: boolean
+  /** the nodes the pods run on, with their pod count: what is known when the nodes are not readable */
+  nodes_seen?: {name: string; pods: number}[]
   cpu_requested_pct: number | null; mem_requested_pct: number | null; cpu_cores: number | null; mem_gib: number | null
   namespaces: {name: string; pods: number; not_ready: number; restarts: number}[]
   attention: {severity: 'bad' | 'warn'; kind: 'pod' | 'node' | 'deployment' | 'ingress' | 'pvc'; namespace: string; name: string; text: string}[]

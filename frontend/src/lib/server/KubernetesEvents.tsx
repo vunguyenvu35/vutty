@@ -29,7 +29,7 @@ export function Events() {
         <span className="sp-note">{t('Newest first, last hour')}</span>
       </Toolbar>
       <Err error={error} />
-      <div className="sp-table"><table>
+      <div className="sp-table k8s-wrap"><table>
         <thead><tr>{th('age', t('Last seen'), 'n')}{th('reason', t('Reason'))}{th('object', t('Object'))}<th>{t('Message')}</th>{th('count', t('Count'), 'n')}</tr></thead>
         <tbody>{rows.map((e, i) => (
           <tr key={i}>
