@@ -1,6 +1,7 @@
 export default {
   "Fleet": "Đội máy chủ",
   "Filter servers": "Lọc máy chủ",
+  "Clear filter": "Xóa bộ lọc",
   "{up} of {n} servers answered": "{up}/{n} máy chủ đã trả lời",
   "Check all servers again": "Kiểm tra lại tất cả máy chủ",
   "Check again": "Kiểm tra lại",

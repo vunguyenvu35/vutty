@@ -1,6 +1,7 @@
 export default {
   "Fleet": "サーバー一覧",
   "Filter servers": "サーバーを絞り込む",
+  "Clear filter": "フィルターをクリア",
   "{up} of {n} servers answered": "{n} 台中 {up} 台が応答しました",
   "Check all servers again": "すべてのサーバーを再確認",
   "Check again": "再確認",

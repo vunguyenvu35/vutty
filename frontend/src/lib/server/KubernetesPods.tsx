@@ -5,8 +5,8 @@ import {useConfirm} from '../ui/Confirm'
 import {usePref} from '../ui/ListTools'
 import {Select} from '../ui/Select'
 import {IconChevron} from '../ui/Icons'
-import {Card, Err, Loading, Toolbar} from './shared'
-import {ActBtn, age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
+import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
+import {ActBtn, age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort, useMenuAnchor} from './KubernetesShared'
 import type {K8sPod, K8sPodDetail} from '../types'
 
 type PodSort = 'name' | 'status' | 'ready' | 'restarts' | 'node' | 'age'
@@ -56,8 +56,7 @@ export const useCanOpenShell = () => { const k = useK8s(); return !!(k.direct ? 
 export function ShellButton({pod}: {pod: K8sPod}) {
   const k = useK8s()
   const t = useT()
-  const btn = useRef<HTMLButtonElement>(null)
-  const [at, setAt] = useState<{left: number; top: number} | null>(null)
+  const {btn, menu, at, setAt, toggle, style: menuStyle} = useMenuAnchor()
   const id = 'shell:' + pod.namespace + '/' + pod.name
   const own = pod.containers.filter(c => !c.init)
   const usable = own.filter(c => c.running)
@@ -73,8 +72,7 @@ export function ShellButton({pod}: {pod: K8sPod}) {
   const start = (container: string) => { setAt(null); startShell(pod, container) }
   const click = () => {
     if (own.length <= 1) { start(usable[0]?.name ?? ''); return }
-    const r = btn.current?.getBoundingClientRect()
-    setAt(a => (a ? null : {left: Math.max(8, (r?.right ?? 300) - 300), top: (r?.bottom ?? 0) + 4}))
+    toggle()
   }
   const none = usable.length === 0
   return (
@@ -84,7 +82,7 @@ export function ShellButton({pod}: {pod: K8sPod}) {
         title={!k.can('exec') ? t('This login may not open a shell in pods') : none ? t('Needs a running container: this pod has none') : !(k.direct ? k.onPodShell : k.onShell) ? t('A terminal cannot be opened from here') : undefined}
         onClick={click}>{own.length > 1 ? t('Shell ▾') : t('Shell')}</button>
       {at && createPortal(
-        <div className="k8s-menu" role="menu" aria-label={t('Open a shell in {name}', {name: pod.name})} style={{left: at.left, top: at.top}}>
+        <div ref={menu} className="k8s-menu" role="menu" aria-label={t('Open a shell in {name}', {name: pod.name})} style={menuStyle}>
           <h4>{t('Containers of {name}', {name: pod.name})}</h4>
           {pod.containers.map(c => (
             <button key={c.name} role="menuitem" className="k8s-mi" disabled={c.init || !c.running} onClick={() => start(c.name)}>
@@ -141,7 +139,7 @@ export function KubernetesPods({seed}: {seed: string}) {
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}>
-        <input className="sp-filter" aria-label={t('Filter pods')} placeholder={t('Filter pods')} value={filter} onChange={e => setFilter(e.target.value)} />
+        <FilterInput label={t('Filter pods')} placeholder={t('Filter pods')} value={filter} onChange={setFilter} />
         <button aria-pressed={problems} className={problems ? 'primary' : ''} onClick={() => setProblems(!problems)}>{t('Problems only')}</button>
         <Select className="sp-pick" label={t('Group by')} value={groupBy} onChange={v => setGroupBy(v as PodGroup)}
           options={[{value: 'node', label: t('Group by node')}, {value: 'namespace', label: t('Group by namespace')}, {value: 'workload', label: t('Group by workload')}, {value: 'none', label: t('No groups')}]} />

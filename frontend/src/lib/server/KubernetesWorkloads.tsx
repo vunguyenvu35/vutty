@@ -3,7 +3,7 @@ import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {Modal} from '../ui/Modal'
 import {useToast} from '../ui/Toast'
-import {Card, Err, Loading, Toolbar} from './shared'
+import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
 import {ActBtn, age, Crumb, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
 import {WorkloadMenu} from './KubernetesWorkloadMenu'
 import type {K8sDeployment, K8sWorkload, K8sWorkloads} from '../types'
@@ -111,7 +111,7 @@ export function Workloads() {
         {KINDS.map(x => <button key={x} role="tab" aria-selected={kind === x} onClick={() => setKind(x)}>{label[x]}<em>{all.filter(w => w.kind === x).length}</em></button>)}
       </div>
       <Toolbar busy={busy} onReload={reload}>
-        <input className="sp-filter" aria-label={t('Filter workloads')} placeholder={t('Filter workloads')} value={filter} onChange={e => setFilter(e.target.value)} />
+        <FilterInput label={t('Filter workloads')} placeholder={t('Filter workloads')} value={filter} onChange={setFilter} />
       </Toolbar>
       <Err error={error} />
       <div className="sp-table"><table>

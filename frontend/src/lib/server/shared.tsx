@@ -9,6 +9,17 @@ import {authenticity} from '../sftp/RemotePane'
 import {errMsg} from '../util'
 import type {AuthChallenge, Host, HostKeyPrompt} from '../types'
 
+/** A filter box with a × that empties it (only while there is something to clear) */
+export function FilterInput({value, onChange, label, placeholder, invalid, className = ''}: {value: string; onChange(v: string): void; label: string; placeholder?: string; invalid?: boolean; className?: string}) {
+  const t = useT()
+  return (
+    <span className={'sp-filter sp-filter-box ' + className}>
+      <input aria-label={label} placeholder={placeholder} aria-invalid={invalid || undefined} value={value} onChange={e => onChange(e.target.value)} />
+      {value !== '' && <button type="button" className="sp-filter-clear" aria-label={t('Clear filter')} title={t('Clear filter')} onClick={e => { onChange(''); e.currentTarget.previousElementSibling instanceof HTMLInputElement && e.currentTarget.previousElementSibling.focus() }}>×</button>}
+    </span>
+  )
+}
+
 let seq = 0
 
 export interface ServerConnection {
@@ -209,7 +220,7 @@ export function Card({title, children, right, collapsible = false, closed: close
               <span className={'k8s-chev' + (closed ? '' : ' open')}><IconChevron size={12} /></span><h3>{title}</h3>{count !== undefined && <small className="sp-count">{count}</small>}
             </button>
           : <h3>{title}</h3>}
-        {filter && !closed && <input className="sp-filter sp-card-filter" aria-label={filter.label} placeholder={t('Search')} value={filter.value} onChange={e => filter.onChange(e.target.value)} />}
+        {filter && !closed && <FilterInput className="sp-card-filter" label={filter.label} placeholder={t('Search')} value={filter.value} onChange={filter.onChange} />}
         {right}
       </div>
       {!closed && children}

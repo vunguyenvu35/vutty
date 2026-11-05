@@ -3,7 +3,7 @@ import {useT} from '../i18n'
 import {IconCopy, IconDownload} from '../ui/Icons'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
-import {Err, Toolbar} from './shared'
+import {Err, Toolbar, FilterInput} from './shared'
 import {Crumb, useK8s, useKLoad, type K8sPage} from './KubernetesShared'
 
 type YamlPage = Extract<K8sPage, {k: 'yaml'}>
@@ -53,7 +53,7 @@ export function YamlPage({page}: {page: YamlPage}) {
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}><Crumb path={[t('Back'), page.label, t('YAML')]} onBack={() => k.open(page.back)} /></Toolbar>
       <div className="sp-bar">
-        <input className="sp-filter" aria-label={t('Find in YAML')} placeholder={t('Find in YAML')} value={q} onChange={e => setQ(e.target.value)} />
+        <FilterInput label={t('Find in YAML')} placeholder={t('Find in YAML')} value={q} onChange={setQ} />
         <span className="sp-note" role="status">{find ? t('{n} lines match', {n: hits}) : t('read-only · {cmd}', {cmd})}</span>
         <span className="sp-acts k8s-grow">
           <button disabled={!data} onClick={() => void copy()}><IconCopy size={14} /> {t('Copy')}</button>

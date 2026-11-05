@@ -7,7 +7,7 @@ import {IconDownload, IconTerminal} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction} from './shared'
+import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Web} from './Web'
@@ -231,7 +231,7 @@ function Processes({sid, visible}: {sid: string; visible: boolean}) {
   }
   return (
     <div className="sp-view">
-      <Bar2 busy={busy} onReload={reload}><input className="sp-filter" aria-label={t('Filter processes')} placeholder={t('Filter processes')} value={filter} onChange={e => setFilter(e.target.value)} /></Bar2>
+      <Bar2 busy={busy} onReload={reload}><FilterInput label={t('Filter processes')} placeholder={t('Filter processes')} value={filter} onChange={setFilter} /></Bar2>
       <Err error={error} />
       <div className="sp-table"><table>
         <thead><tr>{th('pid', t('PID'))}{th('command', t('Process'))}{th('user', t('User'))}{th('cpu', t('CPU'), 'n')}{th('mem', t('RAM'), 'n')}<th /></tr></thead>
@@ -280,7 +280,7 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
   }
   return (
     <div className="sp-view">
-      <Bar2 busy={busy} onReload={reload}><input className="sp-filter" aria-label={t('Filter services')} placeholder={t('Filter services')} value={filter} onChange={e => setFilter(e.target.value)} /></Bar2>
+      <Bar2 busy={busy} onReload={reload}><FilterInput label={t('Filter services')} placeholder={t('Filter services')} value={filter} onChange={setFilter} /></Bar2>
       <Err error={error} />
       <div className="sp-table"><table>
         <thead><tr><th>{t('Service')}</th><th>{t('Status')}</th><th>{t('Startup')}</th><th /></tr></thead>
@@ -508,7 +508,7 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   return (
     <div className="sp-view fill">
       <Bar2 busy={busy} onReload={reload}>
-        <input className="sp-filter" aria-label={t('Filter log lines')} placeholder={t('Filter log lines')} aria-invalid={matcher.bad} value={filter} onChange={e => setFilter(e.target.value)} />
+        <FilterInput label={t('Filter log lines')} placeholder={t('Filter log lines')} invalid={matcher.bad} value={filter} onChange={setFilter} />
         <button aria-pressed={regex} className={regex ? 'primary' : ''} title={matcher.bad ? t('Not a valid regular expression') : t('Treat the filter as a regular expression')} onClick={() => setRegex(r => !r)}>.*</button>
         {levels.map(([k, n]) => <button key={k} aria-pressed={lv === k} className={lv === k ? 'primary' : ''} onClick={() => setLv(k)}>{n}</button>)}
         <button aria-pressed={follow} className={follow ? 'primary' : ''} title={t('Reads the log again every 2 seconds and keeps the newest line in view')} onClick={() => { stuck.current = true; setFollow(f => !f) }}>{t('Follow')}</button>

@@ -7,7 +7,7 @@ import {Select} from '../ui/Select'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
 import {Err, Loading} from './shared'
-import {Pill, lockText, useK8s} from './KubernetesShared'
+import {Pill, lockText, useK8s, useMenuAnchor} from './KubernetesShared'
 import {useCanOpenShell, useStartShell} from './KubernetesPods'
 import type {K8sContainerEdit, K8sContainerSpec, K8sEditPreview, K8sPod, K8sWorkload, K8sWorkloadKind} from '../types'
 
@@ -36,8 +36,7 @@ export function WorkloadMenu({w}: {w: Who}) {
   const k = useK8s()
   const t = useT()
   const toast = useToast()
-  const btn = useRef<HTMLButtonElement>(null)
-  const [at, setAt] = useState<{left: number; top: number} | null>(null)
+  const {btn, menu, at, setAt, toggle: open, style: menuStyle} = useMenuAnchor()
   const [dlg, setDlg] = useState<Dlg | null>(null)
   const canShell = useCanOpenShell()
   useEffect(() => {
@@ -48,7 +47,6 @@ export function WorkloadMenu({w}: {w: Who}) {
     window.addEventListener('keydown', esc)
     return () => { document.removeEventListener('mousedown', away); window.removeEventListener('keydown', esc) }
   }, [at])
-  const open = () => { const r = btn.current?.getBoundingClientRect(); setAt(a => (a ? null : {left: Math.max(8, (r?.right ?? 300) - 300), top: (r?.bottom ?? 0) + 4})) }
   const download = () => {
     setAt(null)
     void k.run('download:' + rid(w), async () => { toast.info(t('Saved to {path}', {path: await k.be.server.k8sSaveYAML(k.sid, k.ctx, kindOf(w), w.namespace, w.name)})) })
@@ -64,7 +62,7 @@ export function WorkloadMenu({w}: {w: Who}) {
     <>
       <button ref={btn} aria-haspopup="menu" aria-expanded={!!at} aria-label={t('More actions for {name}', {name: w.name})} title={t('More actions')} onClick={open}>⋮</button>
       {at && createPortal(
-        <div className="k8s-menu" role="menu" aria-label={t('Actions for {name}', {name: w.name})} style={{left: at.left, top: at.top}}>
+        <div ref={menu} className="k8s-menu" role="menu" aria-label={t('Actions for {name}', {name: w.name})} style={menuStyle}>
           <h4>{t('{kind} {name}', {kind: w.kind, name: w.name})}</h4>
           {item('shell', t('Execute shell'), t('A terminal in one of its pods'), {right: 'exec', need: canShell ? '' : t('A terminal cannot be opened from here'), run: show('shell')})}
           {item('show', t('Show configuration'), t('Containers, images, variables, resources'), {run: show('show')})}

@@ -4,6 +4,7 @@ import {useT} from '../i18n'
 import {IconRefresh} from '../ui/Icons'
 import {useMinBusy} from '../ui/useMinBusy'
 import {errMsg} from '../util'
+import {FilterInput} from './shared'
 import {formatUptime, level, pct} from './format'
 import type {Host, ServerFleetHost} from '../types'
 
@@ -84,7 +85,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   return (
     <div className="hosts-page" aria-label={t('Fleet')}>
       <div className="sp-bar">
-        <input className="sp-filter" aria-label={t('Filter servers')} placeholder={t('Filter servers')} value={q} onChange={e => setQ(e.target.value)} />
+        <FilterInput label={t('Filter servers')} placeholder={t('Filter servers')} value={q} onChange={setQ} />
         <span className="sp-os">{list.length === 0 ? '' : t('{up} of {n} servers answered', {up: done.length - down, n: list.length})}</span>
         <button className="ghost-btn" aria-label={t('Check all servers again')} aria-busy={spinning} disabled={running} onClick={() => void check(list)}><IconRefresh size={14} /> {t('Check again')}</button>
       </div>

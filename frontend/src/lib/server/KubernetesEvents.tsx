@@ -1,6 +1,6 @@
 import {useCallback, useState} from 'react'
 import {useT} from '../i18n'
-import {Err, Loading, Toolbar} from './shared'
+import {Err, Loading, Toolbar, FilterInput} from './shared'
 import {age, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
 import type {K8sEvent} from '../types'
 
@@ -23,7 +23,7 @@ export function Events() {
   return (
     <div className="sp-view">
       <Toolbar busy={busy} onReload={reload}>
-        <input className="sp-filter" aria-label={t('Filter events')} placeholder={t('Filter events')} value={filter} onChange={e => setFilter(e.target.value)} />
+        <FilterInput label={t('Filter events')} placeholder={t('Filter events')} value={filter} onChange={setFilter} />
         <button aria-pressed={warnings} className={warnings ? 'primary' : ''} onClick={() => setWarnings(!warnings)}>{t('Warnings')}</button>
         <button aria-pressed={normal} className={normal ? 'primary' : ''} onClick={() => setNormal(!normal)}>{t('Normal')}</button>
         <span className="sp-note">{t('Newest first, last hour')}</span>

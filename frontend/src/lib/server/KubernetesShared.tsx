@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
+import {createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, useLayoutEffect} from 'react'
 import {useT, type TFn} from '../i18n'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
@@ -106,6 +106,24 @@ export function ActBtn({id, right, className = '', title, disabled, onClick, chi
   return (
     <button className={className} aria-busy={busy} aria-label={label} disabled={busy || locked || disabled} title={locked ? lockText(t, right!, k.direct) : title} onClick={onClick}>{children}</button>
   )
+}
+
+/** where a button's popup menu (position: fixed) goes: below the button, else above it (the last row of a table sits at the bottom of the window), never out of the window */
+export function useMenuAnchor() {
+  const btn = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLDivElement>(null)
+  const [at, setAt] = useState<{left: number; top: number; above: number} | null>(null)
+  const [fit, setFit] = useState<{top: number; maxHeight: number} | null>(null)
+  useLayoutEffect(() => {
+    if (!at || !menu.current) { setFit(null); return }
+    const h = menu.current.offsetHeight
+    const below = window.innerHeight - 8 - at.top, up = at.above - 4 - 8
+    if (h <= below || up <= below) setFit({top: at.top, maxHeight: below})
+    else setFit({top: Math.max(8, at.above - 4 - Math.min(h, up)), maxHeight: up})
+  }, [at])
+  const toggle = () => { const r = btn.current?.getBoundingClientRect(); setAt(a => (a ? null : {left: Math.max(8, (r?.right ?? 300) - 300), top: (r?.bottom ?? 0) + 4, above: r?.top ?? 0})) }
+  const style = at ? {left: at.left, top: fit?.top ?? at.top, maxHeight: fit?.maxHeight, visibility: fit ? 'visible' as const : 'hidden' as const} : undefined
+  return {btn, menu, at, setAt, toggle, style}
 }
 
 /** useLoad that also asks again after a change (rev) */
