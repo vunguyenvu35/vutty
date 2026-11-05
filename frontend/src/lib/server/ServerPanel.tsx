@@ -15,12 +15,13 @@ import {addSample, bucketSeries, loadHistory, MINUTE, saveHistory, type HistPoin
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
 import {Security} from './Security'
+import {Users} from './Users'
 import {Schedule} from './Schedule'
 import {Kubernetes} from './Kubernetes'
 import type {K8sLogTarget} from './KubernetesShared'
 import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
-type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule'
+type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
 /** kind 'workload': every pod of a workload or Service, the name being ns/kind/name */
 export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean}
@@ -62,7 +63,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
   const {phase, sid, notice} = useServerConnection(host)
   const [section, setSection] = useState<Section>('overview')
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
-  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['schedule', t('Schedule')]]
+  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
   const showLogs = (s: LogSource) => { setSource(s); setSection('logs') }
   return (
     <div className="sp" role="region" aria-label={t('Server panel of {name}', {name: host.label})}>
@@ -105,6 +106,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
             {section === 'maintenance' && <Maintenance sid={sid} />}
             {section === 'security' && <Security sid={sid} />}
+            {section === 'users' && <Users sid={sid} />}
             {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
           </div>
         </>

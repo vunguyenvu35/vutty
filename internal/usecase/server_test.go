@@ -310,3 +310,41 @@ func TestDockerCommandsRefuseOddNames(t *testing.T) {
 		t.Fatalf("%q %v", line, err)
 	}
 }
+
+func TestParseUsers(t *testing.T) {
+	out := `##passwd
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+deploy:x:1001:1001::/home/deploy:/bin/bash
+ubuntu:x:1000:1000:Ubuntu:/home/ubuntu:/bin/bash
+www:x:1002:1002::/var/www:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/bin/bash
+##groups
+sudo:x:27:ubuntu
+admin:x:110:
+##keys
+root 1
+ubuntu 2
+deploy -1
+##who
+ubuntu   pts/0        2026-11-05 10:11 (203.0.113.7)
+root     tty1         2026-11-05 09:00
+##last
+root                             pts/0    1.2.3.4          Thu Nov  5 09:00:00 +0700 2026
+ubuntu                           pts/1    1.2.3.4          Wed Nov  4 20:10:11 +0700 2026
+deploy                                                     **Never logged in**
+`
+	u := parseUsers(out)
+	if len(u.Users) != 3 || u.Users[0].Name != "root" || u.Users[1].Name != "ubuntu" || u.Users[2].Name != "deploy" {
+		t.Fatalf("%+v", u.Users)
+	}
+	if !u.Users[0].Sudo || !u.Users[1].Sudo || u.Users[2].Sudo || u.Users[1].Keys != 2 || u.Users[2].Keys != -1 {
+		t.Fatalf("%+v", u.Users)
+	}
+	if u.Users[1].Login == "" || u.Users[2].Login != "" {
+		t.Fatalf("login: %+v", u.Users)
+	}
+	if len(u.Sessions) != 2 || u.Sessions[0].From != "203.0.113.7" || u.Sessions[1].From != "" || u.Sessions[1].Since != "2026-11-05 09:00" {
+		t.Fatalf("%+v", u.Sessions)
+	}
+}

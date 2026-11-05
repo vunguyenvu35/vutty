@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -66,6 +66,7 @@ export interface Fake extends Backend {
       cleanup: ServerCleanup
       folders: Record<string, ServerFolder[]>
       security: ServerSecurity
+      users: ServerUsers
       schedule: ServerSchedule
       backup: ServerBackup
       /** what fleetHost answers per host id: an error text means the host did not answer */
@@ -196,6 +197,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
       cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
       folders: {'/var': [{path: '/var/lib', size: 12 * GB}, {path: '/var/log', size: 2 * GB}], '/var/lib': [{path: '/var/lib/docker', size: 10 * GB}]},
+      users: {users: [{name: 'root', uid: 0, home: '/root', shell: '/bin/bash', sudo: true, keys: 1, login: 'Thu Nov  5 09:00:00 +0700 2026'}, {name: 'deploy', uid: 1001, home: '/home/deploy', shell: '/bin/bash', sudo: false, keys: -1, login: ''}], sessions: [{user: 'root', tty: 'pts/0', since: '2026-11-05 09:00', from: '203.0.113.7'}]},
       security: {fail2ban: {installed: true, running: true, jails: [{name: 'sshd', banned: 2, total_banned: 41, ips: ['203.0.113.5', '198.51.100.7']}]}, ssh: {known: true, port: 22, root_login: 'yes', password_auth: 'yes'}, failed: {known: true, total: 240, top: [{ip: '203.0.113.9', count: 180}]}},
       schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}]},
       backup: {found: true, file: 'db-2026-11-02.sql.gz', size: GB / 8, mtime: 1790000000 - 3 * 86400, now: 1790000000},
@@ -602,6 +604,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         state.server.cleanup.items = state.server.cleanup.items.filter(i => i.id !== id)
       },
       diskUsage: async (sid, path) => { rec('server.diskUsage', path); return (state.server.folders[path] ?? []).map(f => ({...f})) },
+      users: async () => JSON.parse(JSON.stringify(state.server.users)),
       security: async () => JSON.parse(JSON.stringify(state.server.security)),
       unban: async (sid, jail, ip) => {
         rec('server.unban', jail, ip)

@@ -132,3 +132,17 @@ describe('Server panel: history', () => {
     localStorage.clear()
   })
 })
+
+describe('Server panel: Users', () => {
+  it('lists who can log in, with sudo and the keys, and who is logged in now', async () => {
+    const be = makeFake({hosts: [web]})
+    render(<Providers be={be}><ServerPanel host={web} visible /></Providers>)
+    await screen.findByRole('tab', {name: 'Users'})
+    await open('Users')
+    const root = (await screen.findByText('/root')).closest('tr') as HTMLElement
+    expect(within(root).getByText('Yes')).toBeInTheDocument()
+    const deploy = screen.getByText('/home/deploy').closest('tr') as HTMLElement
+    expect(within(deploy).getByText('?')).toBeInTheDocument() // the file could not be read: not zero keys
+    expect(await screen.findByText('203.0.113.7')).toBeInTheDocument()
+  })
+})
