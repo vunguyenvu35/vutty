@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" width="960" height="330" role="img" aria-label="Three ways compared: one repo per space, many spaces in one repo with a password each (proposed), and a public key per person."><style>
+:root{--sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+--surface:#fff;--fg:#1b2330;--muted:#5a6677;--ink-soft:#3d4857;--line:#d9dfe6;--line-strong:#a9b3bf;--local-bg:#e7effb;--local-line:#3a6fcf;--cipher-bg:#e3f3ef;--cipher-line:#1d8573;--key-bg:#fcf0d2;--key-line:#b17414;--bad-bg:#fbe6e3;--bad:#bf3a2b;--accent:#3a6fcf}
+@media (prefers-color-scheme:dark){:root{--surface:#161d26;--fg:#e5e9ee;--muted:#9aa5b2;--ink-soft:#b7c0cb;--line:#2b3541;--line-strong:#4b5866;--local-bg:#13233d;--local-line:#6b9bf0;--cipher-bg:#0f2f2a;--cipher-line:#4cc4ae;--key-bg:#382c0e;--key-line:#e2b24f;--bad-bg:#3a1815;--bad:#ff7f6e;--accent:#6b9bf0}}
+text{fill:var(--fg);font-family:var(--sans);font-size:12px;font-weight:500}
+.m{fill:var(--muted);font-size:11px;font-weight:400}.b{font-weight:600}.mono{font-family:var(--mono);font-size:11.5px}
+.h{fill:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.halo{paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.node{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.2}.panel{fill:none;stroke:var(--line);stroke-width:1.2}.panel.pick{stroke:var(--accent);stroke-width:2.2}
+.z-local{fill:var(--local-bg);stroke:var(--local-line);stroke-width:1.2}.z-cipher{fill:var(--cipher-bg);stroke:var(--cipher-line);stroke-width:1.2}
+.z-key{fill:var(--key-bg);stroke:var(--key-line);stroke-width:1.2}.z-bad{fill:var(--bad-bg);stroke:var(--bad);stroke-width:1.2}
+.dash{stroke-dasharray:6 4}.ghost{opacity:.55}
+.ar{fill:none;stroke:var(--ink-soft);stroke-width:1.6;marker-end:url(#ah)}.ar.key{stroke:var(--key-line);stroke-dasharray:6 4;marker-end:url(#ah-key)}
+.ar.bad{stroke:var(--bad);stroke-dasharray:4 3;marker-end:url(#ah-bad)}.ar.ret{stroke-dasharray:5 4}
+.life{stroke:var(--line-strong);stroke-dasharray:3 4;fill:none}.div{stroke:var(--line-strong);stroke-dasharray:5 5;fill:none}
+.mk{fill:var(--ink-soft)}.mk-key{fill:var(--key-line)}.mk-bad{fill:var(--bad)}
+</style><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker><marker id="ah-key" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-key"/></marker><marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-bad"/></marker></defs><rect width="960" height="330" fill="var(--surface)"/>
+      <rect x="16" y="16" width="296" height="296" rx="10" class="panel"/>
+      <text x="32" y="42" class="h">1 · One repo per space</text>
+      <rect x="40" y="62" width="248" height="56" rx="6" class="z-cipher"/><text x="54" y="86" class="mono">repo prod</text><text x="54" y="104" class="m">password A</text>
+      <rect x="40" y="132" width="248" height="56" rx="6" class="z-cipher"/><text x="54" y="156" class="mono">repo staging</text><text x="54" y="174" class="m">password B</text>
+      <text x="32" y="222">2 profiles, 2 windows</text>
+      <text x="32" y="242" class="m">the Git host blocks reads and writes</text>
+      <text x="32" y="260" class="m">no new cryptography</text>
+      <text x="32" y="284" class="m">when spaces must not know about each other</text>
+
+      <rect x="332" y="16" width="296" height="296" rx="10" class="panel pick"/>
+      <text x="348" y="42" class="h">2 · Many spaces, one repo</text>
+      <rect x="356" y="62" width="248" height="126" rx="6" class="z-cipher"/>
+      <text x="370" y="82" class="m">team repo</text>
+      <rect x="370" y="96" width="102" height="76" rx="6" class="node"/><text x="383" y="120" class="mono">prod.enc</text><text x="383" y="138" class="m">password A</text><text x="383" y="154" class="m">+ slot admin</text>
+      <rect x="488" y="96" width="102" height="76" rx="6" class="node"/><text x="501" y="120" class="mono">staging.enc</text><text x="501" y="138" class="m">password B</text><text x="501" y="154" class="m">+ slot admin</text>
+      <text x="348" y="222" class="b">1 profile, 1 window · proposed</text>
+      <text x="348" y="242" class="m">encryption blocks reads per space</text>
+      <text x="348" y="260" class="m">does not block writes to another space's file</text>
+      <text x="348" y="284" class="m">anyone who reads the repo sees counts and sizes</text>
+
+      <rect x="648" y="16" width="296" height="296" rx="10" class="panel"/>
+      <text x="664" y="42" class="h">3 · A key per person</text>
+      <rect x="672" y="62" width="248" height="126" rx="6" class="z-cipher"/>
+      <text x="686" y="82" class="m">repo + signed access list</text>
+      <rect x="686" y="96" width="68" height="76" rx="6" class="node"/><text x="720" y="130" text-anchor="middle" class="mono">slot A</text>
+      <rect x="764" y="96" width="68" height="76" rx="6" class="node"/><text x="798" y="130" text-anchor="middle" class="mono">slot B</text>
+      <rect x="842" y="96" width="68" height="76" rx="6" class="node"/><text x="876" y="130" text-anchor="middle" class="mono">slot C</text>
+      <text x="664" y="222">remove one person, no password reissue</text>
+      <text x="664" y="242" class="m">blocks writes with per-record signatures</text>
+      <text x="664" y="260" class="m">heaviest, needs careful crypto review</text>
+      <text x="664" y="284" class="m">build only when a team needs it</text>
+    </svg>
