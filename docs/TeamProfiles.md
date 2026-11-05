@@ -7,10 +7,10 @@ Decisions taken:
 - Teams of 15 to 20 people. A few **admins** manage the team; everyone else is a **member who can only connect**: they cannot view credentials, edit hosts or change the team.
 - The **admin creates the private Git repository**. Git is the shared database and **everything in it is encrypted on each client**.
 - **No shared passwords at all.** Every person has their own SSH key. A member's key opens the spaces they were given and logs in to the servers; nobody hands anyone a secret.
-- **Members have read-only access** to the repository on the Git host; only admins can write. The Git host enforces it.
+- **Members have read-only access** to the repository on the Git host; only admins can write. The Git host enforces it. This is a sharing model from the admin: members do not write.
+- Servers accept **key login**. A server that only takes a shared password is not supported in a Team profile, because it cannot be "connect only".
+- Keys are installed on servers through Panel first; **SSH certificates** come later (M5).
 - Cluster credentials are per person, like server keys (§5).
-
-Assumed, to confirm: servers accept **key login** (a server that only takes a shared password cannot be "connect only"); keys are installed on servers through Panel first, **SSH certificates** later.
 
 ## Goal
 
