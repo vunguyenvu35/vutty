@@ -71,7 +71,7 @@ The processes do not share memory, so copying hosts between Personal and a Team 
 - **Write control is the Git host's.** A member's client does not try to push, and a push would be refused anyway. This is what makes the team connect-only without signing every record.
 - **Read control is cryptographic.** A member who can read the repository still cannot open a space they were not added to.
 - A team has two or three admins. An admin who loses their key is replaced by another admin, who re-encrypts the spaces.
-- Trust sits with the admins and with the Git host's permissions. If a member were given write access by mistake they could add themselves to a space they can already read, or change a host they can read; the *Later* list has an admin-signed `team.json` for that case.
+- Trust sits with the admins. The Git host decides who can write, and the **admin signature** (§3) lets every client check that what it read really came from an admin. A write permission given by mistake, a leaked write token or a compromised Git host account cannot slip in a forged host list or put an old one back.
 
 ## 3. Repository format
 
@@ -79,8 +79,10 @@ Personal keeps `bundle.enc`. A Team repository has:
 
 ```
 team.json                format, min_client, team id, version,
+                         admins [{id, SSH public key}],
                          members [{id, name, SSH public key}],
-                         spaces [{id, recipients: [member ids]}]
+                         spaces [{id, recipients: [member ids], file SHA-256}],
+                         signature (by an admin)
 spaces/<id>.enc          one file per space, age-encrypted to the SSH public keys of its recipients
 ```
 
@@ -99,6 +101,21 @@ spaces/<id>.enc          one file per space, age-encrypted to the SSH public key
 ![Data flow of one sync](diagrams/03-sync-data-flow.svg)
 
 *Figure 3. One sync. A member only reads; an admin also merges, re-encrypts and pushes. A space the client has no key for stays hidden and untouched.*
+
+### Admin signature: who really wrote this
+
+`age` keeps a file secret and detects damage, but it does **not** say who made it: the recipients' public keys are public, so anyone who can write to the repository can make a valid file for the same recipients. Without a signature, a leaked write token, a write permission given by mistake or a compromised Git host account could replace a space with a host list that points at a server of the attacker's, or put an older commit back to bring a removed person back.
+
+So the team is **signed**:
+
+- `team.json` is a manifest. It lists the admins' public keys, the members, the recipients of each space, the **SHA-256 of every `spaces/<id>.enc`**, and a `version` that goes up on every change. An admin signs it (Ed25519, with their SSH key).
+- **A member's client checks before it decrypts anything:** the signature is by a pinned admin key, each space file matches its recorded hash, and `version` is not lower than the highest one this machine has seen. Otherwise it keeps what it had, shows a red warning and opens nothing new.
+- **Pinning.** When a person joins, the app shows the fingerprints of the team's admin keys and asks them to compare with an admin (by voice or chat), as for an SSH host key. After that the client trusts only those keys.
+- **Changing the admins.** A new admin is added by a manifest signed by an existing admin, and an admin is removed the same way. A client follows the chain from the keys it pinned.
+- **Rollback.** An old signed manifest has a lower `version`, so putting an older commit back is refused.
+- Any admin can sign; the signature covers the whole repository state, so a change to a space and the matching manifest are one commit.
+
+What it protects against: a forged or replaced space, a forged member or recipient list, and a rollback. What it does not: an attacker who holds an **admin's key** (that admin is removed, §4), and an attacker who deletes or corrupts files (the client detects it and keeps its last good copy; Git restores the files).
 
 ### Format and client versions
 
@@ -164,6 +181,30 @@ A member connects with **their own key**; no server credential is stored in the 
 - **Kubernetes.** A cluster in a space holds its address and certificate authority only. Each member uses **their own credential** for it (a client certificate or token issued to that person, bound on their machine). The earlier idea of a shared kubeconfig is dropped, because a shared token is a credential a member could read.
 - **Host keys.** The admin verifies each server's host key once and stores it in the space. A member's client uses those and refuses a mismatch, so a new member never has to trust a host on first use.
 
+### Which account on the server
+
+A key gives a person a way in, but it does not say **who they become** on the server. That is the *Unix account* (also called the login user or the account name): the name in `ssh deploy@server`. Each account on a server has its own home folder, files, groups and permissions (for example whether it may use `sudo`). A person's key is listed in that account's `~/.ssh/authorized_keys`, and a key listed there logs in **as that account**.
+
+So "everyone has their own key" is not the same as "everyone has their own access". Two ways to set it up:
+
+| | One shared account (for example `deploy`) | One account per person (`alice`, `bao`, …) |
+| --- | --- | --- |
+| Keys | Everyone's key is in `deploy`'s `authorized_keys` | Alice's key is only in `alice`'s |
+| What a member can do | Everything `deploy` can: read its files and `.env`, use its `sudo` | Only what that person's account is allowed |
+| Who did it | The server sees `deploy` for everyone; the log does not say who | The server sees `alice`: history, logs and `sudo` records are per person |
+| Removing someone | Remove their key from the file | Remove the key and, if wanted, the account |
+| Work for the admin | Low: one file per server | Higher: one account per person per server, which Panel can make (it already adds and deletes users) |
+
+What the team vault never holds is a **credential**, but a person who can log in as `deploy` can still read whatever `deploy` can read on that server: the application's configuration, database passwords. "Connect only" means the member cannot take anything out of the *team's vault*; it does not shrink what the server account allows.
+
+The design therefore works like this:
+
+- A host in a space has a `login` setting: a fixed name (`deploy`) or **per person** (the account named after the member).
+- **Per person is the default for hosts marked prod.** Panel creates the account, adds the key, and removes both when the person is removed. The app records the pair (member, server, account) in the space, so removal knows what to clear.
+- A **shared account is allowed** where the team chooses it, with a warning in the host form: *"Everyone who opens this host logs in as «deploy» and sees everything this account sees. The server cannot tell them apart."*
+- Panel does not create accounts with `sudo` or root rights on its own; a person's permissions are set by the admin when the account is made.
+- With SSH certificates (M5) the same split is made by **principals** in the certificate (which account a certificate may log in as) and can also limit the commands.
+
 ## 6. If the repository leaks
 
 Everything in the repository is encrypted. What a reader sees:
@@ -185,7 +226,8 @@ These belong on the *New team* screen and in the user guide, in plain words:
 - **Members can only connect.** They cannot add hosts or change anything. Their own hosts go in their Personal profile.
 - **It needs key login on the servers.** A server that only takes a shared password is not supported.
 - **The admin does the onboarding**: add the key to the spaces, install it on the servers. Certificates reduce this later.
-- **Write protection is the Git host's.** If a member is given write access by mistake the team's membership is no longer protected.
+- **Write protection is the Git host's, and the admin signature backs it up.** A member who is given write access by mistake cannot forge a host list or a member list: clients refuse anything not signed by an admin. They could still delete or damage files; clients keep their last good copy and Git restores the files.
+- **A key is not the same as limited access.** A member logs in as a Unix account on the server and can do what that account can do. Use one account per person where it matters (§5).
 - **Removing someone does not erase what they saw** (the host list, up to the day they were removed). It does take away their access.
 - **No recovery of a private key.** A new key replaces a lost one.
 - **Not real time.** Members see a change after the next sync.
@@ -197,12 +239,12 @@ These belong on the *New team* screen and in the user guide, in plain words:
 | --- | --- | --- |
 | **M0** | Spike (done): process per profile, see §1 | this document |
 | **M1** | `profiles.json`, *Open profile…*, create, rename, delete, per-profile lock, `--profile`, `show` action, Team processes skip self-update and `ssh://`, *Copy to another profile…* | two profiles run side by side; Personal behaves as before; the existing tests pass. Useful alone: Work and Personal apart |
-| **M2** | Team core: `team.json`, `age` with SSH recipients, space files, **member pull-only sync**, admin merge with `Rev`, `base_rev`, clock guard, Conflicts list, `format` and `min_client` | a member opens only their spaces; two admins converge with no silent loss; a member's client never writes |
+| **M2** | Team core: `team.json`, `age` with SSH recipients, space files, **admin signature, pinned admin keys, file hashes and `version` check**, **member pull-only sync**, admin merge with `Rev`, `base_rev`, clock guard, Conflicts list, `format` and `min_client` | a member opens only their spaces; a forged, replaced or older repository state is refused; two admins converge with no silent loss; a member's client never writes |
 | **M3** | Members: key generate or import, join, add to spaces, remove (re-encrypt), lost key | a removed member cannot open the new files; others do nothing |
-| **M4** | Servers: Panel installs and removes a member's key and records where; admin-verified host keys in the space; per-person Kubernetes credentials | a member connects with their own key; removal clears every recorded server |
+| **M4** | Servers: Panel installs and removes a member's key and records where; **a `login` per host (shared account, or one account per person made by Panel)**; admin-verified host keys in the space | a member connects with their own key and their own account; removal clears every recorded server and account |
 | **Pilot** | One or two real teams use it for a few weeks | what hurts is known before more is built |
 | **M5** | SSH certificates (short-lived, one trusted authority per server) | removal by expiry, no per-server work |
-| **Later** | Admin-signed `team.json`; a per-record file layout if a space grows large; per-space write control; a shared credential with an explicit warning for legacy servers | on demand |
+| **Later** | Per-person Kubernetes credentials (issuing them depends on the cluster); a per-record file layout if a space grows large; per-space write control; a shared credential with an explicit warning for legacy servers | on demand |
 
 M1 helps people with one profile too. M2 changes the format of Team repositories only; moving Personal to the same format is a separate decision for later. M2 onward is labelled experimental until reviewed.
 
@@ -211,6 +253,8 @@ M1 helps people with one profile too. M2 changes the format of Team repositories
 - `age` round trip with an `ssh-ed25519` identity and several recipients; a file opens for a recipient and **not** for a removed one (re-encrypted file); an `ssh-rsa` key also works.
 - A client that is not a recipient never shows the space and never rewrites its file (byte-for-byte check).
 - A member's client **never pushes**; a push by a member is refused by the Git host (a test with a read-only remote).
+- **Signature:** a manifest signed by an unpinned key, a space file that does not match its hash, a replaced space, a manifest with a lower `version` and an unsigned change of members or recipients are each refused, and the client keeps its last good copy. A new admin signed by an existing admin is accepted; one signed by nobody is not.
+- **Accounts:** Panel creates an account per person, adds the key, records (member, server, account), and removal clears all of it; an unreachable server is reported and kept in the list.
 - `syncgit`: real-`git` scenarios (bare repositories) with two admins: simultaneous edits, delete against edit, rejected push, a long-offline admin, a fresh clone taking the remote as base.
 - A property test for the admin merge: the result converges whatever the order of syncs.
 - Versions: an older client opens a newer repository read-only.
@@ -225,7 +269,9 @@ M1 helps people with one profile too. M2 changes the format of Team repositories
 | Risk | Handling |
 | --- | --- |
 | The same SSH key opens spaces and logs in to servers | `age` supports it. A separate key per purpose is the alternative if a reviewer prefers it |
-| A member given write access by mistake | Stated in the limits; an admin-signed `team.json` is on the *Later* list |
+| Someone with write access forges or rolls back the team | Admin signature, pinned admin keys, file hashes and a `version` check (M2) |
+| An admin's key is stolen | The admin is removed by another admin; at least two admins; keep the key with a passphrase or on hardware |
+| Members share one Unix account on a server | Per-person accounts by default for prod hosts; a warning where a shared account is chosen (§5) |
 | Onboarding many servers is slow | Panel runs it in one pass; certificates (M5) remove the per-server work |
 | A server that only takes a shared password | Not supported in a Team profile; said up front |
 | A bug in the admin merge loses data | Property test and two-admin tests from M2; members never write, so the blast radius is two or three machines |
@@ -270,6 +316,8 @@ Termius works in a similar way to option 3: a key per vault wrapped to each memb
 | Admin-verified host keys in the space | A member never has to trust a server on first use |
 | Conflicts only between admins; members replace their copy | Two or three writers instead of twenty; no tombstone growth for members |
 | Server onboarding (Panel key install, later certificates) added as M4 and M5 | It is what makes "connect with no shared password" real |
+| **Admin signature** on `team.json` with file hashes and `version` (moved from *Later* to M2) | `age` does not prove who made a file, so anyone who could write could forge a host list or roll the team back |
+| **Which Unix account** a member logs in as is explained and made a setting per host; per person by default for prod | A key is not limited access: a shared account lets every member do whatever that account can |
 
 ## Findings of the review of revision 4, and where they went
 
