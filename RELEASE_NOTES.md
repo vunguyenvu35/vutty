@@ -1,12 +1,20 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.2
+# Vutty 1.6.3
 
 Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.6.3
 
+- **Panel: Docker gets a shell, load, details, images and volumes.** *Shell* types `docker exec` (bash, else sh) into a terminal tab on the host. Each running container shows its CPU and memory. *Details* shows the image, command, restart policy, ports, networks and mounts, and the environment with its values hidden until asked. New **Images**, **Volumes** and **Networks** views: an image or volume is deleted only when nothing uses it, after asking; networks are read only. The actions of a row are one main button and a ⋮ menu.
+- **Panel: Overview charts of 6 and 24 hours.** One point for each minute is kept on this computer for each host and drawn next to the live half hour. Nothing is read while the tab is closed, so those times are gaps in the line.
+- **Panel: a Users tab (read only).** The accounts that can log in, who may use sudo, how many SSH keys each has (`?` when this login cannot read the file) and the logins open now.
+- **Kubernetes:** a **Security** tab, *Copy kubectl*, port-forward for a cluster opened with a kubeconfig and *Debug container* (#32); **edit a workload on a host** (Edit YAML, Edit config, Add sidecar) (#33); a security review of the panel (login programs and their variables, names of files copied from a pod) (#37); the Shell button has the same width with and without its caret.
+- **Zoom.** On a Mac the top bar, the room for the window buttons and the maximized Settings title keep their place at any zoom (the window buttons do not scale), the Settings popup is measured again when the zoom changes, and the zoom can be typed in Settings (80 to 160, with its limits).
+- **Fix (Mac):** the top bar is as tall as the toolbar the window buttons sit in.
 - **Fix (macOS): a crash when the screen locks or the Mac sleeps.** Locking the vault on a sleep or a screen lock told the page from the thread that macOS had posted the notification on, and Wails (up to 2.17.1) releases the string it queues for the page once too often, which on that thread kills the app in the run loop (SIGSEGV). The lock now runs on a goroutine and the notification waits for it, so the vault is still locked before the computer sleeps. It was found by reading the crash and reproducing the Wails pattern in a small program, and a test keeps the handler off that thread. Locking the screen with the app open did kill the running app before this change (reported on a Mac); that the fixed app survives the same lock is still to be seen.
+
+Not yet seen against a real server: the Docker, history and Users parts are covered by tests with sample output; try them on a throwaway VPS first.
 
 ## What's new in 1.6.2
 
