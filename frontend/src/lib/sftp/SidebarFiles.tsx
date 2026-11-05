@@ -16,6 +16,7 @@ import {authenticity} from './RemotePane'
 import {AuthPrompt} from '../ui/AuthPrompt'
 import {cwdOfPane, paneStatusVersion, sessionOfPane, watchPaneStatus, writeToPane, toTerminalInput} from '../terminal/panes'
 import {LOCAL_HOST_ID, localPaneFs} from './localFs'
+import {POD_PREFIX, podFs} from './podFs'
 import type {AuthChallenge, Host, HostKeyPrompt, QueueJob, RemoteEntry} from '../types'
 
 let seq = 0
@@ -31,19 +32,22 @@ const loadHidden = () => { try { return localStorage.getItem(HIDDEN_KEY) === '1'
 export function FilesTab({host, hostId, paneId}: {host: Host | null; hostId?: string; paneId?: string}) {
   const t = useT()
   if (hostId === LOCAL_HOST_ID) return <Files key={LOCAL_HOST_ID} host={null} paneId={paneId} />
+  if (hostId?.startsWith(POD_PREFIX)) return <Files key={hostId} host={null} pod={hostId} paneId={paneId} />
   if (!host) return <div className="side-empty">{t('Files are shown for local terminals and terminals connected to a saved SSH host. Focus one to browse its files.')}</div>
   return <Files key={host.id} host={host} paneId={paneId} />
 }
 
 /** host is null for this computer. */
-function Files({host, paneId}: {host: Host | null; paneId?: string}) {
+/** host is null for this computer; pod is the id of a shell in a pod ("kubeexec:...": its files, read only). */
+function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: string}) {
   const be = useBackend()
   const t = useT()
   const toast = useToast()
   const confirm = useConfirm()
   const alive = useRef(true)
-  const local = host === null
-  const hostId = host ? host.id : null
+  const podMode = !!pod
+  const local = host === null && !podMode
+  const hostId = host ? host.id : null // null: this computer, or a pod
   const listRef = useRef<HTMLDivElement>(null)
   const loadSeq = useRef(0)
   useSyncExternalStore(watchPaneStatus, paneStatusVersion)
@@ -75,7 +79,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
     setLoading(true)
     setError('')
     try {
-      const list = await (s === LOCAL_HOST_ID ? be.local.list(dir) : be.sftp.list(s, dir))
+      const list = await (s === LOCAL_HOST_ID ? be.local.list(dir) : s.startsWith(POD_PREFIX) ? be.server.podFilesList(s, dir) : be.sftp.list(s, dir))
       if (!alive.current || mine !== loadSeq.current) return
       setEntries(list ?? [])
       setCwd(dir)
@@ -101,6 +105,16 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
     setPfs(null)
     ;(async () => {
       try {
+        if (pod) {
+          const home = (await be.server.podFilesHome(pod)) || '/'
+          if (!alive.current) return
+          setSid(pod)
+          setPfs(podFs(be, t, pod))
+          setHome(home)
+          setPhase('ready')
+          await load(pod, home)
+          return
+        }
         if (hostId === null) {
           const home = (await be.local.home()) || '/'
           if (!alive.current) return
@@ -136,7 +150,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
       }
       edited.current.clear()
     }
-  }, [be, hostId, attempt, load])
+  }, [be, hostId, pod, attempt, load])
 
   const finished = useCallback((_sid: string, j: QueueJob) => {
     if (j.state === 'done') toast.info(summarize(verbOf(j.direction), j))
@@ -145,7 +159,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   }, [toast, load, t])
   const sidRef = useRef(sid)
   sidRef.current = sid
-  const jobs = useQueues(sid && !local ? [sid] : [], finished)[sid] ?? []
+  const jobs = useQueues(sid && !local && !podMode ? [sid] : [], finished)[sid] ?? []
   const actions = {
     pause: (id: string) => void be.sftp.pause(sid, id).catch(e => setError(errMsg(e))),
     resume: (id: string) => void be.sftp.resume(sid, id).catch(e => setError(errMsg(e))),
@@ -164,6 +178,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   const toggleHidden = () => setHidden(h => { try { localStorage.setItem(HIDDEN_KEY, h ? '0' : '1') } catch { /* not remembered */ } return !h })
   const chosen = useMemo(() => entries.filter(e => selected.includes(e.path)), [entries, selected])
   const ready = phase === 'ready' && !!sid && !!cwd
+  const readOnly = !!pfs?.readOnly // the files of a pod: looked at and copied out, not changed
   const spinning = useMinBusy(loading)
 
   const pick = (e: RemoteEntry, ev: ReactMouseEvent) => {
@@ -197,7 +212,12 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
   })
   const download = () => guard(async () => {
     const dir = await be.system.pickDirectory(t('Save to folder'))
-    if (dir) await queueTransfer(be, confirm, sid, 'download', chosen.map(e => e.path), dir)
+    if (!dir) return
+    if (!pod) { await queueTransfer(be, confirm, sid, 'download', chosen.map(e => e.path), dir); return }
+    // a pod has no transfer queue: each file is read through the pod's exec call and saved, one after the other
+    const files = chosen.filter(e => !e.is_dir)
+    if (files.length < chosen.length) throw new Error(t('A folder cannot be copied out of a pod yet: open it and copy its files.'))
+    for (const e of files) toast.info(t('Saved to {path}', {path: await be.server.podFilesFetch(pod, e.path, dir)}))
   })
 
   // the right-click menu closes on any click elsewhere, Escape, scrolling or a resize
@@ -261,13 +281,13 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
         <code className="side-files-path" title={cwd} aria-label={t('Current folder')}>{cwd ? <bdi>{cwd}</bdi> : phase === 'connecting' ? t('Connecting…') : ''}</code>
       </div>
       {!local && <div className="side-files-bar">
-        <button disabled={!ready} onClick={() => void upload(false)}>{t('Upload file…')}</button>
-        <button disabled={!ready} onClick={() => void upload(true)}>{t('Upload folder…')}</button>
+        {!podMode && <button disabled={!ready} onClick={() => void upload(false)}>{t('Upload file…')}</button>}
+        {!podMode && <button disabled={!ready} onClick={() => void upload(true)}>{t('Upload folder…')}</button>}
         <button disabled={!ready || chosen.length === 0} onClick={() => void download()} aria-label={t('Download selected files')}>
           <IconDownload size={14} /> {chosen.length > 1 ? t('Download {n}', {n: chosen.length}) : t('Download')}
         </button>
       </div>}
-      {phase === 'connecting' && !prompt && !auth && !local && <div className="side-empty">{t('Connecting to {name}…', {name: host.label})}</div>}
+      {phase === 'connecting' && !prompt && !auth && !local && <div className="side-empty">{host ? t('Connecting to {name}…', {name: host.label}) : t('Reading the pod…')}</div>}
       <AuthPrompt inline challenge={auth?.c ?? null} promptKey={auth?.key ?? ''} onDone={() => setAuth(null)} onError={setReason} />
       {phase === 'closed' && (
         <div className="side-empty" role="alert">
@@ -317,16 +337,16 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
             {pfs?.edit && <button role="menuitem" disabled={!entry || entry.is_dir} onClick={() => act(() => pfs.edit!(entry!))}>{t('Edit and save back')}</button>}
             {!local && <>
               <button role="menuitem" disabled={none} onClick={() => act(download)}>{chosen.length > 1 ? t('Download {n}', {n: chosen.length}) : t('Download')}</button>
-              <button role="menuitem" onClick={() => act(() => upload(false))}>{t('Upload file…')}</button>
-              <button role="menuitem" onClick={() => act(() => upload(true))}>{t('Upload folder…')}</button>
+              {!podMode && <button role="menuitem" onClick={() => act(() => upload(false))}>{t('Upload file…')}</button>}
+              {!podMode && <button role="menuitem" onClick={() => act(() => upload(true))}>{t('Upload folder…')}</button>}
             </>}
             <button role="menuitem" disabled={none} onClick={() => act(() => be.system.writeClipboard(chosen.map(e => e.path).join('\n')))}>{t('Copy path')}</button>
-            <button role="menuitem" disabled={!entry} onClick={() => { setMenu(null); setNaming({mode: 'rename', value: entry!.name, err: ''}) }}>{t('Rename')}</button>
-            <button role="menuitem" className="danger-item" disabled={none} onClick={() => { setMenu(null); void remove(chosen) }}>{t('Delete')}</button>
+            {!readOnly && <button role="menuitem" disabled={!entry} onClick={() => { setMenu(null); setNaming({mode: 'rename', value: entry!.name, err: ''}) }}>{t('Rename')}</button>}
+            {!readOnly && <button role="menuitem" className="danger-item" disabled={none} onClick={() => { setMenu(null); void remove(chosen) }}>{t('Delete')}</button>}
             <button role="menuitem" onClick={() => act(() => load(sid, cwd))}>{t('Refresh')}</button>
-            <button role="menuitem" onClick={() => { setMenu(null); setNaming({mode: 'mkdir', value: '', err: ''}) }}>{t('New Folder')}</button>
+            {!readOnly && <button role="menuitem" onClick={() => { setMenu(null); setNaming({mode: 'mkdir', value: '', err: ''}) }}>{t('New Folder')}</button>}
             <button role="menuitem" onClick={() => { setMenu(null); toggleHidden() }}>{hidden ? t('Hide Hidden Files') : t('Show Hidden Files')}</button>
-            <button role="menuitem" disabled={!entry || !pfs?.chmod} onClick={() => { setMenu(null); setPerms(entry) }}>{t('Edit Permissions')}</button>
+            {!readOnly && <button role="menuitem" disabled={!entry || !pfs?.chmod} onClick={() => { setMenu(null); setPerms(entry) }}>{t('Edit Permissions')}</button>}
             <button role="menuitem" disabled={shown.length === 0} onClick={() => { setMenu(null); setSelected(shown.map(e => e.path)) }}>{t('Select All')}</button>
           </div>
         )
@@ -335,7 +355,7 @@ function Files({host, paneId}: {host: Host | null; paneId?: string}) {
         <PermissionsDialog name={perms.name} mode={perms.mode} onClose={() => setPerms(null)}
           onSave={async m => { await pfs.chmod!(perms.path, m); await load(sid, cwd) }} />
       )}
-      {!local && <QueuePanel jobs={jobs} actions={actions} open compact />}
+      {!local && !podMode && <QueuePanel jobs={jobs} actions={actions} open compact />}
     </div>
   )
 }

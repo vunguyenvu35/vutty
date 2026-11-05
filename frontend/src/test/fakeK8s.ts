@@ -1,5 +1,5 @@
 import type {Backend} from '../lib/backend'
-import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
+import type {K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadSpec, K8sAccess, K8sCheck, K8sConfig, K8sContexts, K8sDeployment, K8sDetect, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sObjList, K8sMultiLogs, RemoteEntry, K8sHelmRelease, K8sHelmDetail, K8sForward, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkload} from '../lib/types'
 
 /** What the fake cluster answers: the data of the design boards (docs/screenshots/k8s), so tests and demos read like them. */
 export interface K8sFake {
@@ -26,6 +26,8 @@ export interface K8sFake {
   resources: K8sAPIResource[]
   objects: Record<string, K8sObjList>
   objectYaml: string
+  /** what the files of a pod are, by folder (podFilesList) */
+  podFiles: Record<string, RemoteEntry[]>
   /** Helm releases (k8sHelmReleases), the detail of each by name (k8sHelmRelease answers with the revision asked for), and the values k8sHelmValues answers with */
   helm: K8sHelmRelease[]
   helmDetail: Record<string, K8sHelmDetail>
@@ -166,6 +168,16 @@ export function makeK8s(): K8sFake {
       nodes: {namespaced: false, columns: [], more: false, rows: [{namespace: '', name: 'worker-1', age_sec: 40 * 86400, cells: []}]},
     },
     objectYaml: 'apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: web\n  namespace: shop\nspec:\n  secretName: web-tls\n',
+    podFiles: {
+      '/app': [
+        {name: 'storage', path: '/app/storage', size: 4096, mode: 'drwxr-xr-x', mod_time: '2026-11-05T03:00:00Z', is_dir: true, is_link: false},
+        {name: 'artisan', path: '/app/artisan', size: 1686, mode: '-rwxr-xr-x', mod_time: '2026-11-04T06:00:00Z', is_dir: false, is_link: false},
+        {name: '.env', path: '/app/.env', size: 412, mode: '-rw-r--r--', mod_time: '2026-11-04T06:00:00Z', is_dir: false, is_link: false},
+      ],
+      '/app/storage': [
+        {name: 'laravel.log', path: '/app/storage/laravel.log', size: 4072955, mode: '-rw-r--r--', mod_time: '2026-11-05T04:00:00Z', is_dir: false, is_link: false},
+      ],
+    },
     helm: [
       {name: 'web', namespace: 'shop', revision: 3, status: 'deployed', age_sec: 2 * 86400},
       {name: 'db', namespace: 'data', revision: 1, status: 'failed', age_sec: 3600},
@@ -199,7 +211,7 @@ export function makeK8s(): K8sFake {
 }
 
 type Rec = (name: string, ...a: unknown[]) => void
-type K8sApi = Pick<Backend['server'], Extract<keyof Backend['server'], `k8s${string}`>>
+type K8sApi = Pick<Backend['server'], Extract<keyof Backend['server'], `k8s${string}` | `podFiles${string}`>>
 
 /** The k8s part of the fake `be.server`: every call is recorded as `server.<name>` with its arguments after the session id. */
 export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
@@ -241,6 +253,9 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sHelmReleases: async (s, c, n) => { rec('server.k8sHelmReleases', c, n); return copy(inNs(k().helm, n)) },
     k8sHelmRelease: async (s, c, n, name, rev) => { rec('server.k8sHelmRelease', c, n, name, rev); const d = k().helmDetail[name]; if (!d) throw new Error('no such release'); return copy(rev ? {...d, release: {...d.release, revision: rev}} : d) },
     k8sHelmValues: async (s, c, n, name, rev) => { rec('server.k8sHelmValues', c, n, name, rev); return k().helmValues },
+    podFilesHome: async h => { rec('server.podFilesHome', h); return '/app' },
+    podFilesList: async (h, d) => { rec('server.podFilesList', h, d); return copy(k().podFiles[d] ?? []) },
+    podFilesFetch: async (h, p, dir) => { rec('server.podFilesFetch', h, p, dir); return dir + '/' + p.slice(p.lastIndexOf('/') + 1) },
     k8sResources: async (s, c) => { rec('server.k8sResources', c); return copy(k().resources) },
     k8sObjects: async (s, c, n, ref) => { rec('server.k8sObjects', c, n, ref); const l = copy(k().objects[ref.plural] ?? {namespaced: true, columns: [], more: false, rows: []}); return {...l, rows: l.rows.filter(r => !n || !r.namespace || n.split(',').includes(r.namespace))} },
     k8sObjectYAML: async (s, c, n, ref, name) => { rec('server.k8sObjectYAML', c, n, ref, name); return k().objectYaml },

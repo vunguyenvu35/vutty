@@ -128,6 +128,10 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 				ok(`{"kind":"Status","message":"a container name must be specified for pod multi, choose one of: [aws-ssm nginx]"}`)
 				return
 			}
+			if r.URL.Query().Get("tty") == "false" {
+				f.serveRun(w, r)
+				return
+			}
 			f.serveExec(w, r)
 		case strings.HasSuffix(p, "/pods/multi/log") || strings.HasSuffix(p, "/pods/tagged/log"):
 			if r.URL.Query().Get("container") == "" {
@@ -1207,4 +1211,9 @@ func TestClusterPodOfSeveralContainersUsesTheDefaultOneLikeKubectl(t *testing.T)
 	if exec := f.called("GET", "/api/v1/namespaces/shop/pods/multi/exec"); len(exec) != 1 || !strings.Contains(exec[0], "container=aws-ssm") {
 		t.Fatalf("exec = %v", exec)
 	}
+}
+
+func (k testKubeClient) Run(ctx context.Context, ns, pod, container string, command []string, stdout io.Writer) (KubeRun, error) {
+	r, err := k.Client.Run(ctx, ns, pod, container, command, stdout)
+	return KubeRun{ExitCode: r.ExitCode, Stderr: r.Stderr}, err
 }

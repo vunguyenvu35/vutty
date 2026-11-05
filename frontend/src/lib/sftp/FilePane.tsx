@@ -25,6 +25,8 @@ export interface PaneFs {
   open?(e: RemoteEntry): Promise<void>
   /** open a file with an app the user picks */
   openWith?(e: RemoteEntry): Promise<void>
+  /** the files cannot be changed (a pod): the menu has no Rename, Delete, New Folder or Edit Permissions */
+  readOnly?: boolean
   /** open a remote file and save it back to the server every time it is saved; absent: no such menu item */
   edit?(e: RemoteEntry): Promise<void>
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -42,47 +44,9 @@ type Stream struct {
 // Exec runs a command in a container of a pod with a terminal (a shell, usually) and returns at once; the output of the
 // command (stdout and stderr are one stream with a terminal) is passed to onData until the command ends.
 func (c *Client) Exec(ctx context.Context, ns, pod, container string, command []string, cols, rows int, onData func([]byte)) (*Stream, error) {
-	if ns == "" || pod == "" || len(command) == 0 {
-		return nil, errors.New("a namespace, a pod and a command are needed")
-	}
-	q := url.Values{"stdin": {"true"}, "stdout": {"true"}, "stderr": {"true"}, "tty": {"true"}}
-	for _, w := range command {
-		q.Add("command", w)
-	}
-	if container != "" {
-		q.Set("container", container)
-	}
-	u, err := url.Parse(c.URL("/api/v1/namespaces/" + url.PathEscape(ns) + "/pods/" + url.PathEscape(pod) + "/exec"))
+	conn, err := c.dialExec(ctx, ns, pod, container, command, true, true)
 	if err != nil {
 		return nil, err
-	}
-	u.RawQuery = q.Encode()
-	if u.Scheme == "https" {
-		u.Scheme = "wss"
-	} else {
-		u.Scheme = "ws"
-	}
-	h, err := c.Header(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// a WebSocket is HTTP/1.1: the TLS set-up of the HTTP client offers h2, which a server then picks and the upgrade fails
-	tc := c.TLSConfig()
-	tc.NextProtos = []string{"http/1.1"}
-	d := websocket.Dialer{TLSClientConfig: tc, Subprotocols: []string{execProtocol}, HandshakeTimeout: 15 * time.Second, Proxy: c.proxy}
-	conn, resp, err := d.DialContext(ctx, u.String(), h)
-	if err != nil {
-		if resp != nil { // the server answered the upgrade with a refusal: it says why in its own words
-			b := make([]byte, 4096)
-			n, _ := resp.Body.Read(b)
-			_ = resp.Body.Close()
-			return nil, apiError(resp.StatusCode, b[:n])
-		}
-		return nil, err
-	}
-	if conn.Subprotocol() != execProtocol {
-		_ = conn.Close()
-		return nil, errors.New("the server does not support a shell over WebSocket")
 	}
 	s := &Stream{conn: conn, done: make(chan struct{})}
 	_ = s.Resize(cols, rows)
@@ -224,4 +188,143 @@ func (s *Stream) Close() {
 	_ = s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
 	s.wmu.Unlock()
 	s.finish(nil)
+}
+
+// dialExec opens the WebSocket of an exec call: with a terminal (tty, stdout and stderr come as one) or without one, and with the
+// channel of the keyboard (stdin) or without it.
+func (c *Client) dialExec(ctx context.Context, ns, pod, container string, command []string, tty, stdin bool) (*websocket.Conn, error) {
+	if ns == "" || pod == "" || len(command) == 0 {
+		return nil, errors.New("a namespace, a pod and a command are needed")
+	}
+	q := url.Values{"stdin": {strconv.FormatBool(stdin)}, "stdout": {"true"}, "stderr": {"true"}, "tty": {strconv.FormatBool(tty)}}
+	for _, w := range command {
+		q.Add("command", w)
+	}
+	if container != "" {
+		q.Set("container", container)
+	}
+	u, err := url.Parse(c.URL("/api/v1/namespaces/" + url.PathEscape(ns) + "/pods/" + url.PathEscape(pod) + "/exec"))
+	if err != nil {
+		return nil, err
+	}
+	u.RawQuery = q.Encode()
+	if u.Scheme == "https" {
+		u.Scheme = "wss"
+	} else {
+		u.Scheme = "ws"
+	}
+	h, err := c.Header(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// a WebSocket is HTTP/1.1: the TLS set-up of the HTTP client offers h2, which a server then picks and the upgrade fails
+	tc := c.TLSConfig()
+	tc.NextProtos = []string{"http/1.1"}
+	d := websocket.Dialer{TLSClientConfig: tc, Subprotocols: []string{execProtocol}, HandshakeTimeout: 15 * time.Second, Proxy: c.proxy}
+	conn, resp, err := d.DialContext(ctx, u.String(), h)
+	if err != nil {
+		if resp != nil { // the server answered the upgrade with a refusal: it says why in its own words
+			b := make([]byte, 4096)
+			n, _ := resp.Body.Read(b)
+			_ = resp.Body.Close()
+			return nil, apiError(resp.StatusCode, b[:n])
+		}
+		return nil, err
+	}
+	if conn.Subprotocol() != execProtocol {
+		_ = conn.Close()
+		return nil, errors.New("the server does not support a shell over WebSocket")
+	}
+	return conn, nil
+}
+
+// RunResult is how a command that was run without a terminal ended: its exit code, and the start of what it wrote to stderr.
+type RunResult struct {
+	ExitCode int
+	Stderr   string
+}
+
+const maxRunStderr = 4 << 10
+
+// Run runs a command in a container of a pod without a terminal and waits for it to end. What it writes to stdout goes to w: a
+// write that fails (a size limit) ends the command with that error. Nothing is typed into it.
+func (c *Client) Run(ctx context.Context, ns, pod, container string, command []string, stdout io.Writer) (RunResult, error) {
+	conn, err := c.dialExec(ctx, ns, pod, container, command, false, false)
+	if err != nil {
+		return RunResult{}, err
+	}
+	defer conn.Close()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() { // a cancelled context ends the read below
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-stop:
+		}
+	}()
+	var res RunResult
+	var stderr []byte
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			if ctx.Err() != nil {
+				return res, ctx.Err()
+			}
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
+				res.Stderr = string(stderr)
+				return res, nil
+			}
+			return res, err
+		}
+		if len(msg) == 0 {
+			continue
+		}
+		switch msg[0] {
+		case chStdout:
+			if _, err := stdout.Write(msg[1:]); err != nil {
+				return res, err
+			}
+		case chStderr:
+			if room := maxRunStderr - len(stderr); room > 0 {
+				stderr = append(stderr, msg[1:min(len(msg), 1+room)]...)
+			}
+		case chStatus:
+			res.Stderr = string(stderr)
+			res.ExitCode, err = exitStatus(msg[1:])
+			return res, err
+		}
+	}
+}
+
+// exitStatus reads the final status of a command: its exit code, or the server's sentence when it could not be run.
+func exitStatus(b []byte) (int, error) {
+	var st struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+		Reason  string `json:"reason"`
+		Details struct {
+			Causes []struct {
+				Reason  string `json:"reason"`
+				Message string `json:"message"`
+			} `json:"causes"`
+		} `json:"details"`
+	}
+	if json.Unmarshal(b, &st) != nil || st.Status == "Success" || st.Status == "" {
+		return 0, nil
+	}
+	if st.Reason == "NonZeroExitCode" {
+		for _, c := range st.Details.Causes {
+			if c.Reason == "ExitCode" {
+				if n, err := strconv.Atoi(c.Message); err == nil {
+					return n, nil
+				}
+			}
+		}
+		return 1, nil
+	}
+	if st.Message == "" {
+		return 0, errors.New("the command failed: " + st.Reason)
+	}
+	return 0, errors.New(st.Message)
 }

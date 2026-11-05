@@ -196,4 +196,7 @@ export default {
   "{n} left as they were": "{n} 件はそのまま",
   "{n} link ignored": "リンク {n} 件を無視",
   "{n} links ignored": "リンク {n} 件を無視",
+  "A folder cannot be copied out of a pod yet: open it and copy its files.": "フォルダーを Pod の外へコピーすることはまだできません。フォルダーを開いて、ファイルをコピーしてください。",
+  "Reading the pod…": "Pod を読み取り中…",
+  "The files of a pod can be looked at and copied out, not changed.": "Pod 内のファイルは閲覧と外へのコピーのみで、変更はできません。",
 } as Record<string, string>

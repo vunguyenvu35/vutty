@@ -134,3 +134,114 @@ func TestLiveCluster(t *testing.T) {
 		})
 	}
 }
+
+// The files of a pod, by the same two kinds of container the Files section meets: busybox (Alpine) and GNU (Debian), and one with no
+// shell. The cluster needs, in the namespace shop, running pods files-alpine and files-debian with a folder /data (notes.txt "hello",
+// .env, "report|2026.log", "tên-tệp.txt", empty.txt, big.bin of 3000000 bytes, "dir with space/inner.txt", a folder sub, a folder
+// ..hidden_dir, link-to-dir -> sub, link-to-file -> notes.txt, dangling -> /nonexistent) and files-pause (registry.k8s.io/pause:3.9).
+func TestLivePodFiles(t *testing.T) {
+	for _, pod := range []string{"files-alpine", "files-debian"} {
+		t.Run(pod, func(t *testing.T) {
+			h := newHarness(t).unlocked(t)
+			sid, ctx := liveSession(t, h, "kubeconfig")
+			s := h.app.Server
+			sh, err := s.K8sShellSession(sid, ctx, "shop", pod, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if home, err := s.PodFilesHome(sh.HostID); err != nil || home != "/" {
+				t.Fatalf("home = %q, %v", home, err)
+			}
+			list, err := s.PodFilesList(sh.HostID, "/data")
+			if err != nil {
+				t.Fatal(err)
+			}
+			by := map[string]string{}
+			var order []string
+			for _, e := range list {
+				kind := "file"
+				if e.IsDir {
+					kind = "dir"
+				}
+				by[e.Name] = kind
+				order = append(order, e.Name)
+			}
+			t.Logf("order: %v", order)
+			for name, want := range map[string]string{"notes.txt": "file", ".env": "file", "report|2026.log": "file", "tên-tệp.txt": "file", "empty.txt": "file", "big.bin": "file",
+				"dir with space": "dir", "sub": "dir", "..hidden_dir": "dir", "link-to-dir": "dir", "link-to-file": "file"} {
+				if by[name] != want {
+					t.Errorf("%q is %q, want %q (listing: %v)", name, by[name], want, order)
+				}
+			}
+			if _, ok := by["dangling"]; ok {
+				t.Log("a dangling link is listed")
+			}
+			for _, e := range list {
+				if e.Name == "big.bin" && (e.Size != 3000000 || e.ModTime.IsZero() || !strings.HasPrefix(e.Mode, "-rw")) {
+					t.Errorf("big.bin = %+v", e)
+				}
+			}
+			if inner, err := s.PodFilesList(sh.HostID, "/data/dir with space"); err != nil || len(inner) != 1 || inner[0].Name != "inner.txt" {
+				t.Fatalf("a folder with a space: %+v, %v", inner, err)
+			}
+			if _, err := s.PodFilesList(sh.HostID, "/data/nope"); err == nil || !strings.Contains(err.Error(), "cannot open") {
+				t.Fatalf("a folder that is not there: %v", err)
+			}
+			if empty, err := s.PodFilesList(sh.HostID, "/data/sub"); err != nil || len(empty) != 0 {
+				t.Fatalf("an empty folder: %+v, %v", empty, err)
+			}
+			if root, err := s.PodFilesList(sh.HostID, "/"); err != nil || len(root) < 5 {
+				t.Fatalf("the root: %d entries, %v", len(root), err)
+			}
+
+			dir := t.TempDir()
+			got, err := s.PodFilesFetch(sh.HostID, "/data/notes.txt", dir)
+			if b, _ := os.ReadFile(got); err != nil || string(b) != "hello\n" {
+				t.Fatalf("notes: %q, %q, %v", got, b, err)
+			}
+			if got, err := s.PodFilesFetch(sh.HostID, "/data/tên-tệp.txt", dir); err != nil {
+				t.Fatalf("a name with accents: %v", err)
+			} else if b, _ := os.ReadFile(got); string(b) != "über ünïcode\n" {
+				t.Fatalf("content %q", b)
+			}
+			if got, err := s.PodFilesFetch(sh.HostID, "/data/report|2026.log", dir); err != nil {
+				t.Fatalf("a name with a bar: %v", err)
+			} else if b, _ := os.ReadFile(got); string(b) != "a|b" {
+				t.Fatalf("content %q", b)
+			}
+			if got, err := s.PodFilesFetch(sh.HostID, "/data/big.bin", dir); err != nil {
+				t.Fatalf("a file of 3 MB: %v", err)
+			} else if st, _ := os.Stat(got); st.Size() != 3000000 {
+				t.Fatalf("size %d", st.Size())
+			}
+			if got, err := s.PodFilesFetch(sh.HostID, "/data/empty.txt", dir); err != nil {
+				t.Fatalf("an empty file: %v", err)
+			} else if st, _ := os.Stat(got); st.Size() != 0 {
+				t.Fatalf("size %d", st.Size())
+			}
+			if got, err := s.PodFilesFetch(sh.HostID, "/data/link-to-file", dir); err != nil {
+				t.Fatalf("a link to a file: %v", err)
+			} else if b, _ := os.ReadFile(got); string(b) != "hello\n" {
+				t.Fatalf("content %q", b)
+			}
+			for path, want := range map[string]string{"/data/sub": "folder", "/data/missing": "", "/dev/null": "regular file"} {
+				if _, err := s.PodFilesFetch(sh.HostID, path, dir); err == nil || !strings.Contains(err.Error(), want) {
+					t.Errorf("%s: %v (want %q)", path, err, want)
+				}
+			}
+		})
+	}
+	t.Run("files-pause", func(t *testing.T) {
+		h := newHarness(t).unlocked(t)
+		sid, ctx := liveSession(t, h, "kubeconfig")
+		sh, err := h.app.Server.K8sShellSession(sid, ctx, "shop", "files-pause", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = h.app.Server.PodFilesList(sh.HostID, "/")
+		t.Logf("a container with no shell: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "has no shell") {
+			t.Fatalf("the answer must say so: %v", err)
+		}
+	})
+}

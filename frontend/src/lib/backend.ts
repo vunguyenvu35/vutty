@@ -271,6 +271,9 @@ export interface Backend {
     k8sHelmReleases(sid: string, ctx: string, ns: string): Promise<K8sHelmRelease[]>
     k8sHelmRelease(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<K8sHelmDetail>
     k8sHelmValues(sid: string, ctx: string, ns: string, name: string, revision: number): Promise<string>
+    podFilesHome(hostId: string): Promise<string>
+    podFilesList(hostId: string, dir: string): Promise<RemoteEntry[]>
+    podFilesFetch(hostId: string, remote: string, localDir: string): Promise<string>
     k8sResources(sid: string, ctx: string): Promise<K8sAPIResource[]>
     k8sObjects(sid: string, ctx: string, ns: string, ref: K8sResRef): Promise<K8sObjList>
     k8sObjectYAML(sid: string, ctx: string, ns: string, ref: K8sResRef, name: string): Promise<string>
@@ -614,6 +617,9 @@ export function wailsBackend(): Backend {
       k8sHelmReleases: async (s, c, n) => (await u<K8sHelmRelease[]>('ServerService', 'K8sHelmReleases', s, c, n)) ?? [],
       k8sHelmRelease: async (s, c, n, m, r) => { const d = await u<K8sHelmDetail>('ServerService', 'K8sHelmRelease', s, c, n, m, r); return {...d, history: d.history ?? []} },
       k8sHelmValues: (s, c, n, m, r) => u('ServerService', 'K8sHelmValues', s, c, n, m, r),
+      podFilesHome: hostId => u('ServerService', 'PodFilesHome', hostId),
+      podFilesList: async (hostId, dir) => (await u<RemoteEntry[]>('ServerService', 'PodFilesList', hostId, dir)) ?? [],
+      podFilesFetch: (hostId, remote, localDir) => u('ServerService', 'PodFilesFetch', hostId, remote, localDir),
       k8sResources: async (s, c) => (await u<K8sAPIResource[]>('ServerService', 'K8sResources', s, c)) ?? [],
       k8sObjects: async (s, c, n, r) => { const l = await u<K8sObjList>('ServerService', 'K8sObjects', s, c, n, r); return {...l, columns: l.columns ?? [], rows: (l.rows ?? []).map(x => ({...x, cells: x.cells ?? []}))} },
       k8sObjectYAML: (s, c, n, r, m) => u('ServerService', 'K8sObjectYAML', s, c, n, r, m),

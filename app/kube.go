@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 
 	"vutty/internal/kubeapi"
 	"vutty/internal/usecase"
@@ -54,4 +55,9 @@ func (k kubeClient) Exec(ctx context.Context, ns, pod, container string, command
 		return nil, err
 	}
 	return s, nil
+}
+
+func (k kubeClient) Run(ctx context.Context, ns, pod, container string, command []string, stdout io.Writer) (usecase.KubeRun, error) {
+	r, err := k.Client.Run(ctx, ns, pod, container, command, stdout)
+	return usecase.KubeRun{ExitCode: r.ExitCode, Stderr: r.Stderr}, err
 }

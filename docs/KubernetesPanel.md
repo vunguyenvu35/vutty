@@ -157,6 +157,16 @@ Helm 3 keeps each revision of a release in a Secret `helm.sh/release.v1` (labels
 
 Pods, Workloads and Network show how many there are, from one request for each kind asking for a single item (the API server says how many are left). A tab with a kind that could not be counted shows nothing, not zero. Events and Config show none: what they list is not a count of the kinds.
 
+
+## 24 · Files of a shell in a pod (read only)
+
+The **Files** section of the terminal sidebar also works for a shell in a pod of a cluster opened with a kubeconfig (`kubeexec:<id>`). It lists the folders of the container, opens a file with the system (copied into a private temporary folder first) and copies files out into a folder of this computer.
+
+- **Nothing is installed in the pod.** A folder is listed with `sh` and `stat -L`, a file is read with `stat` and `cat`, through the same exec call as the shell (without a terminal, so stdout and stderr stay apart and the exit code is known). Every path is an argument of the command, never part of its text. A container with no shell (distroless, `scratch`, `pause`) says so instead of listing.
+- **Read only.** There is no upload, rename, delete, new folder or permissions here; those are step 2, if they are wanted.
+- **Limits.** A file up to 256 MB; a folder cannot be copied out yet (open it and copy its files); a copy never replaces a file that is there (`name (1)`), is readable by this user only, and a half copy is removed. A link is shown as what it points to, and a link that points nowhere is not listed.
+- **Tried on real pods** (busybox from Alpine, GNU from Debian) with names that hold spaces, `|` and accents, a folder called `..hidden_dir`, links, an empty file and a 3 MB file; 5000 files list in about a tenth of a second.
+
 ## Command map
 
 ![Command map](screenshots/k8s/26-command-map.png)

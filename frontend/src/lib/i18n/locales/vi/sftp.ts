@@ -196,4 +196,7 @@ export default {
   "{n} left as they were": "{n} giữ nguyên",
   "{n} link ignored": "{n} liên kết bị bỏ qua",
   "{n} links ignored": "{n} liên kết bị bỏ qua",
+  "A folder cannot be copied out of a pod yet: open it and copy its files.": "Chưa sao chép được cả thư mục ra khỏi pod: hãy mở thư mục và sao chép từng file.",
+  "Reading the pod…": "Đang đọc pod…",
+  "The files of a pod can be looked at and copied out, not changed.": "File trong pod chỉ xem và sao chép ra được, không sửa được.",
 } as Record<string, string>

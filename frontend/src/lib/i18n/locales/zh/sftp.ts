@@ -196,4 +196,7 @@ export default {
   "{n} left as they were": "{n} 个保持原样",
   "{n} link ignored": "已忽略 {n} 个链接",
   "{n} links ignored": "已忽略 {n} 个链接",
+  "A folder cannot be copied out of a pod yet: open it and copy its files.": "暂时无法将整个文件夹从 Pod 中复制出来：请打开文件夹并复制其中的文件。",
+  "Reading the pod…": "正在读取 Pod…",
+  "The files of a pod can be looked at and copied out, not changed.": "Pod 中的文件只能查看和复制出来，不能修改。",
 } as Record<string, string>

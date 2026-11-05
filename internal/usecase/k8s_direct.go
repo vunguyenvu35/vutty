@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"sort"
 	"strconv"
@@ -36,6 +37,14 @@ type KubeAPI interface {
 	// Exec runs a command with a terminal in a container of a pod (a shell): its output goes to onData, keystrokes come in
 	// through Write.
 	Exec(ctx context.Context, ns, pod, container string, command []string, cols, rows int, onData func([]byte)) (Shell, error)
+	// Run runs a command without a terminal and waits for it to end: what it writes to stdout goes to stdout (a write that fails ends it).
+	Run(ctx context.Context, ns, pod, container string, command []string, stdout io.Writer) (KubeRun, error)
+}
+
+// KubeRun is how a command run in a pod ended: its exit code and the start of its stderr.
+type KubeRun struct {
+	ExitCode int
+	Stderr   string
 }
 
 // KubeContext is what the screen may know about a context of a kubeconfig. It carries no secret.
