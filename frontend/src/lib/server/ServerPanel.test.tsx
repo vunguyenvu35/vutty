@@ -149,3 +149,90 @@ describe('Server panel: Users', () => {
     expect(await screen.findByText('203.0.113.7')).toBeInTheDocument()
   })
 })
+
+describe('Server panel: managing users', () => {
+  const ed = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTests me@laptop'
+  afterEach(() => { vi.restoreAllMocks() })
+  async function openUsers() {
+    const be = makeFake({hosts: [web]})
+    render(<Providers be={be}><ServerPanel host={web} visible /></Providers>)
+    await screen.findByRole('tab', {name: 'Users'})
+    await open('Users')
+    await screen.findByText('/root')
+    return be
+  }
+
+  it('adds a user with a shell, sudo and a first key, and lists it', async () => {
+    const be = await openUsers()
+    await userEvent.click(screen.getByRole('button', {name: 'Add user'}))
+    const dlg = screen.getByRole('dialog', {name: 'Add user'})
+    const add = within(dlg).getByRole('button', {name: 'Add user'})
+    expect(add).toBeDisabled()
+    await userEvent.type(within(dlg).getByLabelText('User name'), 'Bad Name')
+    expect(add).toBeDisabled()
+    await userEvent.clear(within(dlg).getByLabelText('User name'))
+    await userEvent.type(within(dlg).getByLabelText('User name'), 'ci')
+    await userEvent.click(within(dlg).getByLabelText('May use sudo'))
+    await userEvent.type(within(dlg).getByLabelText('Public key (optional)'), ed)
+    await userEvent.click(add)
+    await waitFor(() => expect(calls(be, 'server.addUser')).toEqual([['server.addUser', 'ci', '/bin/bash', true, ed]]))
+    expect(await screen.findByText('/home/ci')).toBeInTheDocument()
+  })
+
+  it('deletes only after the name is typed, never offers root or the account of the connection, and shows a refusal', async () => {
+    const be = await openUsers()
+    expect(screen.queryByRole('button', {name: 'Delete root'})).toBeNull()
+    await userEvent.click(screen.getByRole('button', {name: 'Delete deploy'}))
+    const dlg = screen.getByRole('dialog', {name: 'Delete deploy'})
+    const del = within(dlg).getByRole('button', {name: 'Delete'})
+    expect(del).toBeDisabled()
+    await userEvent.type(within(dlg).getByLabelText('Type deploy to confirm'), 'deploy')
+    await userEvent.click(within(dlg).getByLabelText(/Also delete its home folder/))
+    await userEvent.click(del)
+    await waitFor(() => expect(calls(be, 'server.deleteUser')).toEqual([['server.deleteUser', 'deploy', true]]))
+    await waitFor(() => expect(screen.queryByText('/home/deploy')).toBeNull())
+  })
+
+  it('keeps the dialog open and says why when the server refuses', async () => {
+    const be = await openUsers()
+    be.state.server.failAction = 'deploy is logged in now'
+    await userEvent.click(screen.getByRole('button', {name: 'Delete deploy'}))
+    const dlg = screen.getByRole('dialog', {name: 'Delete deploy'})
+    await userEvent.type(within(dlg).getByLabelText('Type deploy to confirm'), 'deploy')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Delete'}))
+    expect(await within(dlg).findByText(/deploy is logged in now/)).toBeInTheDocument()
+  })
+
+  it('lists the keys, adds one and asks before removing one', async () => {
+    const be = await openUsers()
+    await userEvent.click(screen.getByRole('button', {name: 'SSH keys of deploy'}))
+    const dlg = screen.getByRole('dialog', {name: 'SSH keys of deploy'})
+    expect(await within(dlg).findByText('old@laptop')).toBeInTheDocument()
+    await userEvent.type(within(dlg).getByLabelText('Add a public key'), ed)
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Add key'}))
+    await waitFor(() => expect(calls(be, 'server.addUserKey')).toEqual([['server.addUserKey', 'deploy', ed]]))
+    expect(await within(dlg).findByText('me@laptop')).toBeInTheDocument()
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await userEvent.click(within(dlg).getByRole('button', {name: /Remove the key SHA256:a/}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('old@laptop'))
+    expect(calls(be, 'server.removeUserKey')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(within(dlg).getByRole('button', {name: /Remove the key SHA256:a/}))
+    await waitFor(() => expect(calls(be, 'server.removeUserKey')).toHaveLength(1))
+    await waitFor(() => expect(within(dlg).queryByText('old@laptop')).toBeNull())
+  })
+})
+
+describe('Server panel: reboot', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+  it('asks first, and restarts only when confirmed', async () => {
+    const {be} = setup()
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await userEvent.click(await screen.findByRole('button', {name: 'Reboot'}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Restart web-1?'))
+    expect(calls(be, 'server.reboot')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Reboot'}))
+    await waitFor(() => expect(calls(be, 'server.reboot')).toHaveLength(1))
+  })
+})

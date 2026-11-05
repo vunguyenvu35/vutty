@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
 import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sDebug, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
-import type {ServerUsers, DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
+import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
@@ -216,6 +216,7 @@ export interface Backend {
     processes(sid: string): Promise<ServerProcess[]>
     kill(sid: string, pid: number, signal: 'TERM' | 'KILL'): Promise<void>
     services(sid: string): Promise<ServerUnit[]>
+    reboot(sid: string): Promise<void>
     serviceAction(sid: string, name: string, action: 'start' | 'stop' | 'restart' | 'enable' | 'disable'): Promise<void>
     containers(sid: string): Promise<ServerContainers>
     containerAction(sid: string, name: string, action: 'start' | 'stop' | 'restart'): Promise<void>
@@ -249,6 +250,11 @@ export interface Backend {
     security(sid: string): Promise<ServerSecurity>
     /** the accounts that can log in (with sudo and the number of SSH keys), and the logins open now */
     users(sid: string): Promise<ServerUsers>
+    addUser(sid: string, name: string, shell: string, sudo: boolean, key: string): Promise<void>
+    deleteUser(sid: string, name: string, removeHome: boolean): Promise<void>
+    userKeys(sid: string, name: string): Promise<UserKey[]>
+    addUserKey(sid: string, name: string, key: string): Promise<void>
+    removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
     unban(sid: string, jail: string, ip: string): Promise<void>
     schedule(sid: string): Promise<ServerSchedule>
     /** the newest file under path on the server */
@@ -583,6 +589,7 @@ export function wailsBackend(): Backend {
       processes: async s => (await u<ServerProcess[]>('ServerService', 'Processes', s)) ?? [],
       kill: (s, p, g) => u('ServerService', 'Kill', s, p, g),
       services: async s => (await u<ServerUnit[]>('ServerService', 'Services', s)) ?? [],
+      reboot: s => u('ServerService', 'Reboot', s),
       serviceAction: (s, n, a) => u('ServerService', 'ServiceAction', s, n, a),
       containers: async s => { const r = await u<ServerContainers>('ServerService', 'Containers', s); return {...r, containers: r.containers ?? []} },
       containerAction: (s, n, a) => u('ServerService', 'ContainerAction', s, n, a),
@@ -602,7 +609,12 @@ export function wailsBackend(): Backend {
       cleanup: async s => { const r = await u<ServerCleanup>('ServerService', 'Cleanup', s); return {disks: r.disks ?? [], items: r.items ?? []} },
       cleanupRun: (s, id) => u('ServerService', 'CleanupRun', s, id),
       diskUsage: async (s, p) => (await u<ServerFolder[]>('ServerService', 'DiskUsage', s, p)) ?? [],
-      users: async s => { const r = await u<ServerUsers>('ServerService', 'Users', s); return {users: r.users ?? [], sessions: r.sessions ?? []} },
+      users: async s => { const r = await u<ServerUsers>('ServerService', 'Users', s); return {users: r.users ?? [], sessions: r.sessions ?? [], me: r.me ?? ''} },
+      addUser: (s, n, sh, sudo, k) => u('ServerService', 'AddUser', s, n, sh, sudo, k),
+      deleteUser: (s, n, h) => u('ServerService', 'DeleteUser', s, n, h),
+      userKeys: async (s, n) => (await u<UserKey[]>('ServerService', 'UserKeys', s, n)) ?? [],
+      addUserKey: (s, n, k) => u('ServerService', 'AddUserKey', s, n, k),
+      removeUserKey: (s, n, f) => u('ServerService', 'RemoveUserKey', s, n, f),
       security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
       unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
       schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? []} },

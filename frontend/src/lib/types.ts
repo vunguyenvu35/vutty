@@ -549,7 +549,9 @@ export interface ServerContainers {
 export interface ServerUsers {
   users: {name: string; uid: number; home: string; shell: string; sudo: boolean; keys: number; login: string}[]
   sessions: {user: string; tty: string; since: string; from: string}[]
+  me: string // the account this connection is logged in as
 }
+export interface UserKey {type: string; fingerprint: string; comment: string; options: boolean}
 export interface DockerStat {name: string; cpu: number; mem_pct: number; mem_usage: string}
 export interface DockerInspect {name: string; image: string; created: string; state: string; restart: string; command: string; env: {key: string; value: string}[]; mounts: {type: string; source: string; dest: string; rw: boolean}[]; ports: string[]; networks: string[]; labels: Record<string, string>}
 export interface DockerObjects {

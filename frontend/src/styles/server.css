@@ -58,6 +58,8 @@
 .sp-log-line.warn { color: var(--warn); }
 @media (prefers-reduced-motion: reduce) { .sp-track i { transition: none; } }
 .sp-view.fill { flex: 1; min-height: 0; }
+.sp-head .sp-reboot { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--bad, #e5484d); }
+.sp-head .sp-reboot + .sp-access { margin-left: 0; }
 .sp-head .sp-access { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text); }
 
 /* the tabs that hold several boxes (Web, Maintenance, Security, Schedule) and the stacks of the Docker tab */
@@ -119,3 +121,4 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .k8s-menu.row-menu .k8s-mi.danger { color: var(--bad, #ee6b6b); }
 /* a long value (an image name) is cut with … and shown whole in the tooltip */
 .sp-table td.cut { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }

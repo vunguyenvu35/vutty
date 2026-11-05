@@ -3,7 +3,7 @@ import {useBackend} from '../backend'
 import {useT, useTn, type TFn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {IconDownload, IconTerminal} from '../ui/Icons'
+import {IconDownload, IconPower, IconTerminal} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
@@ -61,6 +61,13 @@ type Feed = ReturnType<typeof useOverviewFeed>
 export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; visible: boolean; onAccess?(): void; onShell?(host: Host, command: string, title: string): void}) {
   const t = useT()
   const {phase, sid, notice} = useServerConnection(host)
+  const be = useBackend()
+  const confirm = useConfirm()
+  const toast = useToast()
+  const reboot = async () => {
+    if (!(await confirm(t('Restart {name}? Every connection to it, this panel included, drops until it is up again. Programs that are running stop.', {name: host.label}), {confirmLabel: t('Reboot'), danger: true}))) return
+    try { await be.server.reboot(sid); toast.info(t('{name} is restarting', {name: host.label})) } catch (e) { toast.error(errMsg(e)) }
+  }
   const [section, setSection] = useState<Section>('overview')
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
   const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
@@ -70,6 +77,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
       <div className="sp-head">
         <h1>{host.label}</h1>
         <span>{host.username ? host.username + '@' : ''}{host.hostname}{host.port !== 22 ? ':' + host.port : ''}</span>
+        {phase === 'ready' && sid && <button className="sp-reboot" onClick={reboot} title={t('Restart the server')}><IconPower size={14} /> {t('Reboot')}</button>}
         {onAccess && <button className="sp-access" onClick={onAccess} title={t('Open a terminal on this host in a new tab')}><IconTerminal size={14} /> {t('Access host')}</button>}
       </div>
       {phase === 'ready' && sid ? (

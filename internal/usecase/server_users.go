@@ -33,6 +33,7 @@ type ServerSession struct {
 type ServerUsers struct {
 	Users    []ServerUser    `json:"users"`
 	Sessions []ServerSession `json:"sessions"`
+	Me       string          `json:"me"` // the account this connection is logged in as
 }
 
 const usersScript = `echo '##passwd'; getent passwd
@@ -45,10 +46,11 @@ echo '##keys'; getent passwd | awk -F: '$7 !~ /(nologin|false|sync|shutdown|halt
   echo "$u ${n:-0}"
 done
 echo '##who'; who 2>/dev/null
-echo '##last'; lastlog 2>/dev/null | tail -n +2`
+echo '##last'; lastlog 2>/dev/null | tail -n +2
+echo '##me'; id -un`
 
 func parseUsers(out string) ServerUsers {
-	res := ServerUsers{Users: []ServerUser{}, Sessions: []ServerSession{}}
+	res := ServerUsers{Users: []ServerUser{}, Sessions: []ServerSession{}, Me: strings.TrimSpace(section(out, "me"))}
 	sudoers := map[string]bool{}
 	for _, ln := range strings.Split(section(out, "groups"), "\n") {
 		f := strings.Split(strings.TrimSpace(ln), ":") // name:x:gid:member,member

@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -67,6 +67,7 @@ export interface Fake extends Backend {
       folders: Record<string, ServerFolder[]>
       security: ServerSecurity
       users: ServerUsers
+      userKeys: Record<string, UserKey[]>
       schedule: ServerSchedule
       backup: ServerBackup
       /** what fleetHost answers per host id: an error text means the host did not answer */
@@ -197,7 +198,8 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
       cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
       folders: {'/var': [{path: '/var/lib', size: 12 * GB}, {path: '/var/log', size: 2 * GB}], '/var/lib': [{path: '/var/lib/docker', size: 10 * GB}]},
-      users: {users: [{name: 'root', uid: 0, home: '/root', shell: '/bin/bash', sudo: true, keys: 1, login: 'Thu Nov  5 09:00:00 +0700 2026'}, {name: 'deploy', uid: 1001, home: '/home/deploy', shell: '/bin/bash', sudo: false, keys: -1, login: ''}], sessions: [{user: 'root', tty: 'pts/0', since: '2026-11-05 09:00', from: '203.0.113.7'}]},
+      users: {users: [{name: 'root', uid: 0, home: '/root', shell: '/bin/bash', sudo: true, keys: 1, login: 'Thu Nov  5 09:00:00 +0700 2026'}, {name: 'deploy', uid: 1001, home: '/home/deploy', shell: '/bin/bash', sudo: false, keys: -1, login: ''}], sessions: [{user: 'root', tty: 'pts/0', since: '2026-11-05 09:00', from: '203.0.113.7'}], me: 'root'},
+      userKeys: {deploy: [{type: 'ssh-ed25519', fingerprint: 'SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', comment: 'old@laptop', options: false}]},
       security: {fail2ban: {installed: true, running: true, jails: [{name: 'sshd', banned: 2, total_banned: 41, ips: ['203.0.113.5', '198.51.100.7']}]}, ssh: {known: true, port: 22, root_login: 'yes', password_auth: 'yes'}, failed: {known: true, total: 240, top: [{ip: '203.0.113.9', count: 180}]}},
       schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}]},
       backup: {found: true, file: 'db-2026-11-02.sql.gz', size: GB / 8, mtime: 1790000000 - 3 * 86400, now: 1790000000},
@@ -563,6 +565,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       processes: async () => state.server.processes.map(p => ({...p})),
       kill: async (sid, pid, sig) => { rec('server.kill', pid, sig); if (state.server.failAction) throw state.server.failAction; state.server.processes = state.server.processes.filter(p => p.pid !== pid) },
       services: async () => state.server.units.map(u => ({...u})),
+      reboot: async () => { rec('server.reboot'); if (state.server.failAction) throw state.server.failAction },
       serviceAction: async (sid, name, action) => {
         rec('server.serviceAction', name, action)
         if (state.server.failAction) throw state.server.failAction
@@ -605,6 +608,27 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       },
       diskUsage: async (sid, path) => { rec('server.diskUsage', path); return (state.server.folders[path] ?? []).map(f => ({...f})) },
       users: async () => JSON.parse(JSON.stringify(state.server.users)),
+      addUser: async (sid, name, shell, sudo, key) => {
+        rec('server.addUser', name, shell, sudo, key)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users.users.push({name, uid: 1002, home: '/home/' + name, shell, sudo, keys: key ? 1 : 0, login: ''})
+      },
+      deleteUser: async (sid, name, removeHome) => {
+        rec('server.deleteUser', name, removeHome)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users.users = state.server.users.users.filter(u => u.name !== name)
+      },
+      userKeys: async (sid, name) => (state.server.userKeys[name] ?? []).map(k => ({...k})),
+      addUserKey: async (sid, name, key) => {
+        rec('server.addUserKey', name, key)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.userKeys[name] = [...(state.server.userKeys[name] ?? []), {type: key.split(' ')[0], fingerprint: 'SHA256:' + 'b'.repeat(43), comment: key.split(' ')[2] ?? '', options: false}]
+      },
+      removeUserKey: async (sid, name, fp) => {
+        rec('server.removeUserKey', name, fp)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.userKeys[name] = (state.server.userKeys[name] ?? []).filter(k => k.fingerprint !== fp)
+      },
       security: async () => JSON.parse(JSON.stringify(state.server.security)),
       unban: async (sid, jail, ip) => {
         rec('server.unban', jail, ip)

@@ -49,6 +49,7 @@ export const IconFile = (p: P) => <Icon {...p}><path d="M14 3H7a2 2 0 0 0-2 2v14
 export const IconUpload = (p: P) => <Icon {...p}><path d="M12 16V4m-5 5 5-5 5 5M5 20h14" /></Icon>
 export const IconDownload = (p: P) => <Icon {...p}><path d="M12 4v12m-5-5 5 5 5-5M5 20h14" /></Icon>
 export const IconRefresh = (p: P) => <Icon {...p}><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" /></Icon>
+export const IconPower = (p: P) => <Icon {...p}><path d="M12 3v8M6.3 7.3a8 8 0 1 0 11.4 0" /></Icon>
 export const IconLocate = (p: P) => <Icon {...p}><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></Icon>
 export const IconHome = (p: P) => <Icon {...p}><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></Icon>
 export const IconFolderPlus = (p: P) => <Icon {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M12 11v5M9.5 13.5h5" /></Icon>
