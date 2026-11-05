@@ -112,23 +112,26 @@ export function useLoad<T>(load: () => Promise<T>, ms: number | null): {data: T 
   const [busy, setBusy] = useState(true)
   const alive = useRef(true)
   const latest = useRef(0)
+  const pending = useRef(false) // a load is on its way: the timer waits for it (asking again would make its answer stale, and a slow one would never show)
   const loadRef = useRef(load)
   loadRef.current = load
   const reload = useCallback(() => {
     const mine = ++latest.current
+    pending.current = true
     setBusy(true)
     loadRef.current().then(d => {
       if (alive.current && mine === latest.current) { setData(d); setError('') }
     }, e => {
       if (alive.current && mine === latest.current) setError(errMsg(e))
     }).finally(() => {
+      if (mine === latest.current) pending.current = false
       if (alive.current && mine === latest.current) setBusy(false)
     })
   }, [])
   useEffect(() => {
     alive.current = true
     reload()
-    const timer = ms ? window.setInterval(() => { if (!document.hidden) reload() }, ms) : 0
+    const timer = ms ? window.setInterval(() => { if (!document.hidden && !pending.current) reload() }, ms) : 0
     return () => { alive.current = false; if (timer) window.clearInterval(timer) }
   }, [reload, ms])
   return {data, error, busy, reload}

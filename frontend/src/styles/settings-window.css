@@ -75,3 +75,5 @@
 .key-capture small { color: var(--muted); margin-left: 6px; }
 @keyframes pulse { 50% { opacity: .6; } }
 [data-motion='reduced'] *, [data-motion='reduced'] *::before, [data-motion='reduced'] *::after { animation: none !important; transition: none !important; }
+/* the one animation that stays with Reduce motion: a loading ring that does not turn looks like a hang (slowly, and nothing else moves) */
+[data-motion='reduced'] .ld-ring { animation: ld-spin 1.8s linear infinite !important; }

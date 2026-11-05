@@ -127,7 +127,8 @@
 .ld-text { font-size: 14px; }
 @keyframes ld-spin { to { transform: rotate(360deg); } }
 @keyframes ld-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .ld-ring { animation: none; border-top-color: var(--accent); border-right-color: var(--accent); } .ld { animation-duration: .01s; } }
+/* a loading ring that does not turn looks like a hang: with less motion asked for it still turns, slower, and the box does not fade in */
+@media (prefers-reduced-motion: reduce) { .ld-ring { animation-duration: 1.8s; } .ld { animation-duration: .01s; } }
 
 /* nodes known only by their pods: short name, a bar against the busiest one, the count */
 .k8s-seen-head { display: flex; align-items: baseline; gap: 10px; }
