@@ -117,3 +117,5 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .k8s-menu.row-menu { width: 180px; }
 .k8s-menu.row-menu .k8s-mi { flex-direction: row; align-items: center; padding: 8px 10px; width: 100%; }
 .k8s-menu.row-menu .k8s-mi.danger { color: var(--bad, #ee6b6b); }
+/* a long value (an image name) is cut with … and shown whole in the tooltip */
+.sp-table td.cut { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

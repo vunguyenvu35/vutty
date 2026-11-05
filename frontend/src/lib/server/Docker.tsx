@@ -75,7 +75,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
     return (
       <tr key={c.id}>
         <td><b>{c.name}</b></td>
-        <td className="m">{c.image}</td>
+        <td className="m cut" title={c.image}>{c.image}</td>
         <td>{c.state === 'running' ? <span className="sp-pill ok" title={c.status}>{t('Running')}</span> : <span className="sp-pill" title={c.status}>{t('Stopped')}</span>}</td>
         <td className="n m">{s ? s.cpu.toFixed(1) + '%' : '–'}</td>
         <td className="n m" title={s ? s.mem_pct.toFixed(1) + '%' : undefined}>{s ? s.mem_usage : '–'}</td>
