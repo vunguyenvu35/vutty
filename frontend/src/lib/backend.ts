@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
 import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sDebug, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
-import type {ServerUsers, DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
+import type {ServerKey, ServerNetwork, ServerDatabases, ServerUsers, DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
@@ -249,6 +249,21 @@ export interface Backend {
     security(sid: string): Promise<ServerSecurity>
     /** the accounts that can log in (with sudo and the number of SSH keys), and the logins open now */
     users(sid: string): Promise<ServerUsers>
+    sshKeys(sid: string, user: string): Promise<ServerKey[]>
+    addSshKey(sid: string, user: string, key: string): Promise<void>
+    removeSshKey(sid: string, user: string, fingerprint: string): Promise<void>
+    addUser(sid: string, name: string, sudo: boolean): Promise<void>
+    setSudo(sid: string, name: string, on: boolean): Promise<void>
+    deleteUser(sid: string, name: string, removeHome: boolean): Promise<void>
+    /** proto '' opens (or closes) the port for tcp and udp */
+    firewallAllow(sid: string, port: number, proto: '' | 'tcp' | 'udp'): Promise<void>
+    firewallDelete(sid: string, port: number, proto: '' | 'tcp' | 'udp'): Promise<void>
+    /** renew a Let's Encrypt certificate (dryRun only tests it); returns what certbot said */
+    certRenew(sid: string, name: string, dryRun: boolean): Promise<string>
+    cronAdd(sid: string, when: string, command: string): Promise<void>
+    cronRemove(sid: string, line: string): Promise<void>
+    network(sid: string): Promise<ServerNetwork>
+    databases(sid: string): Promise<ServerDatabases>
     unban(sid: string, jail: string, ip: string): Promise<void>
     schedule(sid: string): Promise<ServerSchedule>
     /** the newest file under path on the server */
@@ -602,13 +617,26 @@ export function wailsBackend(): Backend {
       cleanup: async s => { const r = await u<ServerCleanup>('ServerService', 'Cleanup', s); return {disks: r.disks ?? [], items: r.items ?? []} },
       cleanupRun: (s, id) => u('ServerService', 'CleanupRun', s, id),
       diskUsage: async (s, p) => (await u<ServerFolder[]>('ServerService', 'DiskUsage', s, p)) ?? [],
+      sshKeys: async (s, name) => (await u<ServerKey[]>('ServerService', 'SSHKeys', s, name)) ?? [],
+      addSshKey: (s, name, k) => u('ServerService', 'AddSSHKey', s, name, k),
+      removeSshKey: (s, name, f) => u('ServerService', 'RemoveSSHKey', s, name, f),
+      addUser: (s, n, sudo) => u('ServerService', 'AddUser', s, n, sudo),
+      setSudo: (s, n, on) => u('ServerService', 'SetSudo', s, n, on),
+      deleteUser: (s, n, h) => u('ServerService', 'DeleteUser', s, n, h),
+      firewallAllow: (s, p, pr) => u('ServerService', 'FirewallAllow', s, p, pr),
+      firewallDelete: (s, p, pr) => u('ServerService', 'FirewallDelete', s, p, pr),
+      certRenew: (s, n, d) => u('ServerService', 'CertRenew', s, n, d),
+      cronAdd: (s, w, c) => u('ServerService', 'CronAdd', s, w, c),
+      cronRemove: (s, l) => u('ServerService', 'CronRemove', s, l),
+      network: async s => { const r = await u<ServerNetwork>('ServerService', 'Network', s); return {...r, ifaces: (r.ifaces ?? []).map((i: ServerNetwork['ifaces'][number]) => ({...i, addrs: i.addrs ?? []})), conns: r.conns ?? []} },
+      databases: async s => { const r = await u<ServerDatabases>('ServerService', 'Databases', s); return {engines: (r.engines ?? []).map((e: ServerDatabases['engines'][number]) => ({...e, databases: e.databases ?? []}))} },
       users: async s => { const r = await u<ServerUsers>('ServerService', 'Users', s); return {users: r.users ?? [], sessions: r.sessions ?? []} },
       security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
       unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
       schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? []} },
       backup: (s, p) => u('ServerService', 'Backup', s, p),
       fleetHost: h => u('ServerService', 'FleetHost', h),
-      ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },
+      ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? [], rules: r.rules ?? []} },
       k8sDetect: async s => { const r = await u<K8sDetect>('ServerService', 'K8sDetect', s); return {...r, tried: r.tried ?? []} },
       k8sContexts: async s => { const r = await u<K8sContexts>('ServerService', 'K8sContexts', s); return {...r, contexts: r.contexts ?? []} },
       k8sCheck: (s, c) => u('ServerService', 'K8sCheck', s, c),

@@ -4,6 +4,7 @@ import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
+import {Modal} from '../ui/Modal'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {certLevel} from './format'
 import type {ServerCerts, ServerWeb, ServerWebResult} from '../types'
@@ -24,25 +25,40 @@ function Certificates({sid}: {sid: string}) {
   const tn = useTn()
   const load = useCallback(() => be.server.certificates(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerCerts>(load, null)
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [working, setWorking] = useState('')
+  const [said, setSaid] = useState<{name: string; text: string; dry: boolean} | null>(null)
   const when = (unix: number) => new Date(unix * 1000).toLocaleDateString()
+  const renew = async (name: string, dry: boolean) => {
+    if (!dry && !(await confirm(t('Renew the certificate {name} now? Let\'s Encrypt is asked for a new one and the web server may reload.', {name}), {confirmLabel: t('Renew')}))) return
+    setWorking(name)
+    try { setSaid({name, text: await be.server.certRenew(sid, name, dry), dry}); if (!dry) reload() } catch (e) { toast.error(errMsg(e)) }
+    setWorking('')
+  }
   return (
     <Card title={t('Certificates')} right={<Toolbar busy={busy} onReload={reload} />}>
       <Err error={error} />
       {data && !data.found && <div className="sp-empty">{t("No Let's Encrypt certificates found, or this login cannot read them.")}</div>}
       {data?.found && (
         <div className="sp-table"><table>
-          <thead><tr><th>{t('Domains')}</th><th>{t('Expires')}</th><th>{t('Time left')}</th></tr></thead>
+          <thead><tr><th>{t('Domains')}</th><th>{t('Expires')}</th><th>{t('Time left')}</th><th /></tr></thead>
           <tbody>
             {data.certs.map(c => (
               <tr key={c.name}>
                 <td><b>{c.domains[0] ?? c.name}</b>{c.domains.length > 1 && <div className="sp-note">{c.domains.slice(1).join(', ')}</div>}</td>
                 <td className="m">{when(c.not_after)}</td>
                 <td><span className={'sp-pill ' + certLevel(c.days_left)}>{c.days_left < 0 ? t('Expired') : tn(c.days_left, '{n} day', '{n} days', {n: c.days_left})}</span></td>
+                <td><div className="sp-acts">
+                  <button aria-busy={working === c.name} disabled={working === c.name} onClick={() => void renew(c.name, true)}>{t('Test renewal')}</button>
+                  <button className="primary" aria-busy={working === c.name} disabled={working === c.name} onClick={() => void renew(c.name, false)}>{t('Renew')}</button>
+                </div></td>
               </tr>
             ))}
           </tbody>
         </table>{data.certs.length === 0 && <div className="sp-empty">{t('No certificates.')}</div>}</div>
       )}
+      {said && <Modal wide title={(said.dry ? t('Test of the renewal of {name}', {name: said.name}) : t('Renewal of {name}', {name: said.name}))} onClose={() => setSaid(null)} footer={<button onClick={() => setSaid(null)}>{t('Close')}</button>}><pre className="sp-log" style={{whiteSpace: "pre-wrap"}}>{said.text || "–"}</pre></Modal>}
     </Card>
   )
 }

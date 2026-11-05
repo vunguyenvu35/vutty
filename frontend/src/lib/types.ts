@@ -550,6 +550,16 @@ export interface ServerUsers {
   users: {name: string; uid: number; home: string; shell: string; sudo: boolean; keys: number; login: string}[]
   sessions: {user: string; tty: string; since: string; from: string}[]
 }
+export interface ServerKey {fingerprint: string; type: string; comment: string}
+export interface ServerNetwork {
+  ifaces: {name: string; addrs: string[]; rx: number; tx: number}[]
+  conns: {process: string; local: string; remote: string}[]
+  /** how many connections there are (conns holds the first ones) */
+  total: number
+}
+export interface ServerDatabases {
+  engines: {kind: 'postgres' | 'mysql' | 'redis'; version: string; reachable: boolean; connections: number; max_connections: number; memory: string; databases: {name: string; bytes: number}[]}[]
+}
 export interface DockerStat {name: string; cpu: number; mem_pct: number; mem_usage: string}
 export interface DockerInspect {name: string; image: string; created: string; state: string; restart: string; command: string; env: {key: string; value: string}[]; mounts: {type: string; source: string; dest: string; rw: boolean}[]; ports: string[]; networks: string[]; labels: Record<string, string>}
 export interface DockerObjects {
@@ -569,6 +579,8 @@ export interface ServerPorts {
   /** ufw: 'active' or 'inactive'; 'unknown' when the server has none or the login may not ask */
   firewall: 'active' | 'inactive' | 'unknown'
   ports: ServerPort[]
+  /** the allow rules of ufw for one port from anywhere; proto '' is both tcp and udp */
+  rules: {port: number; proto: '' | 'tcp' | 'udp'}[]
 }
 
 /** Let's Encrypt certificates found on the server (read only). */

@@ -4,6 +4,7 @@ import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {formatBytes} from '../sftp/format'
+import {Field, Modal} from '../ui/Modal'
 import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {backupLevel, formatUptime, validPath} from './format'
@@ -14,7 +15,7 @@ export function Schedule({sid, host, onLogs}: {sid: string; host: Host; onLogs(k
   return (
     <div className="sp-view">
       <BackupCheck sid={sid} host={host} />
-      <Jobs sid={sid} onLogs={onLogs} />
+      <Jobs sid={sid} host={host} onLogs={onLogs} />
     </div>
   )
 }
@@ -22,12 +23,19 @@ export function Schedule({sid, host, onLogs}: {sid: string; host: Host; onLogs(k
 /** "unit.service" -> "unit": the name ServiceAction wants. */
 const unitName = (u: string) => u.replace(/\.service$/, '')
 
-function Jobs({sid, onLogs}: {sid: string; onLogs(kind: 'service', name: string): void}) {
+/** a cron schedule: five fields, or @daily and its kin */
+const CRON_RE = /^(@(reboot|hourly|daily|weekly|monthly|yearly|annually)|[0-9*/,\-]+ [0-9*/,\-]+ [0-9*/,\-]+ [0-9*/,\-A-Za-z]+ [0-9*/,\-A-Za-z]+)$/
+
+function Jobs({sid, host, onLogs}: {sid: string; host: Host; onLogs(kind: 'service', name: string): void}) {
   const be = useBackend()
   const t = useT()
   const toast = useToast()
   const confirm = useConfirm()
   const [working, setWorking] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [when, setWhen] = useState('0 3 * * *')
+  const [command, setCommand] = useState('')
+  const [err, setErr] = useState('')
   const load = useCallback(() => be.server.schedule(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerSchedule>(load, null)
   const run = async (unit: string) => {
@@ -38,6 +46,18 @@ function Jobs({sid, onLogs}: {sid: string; onLogs(kind: 'service', name: string)
     setWorking('')
     reload()
   }
+  const addCron = async () => {
+    setErr('')
+    try { await be.server.cronAdd(sid, when.trim(), command.trim()); toast.info(t('Cron job added.')); setAdding(false); setCommand('') } catch (e) { setErr(errMsg(e)); return }
+    reload()
+  }
+  const removeCron = async (line: string) => {
+    if (!(await confirm(t('Remove this cron job?') + '\n' + line, {confirmLabel: t('Remove'), danger: true}))) return
+    try { await be.server.cronRemove(sid, line); toast.info(t('Cron job removed.')) } catch (e) { toast.error(errMsg(e)) }
+    reload()
+  }
+  // the crontab of the account the panel logs in as is the one that can be changed here
+  const mine = (source: string) => source === 'crontab' || (source === 'root' && host.username === 'root')
   return (
     <>
       <Card title={t('Timers')} right={<Toolbar busy={busy} onReload={reload} />}>
@@ -61,20 +81,31 @@ function Jobs({sid, onLogs}: {sid: string; onLogs(kind: 'service', name: string)
           </table>{data.timers.length === 0 && <div className="sp-empty">{t('No timers.')}</div>}</div>
         )}
       </Card>
-      <Card title={t('Cron jobs')}>
+      <Card title={t('Cron jobs')} right={<button onClick={() => { setErr(''); setAdding(true) }}>{t('Add cron job')}</button>}>
         {data && (
           <div className="sp-table"><table>
-            <thead><tr><th>{t('Schedule')}</th><th>{t('Command')}</th><th>{t('From')}</th></tr></thead>
+            <thead><tr><th>{t('Schedule')}</th><th>{t('Command')}</th><th>{t('From')}</th><th /></tr></thead>
             <tbody>
               {data.cron.map((c, i) => (
                 <tr key={i}>
                   <td className="m">{c.schedule}</td>
                   <td className="sp-cmd" title={c.command}>{c.command}</td>
                   <td className="sp-note">{c.source}{c.user ? ' · ' + c.user : ''}</td>
+                  <td><div className="sp-acts">{mine(c.source) && <button className="danger" aria-label={t('Remove the cron job {name}', {name: c.command})} onClick={() => void removeCron(c.schedule + ' ' + c.command)}>{t('Remove')}</button>}</div></td>
                 </tr>
               ))}
             </tbody>
           </table>{data.cron.length === 0 && <div className="sp-empty">{t('No cron jobs.')}</div>}</div>
+        )}
+        {adding && (
+          <Modal wide title={t('Add cron job')} onClose={() => setAdding(false)} footer={<><button onClick={() => setAdding(false)}>{t('Cancel')}</button><button className="primary" disabled={!CRON_RE.test(when.trim()) || !command.trim()} onClick={() => void addCron()}>{t('Add cron job')}</button></>}>
+            <Field label={t('Schedule')}><input className="m" value={when} onChange={e => setWhen(e.target.value)} placeholder="0 3 * * *" spellCheck={false} /></Field>
+            {when.trim() !== '' && !CRON_RE.test(when.trim()) && <div className="error">{t('Five fields, like 0 3 * * *, or @daily.')}</div>}
+            <Field label={t('Command')}><input className="m" value={command} onChange={e => setCommand(e.target.value)} placeholder="/usr/local/bin/backup.sh" spellCheck={false} /></Field>
+            <div className="sp-note">{t('It runs as {user}, at the server\'s time. This is the line that will be added:', {user: host.username || 'root'})}</div>
+            <pre className="sp-log m">{when.trim()} {command.trim()}</pre>
+            {err && <div className="error" role="alert">{err}</div>}
+          </Modal>
         )}
         <div className="sp-note">{t('Times are the server\'s. Cron keeps no record of past runs; use a timer when you need one.')}</div>
       </Card>

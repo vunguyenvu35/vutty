@@ -38,7 +38,7 @@ describe('Server panel (tab)', () => {
     await waitFor(() => expect(calls(be, 'server.kill')).toEqual([['server.kill', 2210, 'KILL']]))
   })
 
-  it('shows the firewall state of each port and offers no way to change it', async () => {
+  it('shows the firewall state of each port, and its allow rules', async () => {
     const {be} = setup()
     await screen.findByText(/up 41d 0h/)
     await open('Ports & firewall')
@@ -47,9 +47,9 @@ describe('Server panel (tab)', () => {
     expect(within(minio).getByText('Shut', {selector: '.sp-pill'})).toBeInTheDocument()
     expect(within(screen.getByText('sshd').closest('tr') as HTMLElement).getByText('Allowed')).toBeInTheDocument()
     expect(screen.queryByText(/Open to the outside/)).toBeNull() // minio listens everywhere but the firewall keeps it out
-    expect(screen.getByText(/only shown here/)).toBeInTheDocument()
-    expect(within(screen.getByRole('region')).queryAllByRole('button').filter(x => /^(Allow|Shut)$/.test(x.textContent ?? ''))).toHaveLength(0)
-    expect(calls(be, 'server.firewallRule')).toHaveLength(0)
+    expect(await screen.findByRole('region', {name: 'Firewall rules'})).toBeInTheDocument()
+    expect(within(screen.getByRole('cell', {name: '80'}).closest('tr') as HTMLElement).getByText('tcp and udp')).toBeInTheDocument() // the rule for port 80 covers both
+    expect(calls(be, 'server.firewallAllow')).toHaveLength(0) // looking changes nothing
   })
 
   it('asks before starting, restarting or stopping a service or a container, and does nothing on No', async () => {
@@ -147,5 +147,96 @@ describe('Server panel: Users', () => {
     const deploy = screen.getByText('/home/deploy').closest('tr') as HTMLElement
     expect(within(deploy).getByText('?')).toBeInTheDocument() // the file could not be read: not zero keys
     expect(await screen.findByText('203.0.113.7')).toBeInTheDocument()
+  })
+})
+
+describe('Server panel: changes', () => {
+  const panel = async (host = web) => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const be = makeFake({hosts: [host]})
+    render(<Providers be={be}><ServerPanel host={host} visible /></Providers>)
+    await screen.findByRole('tab', {name: 'Users'})
+    return be
+  }
+
+  it('adds an account, gives it sudo, adds a key and removes the old ones', async () => {
+    const be = await panel()
+    await open('Users')
+    await userEvent.click(await screen.findByRole('button', {name: 'Add account'}))
+    await userEvent.type(screen.getByLabelText('Account name'), 'Bad Name')
+    expect(within(screen.getByRole('dialog')).getByRole('button', {name: 'Add account'})).toBeDisabled() // not a valid name
+    expect(screen.getByText(/Lowercase letters/)).toBeInTheDocument()
+    await userEvent.clear(screen.getByLabelText('Account name'))
+    await userEvent.type(screen.getByLabelText('Account name'), 'deploy2')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', {name: 'Add account'}))
+    await waitFor(() => expect(calls(be, 'server.addUser')).toEqual([['server.addUser', 'deploy2', false]]))
+    const row = (await screen.findByText('/home/deploy2')).closest('tr') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', {name: 'More actions for deploy2'}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Give sudo'}))
+    await waitFor(() => expect(calls(be, 'server.setSudo')).toEqual([['server.setSudo', 'deploy2', true]]))
+    await userEvent.click(within(screen.getByText('/root').closest('tr') as HTMLElement).getByRole('button', {name: 'SSH keys'}))
+    expect(await screen.findByText('me@laptop')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: 'Remove the key old-ci'}))
+    await waitFor(() => expect(calls(be, 'server.removeSshKey')).toHaveLength(1))
+    await userEvent.type(screen.getByLabelText('Add a public key'), 'ssh-ed25519 AAAAC3 new-laptop')
+    await userEvent.click(screen.getByRole('button', {name: 'Add key'}))
+    await waitFor(() => expect(calls(be, 'server.addSshKey')).toEqual([['server.addSshKey', 'root', 'ssh-ed25519 AAAAC3 new-laptop']]))
+  })
+
+  it('does not offer to delete or cut the sudo of the account the panel logs in as', async () => {
+    await panel(host({id: 'h2', label: 'web-2', hostname: 'w2.example.com', username: 'deploy', port: 22}))
+    await open('Users')
+    const row = (await screen.findByText('/home/deploy')).closest('tr') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', {name: 'More actions for deploy'}))
+    expect(screen.getByRole('menuitem', {name: 'Delete account'})).toBeDisabled()
+  })
+
+  it('opens and closes a port, but not the SSH port of the connection', async () => {
+    const be = await panel()
+    await open('Ports & firewall')
+    const region = await screen.findByRole('region', {name: 'Firewall rules'})
+    expect(within(region).getByText('SSH of this connection')).toBeInTheDocument() // port 22
+    await userEvent.type(within(region).getByRole('spinbutton', {name: 'Port'}), '8080')
+    await userEvent.click(within(region).getByRole('button', {name: 'Open port'}))
+    await waitFor(() => expect(calls(be, 'server.firewallAllow')).toEqual([['server.firewallAllow', 8080, 'tcp']]))
+    await userEvent.click(await within(region).findByRole('button', {name: 'Close port 8080/tcp'}))
+    await waitFor(() => expect(calls(be, 'server.firewallDelete')).toEqual([['server.firewallDelete', 8080, 'tcp']]))
+  })
+
+  it('renews a certificate and shows what certbot said', async () => {
+    const be = await panel()
+    await open('Web')
+    await userEvent.click((await screen.findAllByRole('button', {name: 'Test renewal'}))[0])
+    expect(await screen.findByText(/all simulated renewals succeeded/)).toBeInTheDocument()
+    expect(calls(be, 'server.certRenew')[0][2]).toBe(true)
+  })
+
+  it('adds a cron job after checking the schedule, and removes one of the login', async () => {
+    const be = await panel()
+    await open('Schedule')
+    await userEvent.click(await screen.findByRole('button', {name: 'Add cron job'}))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.clear(within(dialog).getByLabelText('Schedule'))
+    await userEvent.type(within(dialog).getByLabelText('Schedule'), 'every day')
+    expect(within(dialog).getByRole('button', {name: 'Add cron job'})).toBeDisabled()
+    await userEvent.clear(within(dialog).getByLabelText('Schedule'))
+    await userEvent.type(within(dialog).getByLabelText('Schedule'), '30 2 * * *')
+    await userEvent.type(within(dialog).getByLabelText('Command'), '/usr/local/bin/x.sh')
+    await userEvent.click(within(dialog).getByRole('button', {name: 'Add cron job'}))
+    await waitFor(() => expect(calls(be, 'server.cronAdd')).toEqual([['server.cronAdd', '30 2 * * *', '/usr/local/bin/x.sh']]))
+    await userEvent.click(await screen.findByRole('button', {name: 'Remove the cron job /usr/local/bin/cleanup.sh'}))
+    await waitFor(() => expect(calls(be, 'server.cronRemove')).toEqual([['server.cronRemove', '0 4 * * * /usr/local/bin/cleanup.sh']]))
+  })
+
+  it('lists the connections and the databases', async () => {
+    await panel()
+    await open('Connections')
+    expect(await screen.findByText('203.0.113.7:50000')).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Filter connections'), 'sshd')
+    expect(screen.queryByText('198.51.100.2:41000')).toBeNull()
+    await open('Database')
+    expect(await screen.findByText('PostgreSQL')).toBeInTheDocument()
+    expect(screen.getByText(/7 of 100 connections/)).toBeInTheDocument()
+    expect(screen.getByText('Redis')).toBeInTheDocument()
   })
 })
