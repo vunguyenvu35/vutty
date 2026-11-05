@@ -315,6 +315,7 @@ else
 fi
 echo '@@@cron /etc/crontab'; cat /etc/crontab 2>/dev/null
 for f in /etc/cron.d/*; do [ -f "$f" ] || continue; echo "@@@cron $f"; cat "$f" 2>/dev/null; done
+echo '@@@me'; id -un
 true`
 
 // Schedule lists the systemd timers (when they ran and will run, how the last run ended) and the cron jobs.

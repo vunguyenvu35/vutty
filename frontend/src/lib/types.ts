@@ -677,6 +677,7 @@ export interface ServerCron {
 export interface ServerSchedule {
   timers: ServerTimer[]
   cron: ServerCron[]
+  me: string // the account of this connection: whose crontab 'crontab' is
 }
 export interface ServerBackup {
   /** a file was found under the path */

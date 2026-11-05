@@ -815,6 +815,7 @@ type ServerCron struct {
 type ServerSchedule struct {
 	Timers []ServerTimer `json:"timers"`
 	Cron   []ServerCron  `json:"cron"`
+	Me     string        `json:"me"` // the account of this connection: whose crontab "crontab" is
 }
 
 const maxCronLines = 200
@@ -831,6 +832,8 @@ func timeProp(v string) string {
 func parseSchedule(out string) ServerSchedule {
 	res := ServerSchedule{Timers: []ServerTimer{}, Cron: []ServerCron{}}
 	parts := splitMarked(out)
+	me, _ := marked(parts, "me")
+	res.Me = strings.TrimSpace(me)
 	for i, p := range parts {
 		switch p.name {
 		case "timer":

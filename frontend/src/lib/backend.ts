@@ -257,6 +257,9 @@ export interface Backend {
     removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
     unban(sid: string, jail: string, ip: string): Promise<void>
     schedule(sid: string): Promise<ServerSchedule>
+    cronAdd(sid: string, owner: string, schedule: string, command: string): Promise<void>
+    cronUpdate(sid: string, owner: string, oldSchedule: string, oldCommand: string, schedule: string, command: string): Promise<void>
+    cronDelete(sid: string, owner: string, schedule: string, command: string): Promise<void>
     /** the newest file under path on the server */
     backup(sid: string, path: string): Promise<ServerBackup>
     /** one saved host: connects on its own, answers or says why not (never asks a question) */
@@ -617,7 +620,10 @@ export function wailsBackend(): Backend {
       removeUserKey: (s, n, f) => u('ServerService', 'RemoveUserKey', s, n, f),
       security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
       unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
-      schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? []} },
+      schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? [], me: r.me ?? ''} },
+      cronAdd: (s, o, sc, c) => u('ServerService', 'CronAdd', s, o, sc, c),
+      cronUpdate: (s, o, os, oc, sc, c) => u('ServerService', 'CronUpdate', s, o, os, oc, sc, c),
+      cronDelete: (s, o, sc, c) => u('ServerService', 'CronDelete', s, o, sc, c),
       backup: (s, p) => u('ServerService', 'Backup', s, p),
       fleetHost: h => u('ServerService', 'FleetHost', h),
       ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },

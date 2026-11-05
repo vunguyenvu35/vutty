@@ -201,7 +201,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       users: {users: [{name: 'root', uid: 0, home: '/root', shell: '/bin/bash', sudo: true, keys: 1, login: 'Thu Nov  5 09:00:00 +0700 2026'}, {name: 'deploy', uid: 1001, home: '/home/deploy', shell: '/bin/bash', sudo: false, keys: -1, login: ''}], sessions: [{user: 'root', tty: 'pts/0', since: '2026-11-05 09:00', from: '203.0.113.7'}], me: 'root'},
       userKeys: {deploy: [{type: 'ssh-ed25519', fingerprint: 'SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', comment: 'old@laptop', options: false}]},
       security: {fail2ban: {installed: true, running: true, jails: [{name: 'sshd', banned: 2, total_banned: 41, ips: ['203.0.113.5', '198.51.100.7']}]}, ssh: {known: true, port: 22, root_login: 'yes', password_auth: 'yes'}, failed: {known: true, total: 240, top: [{ip: '203.0.113.9', count: 180}]}},
-      schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}]},
+      schedule: {timers: [{name: 'backup.timer', description: 'Nightly backup', unit: 'backup.service', next: 'Thu 2026-11-05 03:00:00 UTC', last: 'Wed 2026-11-04 03:00:01 UTC', result: 'success'}], cron: [{source: 'crontab', user: '', schedule: '0 4 * * *', command: '/usr/local/bin/cleanup.sh'}, {source: '/etc/cron.d/logrotate', user: 'root', schedule: '@daily', command: '/usr/sbin/logrotate'}], me: 'ubuntu'},
       backup: {found: true, file: 'db-2026-11-02.sql.gz', size: GB / 8, mtime: 1790000000 - 3 * 86400, now: 1790000000},
       fleetErrors: {},
       failAction: '',
@@ -636,6 +636,21 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         state.server.security.fail2ban.jails = state.server.security.fail2ban.jails.map(j => (j.name === jail ? {...j, banned: j.banned - 1, ips: j.ips.filter(x => x !== ip)} : j))
       },
       schedule: async () => JSON.parse(JSON.stringify(state.server.schedule)),
+      cronAdd: async (sid, owner, schedule, command) => {
+        rec('server.cronAdd', owner, schedule, command)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.schedule.cron.push({source: owner, user: owner === 'root' ? 'root' : '', schedule, command})
+      },
+      cronUpdate: async (sid, owner, oldS, oldC, schedule, command) => {
+        rec('server.cronUpdate', owner, oldS, oldC, schedule, command)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.schedule.cron = state.server.schedule.cron.map(c => (c.source === owner && c.schedule === oldS && c.command === oldC ? {...c, schedule, command} : c))
+      },
+      cronDelete: async (sid, owner, schedule, command) => {
+        rec('server.cronDelete', owner, schedule, command)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.schedule.cron = state.server.schedule.cron.filter(c => !(c.source === owner && c.schedule === schedule && c.command === command))
+      },
       backup: async (sid, path) => { rec('server.backup', path); return {...state.server.backup} },
       fleetHost: async hostId => {
         rec('server.fleetHost', hostId)
