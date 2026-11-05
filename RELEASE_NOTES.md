@@ -1,8 +1,12 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.0
+# Vutty 1.6.1
 
 Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.1
+
+- **Windows and Linux: no empty gap at the left of the tab bar.** The bar kept room for the red, yellow and green window buttons of macOS on every system; it is now left on a Mac only, so the first tab sits at the edge where the window has a frame of its own. Seen on Windows in a screenshot; not yet looked at on a real Windows or Linux machine.
 
 ## What's new in 1.6.0
 
