@@ -18,7 +18,7 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | Shell, scale, restart, rollback, drain | ✅ | ✅ | ✅ | ✅ | ◐ | ✅ |
 | Port-forward | ✅ (host và kubeconfig) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | CRD / resource tuỳ ý | ✅ (chỉ đọc) | ✅ | ✅ | ✅ | ◐ | ✅ |
-| Sửa YAML / apply | ◐ (chỉ workload, chỉ khi mở bằng kubeconfig; không tạo mới) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sửa YAML / apply | ◐ (chỉ workload, cả host và kubeconfig; không tạo mới) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Helm | ◐ (chỉ xem release; không có repo/chart) | ✅ | ◐ ? | plugin | ✅ | ✅ |
 | Metrics có lịch sử | ❌ (chỉ hiện tại, cần metrics-server) | ✅ | ◐ | plugin | ◐ | ✅ |
 | Log nhiều pod | ✅ (tối đa 20 pod) | ✅ | ✅ | ◐ | ❌ | ◐ |
@@ -58,17 +58,17 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | 4 | ~~Port-forward cho cluster dùng kubeconfig~~ **đã làm** (qua API server, đã thử trên kind 1.37) | Dev | Vừa | |
 | 5 | Metrics có lịch sử (sparkline trong phiên, hoặc đọc Prometheus) | SRE, sysadmin | Vừa | Tuỳ chọn |
 | 6 | Sửa YAML ngoài workload và cho CRD | DevOps | Cao | Workload đã sửa được (Edit YAML: dry-run, diff, audit, chặn khi đối tượng đã đổi) |
-| 7 | Sửa workload cho cluster mở bằng host (kubectl) | Sysadmin, DevOps | Vừa | Hiện báo "cần kubeconfig"; đường host chưa có |
+| 7 | ~~Sửa workload cho cluster mở bằng host (kubectl)~~ **đã làm** (Edit YAML, Edit config, Add sidecar qua `kubectl replace`, nội dung đi qua stdin) | Sysadmin, DevOps | Vừa | Chưa thử trên host thật; xem Tiến độ |
 
 ## Cần quyết định
 
-1. Mở rộng sửa YAML sang resource khác và CRD không (mục 6), và làm cho đường host (mục 7)?
+1. Mở rộng sửa YAML sang resource khác và CRD không (mục 6)?
 2. Helm: đã chọn chỉ xem release (tab Apps). Có cần ghi thay đổi (rollback, upgrade) không? Hiện dùng terminal; nút Copy rollback có sẵn.
-3. Hướng chính: sysadmin/dev (làm 3, 4, 7, giữ gọn) hay DevOps/SRE (thêm 5, 6, đối đầu Lens)?
+3. Hướng chính: sysadmin/dev (làm 3, giữ gọn) hay DevOps/SRE (thêm 5, 6, đối đầu Lens)?
 
 Ngày 2026-11-05 (sau #29): thêm tab **Security**, nút **Copy kubectl**, **Debug** (container tạm) và port-forward cho cluster mở bằng kubeconfig ([KubernetesPanel.md](KubernetesPanel.md) mục 25); dòng File của pod bổ sung vào bảng. Ô đối thủ mới ghi `?` là chưa kiểm.
 
-Tiến độ: mục 1 và 2 đã xong; mục 3 làm một phần; mục 4 đã xong; mục 5, 7 chưa làm; mục 6 chờ quyết định.
+Tiến độ: mục 1 và 2 đã xong; mục 3 làm một phần; mục 4 đã xong; mục 5 chưa làm; mục 7 đã xong (kiểm bằng test, chưa thử trên host thật); mục 6 chờ quyết định.
 
 ## Đã làm sau khi so với sidebar của Rancher
 

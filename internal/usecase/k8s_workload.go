@@ -20,8 +20,7 @@ import (
 // What the Rancher menu of a workload offers (Show configuration, Edit config, Add sidecar, Edit YAML, Download YAML), as far as the
 // login's rights go: the buttons follow the rights the cluster says the login has, and anything the cluster refuses is said in its own
 // words. A change is asked first, audited by what was done (never by the text of the YAML or the value of a variable), and is made as a
-// request to the API, so it is only available for a cluster opened with a kubeconfig; on a host the same is done with kubectl in a
-// terminal. Reading (Show configuration, Download) works for both.
+// request to the API for a cluster opened with a kubeconfig, and with kubectl replace (the object on its standard input) on a host.
 
 // k8sWorkloadKinds are the kinds that have these screens.
 var k8sWorkloadKinds = map[string]string{"deployment": "Deployment", "statefulset": "StatefulSet", "daemonset": "DaemonSet"}
@@ -34,8 +33,6 @@ func k8sWorkloadKind(kind string) (kres, string, error) {
 	r, _ := kresOf(kind)
 	return r, title, nil
 }
-
-var errNeedsKubeconfig = errors.New("this change is made with a request to the cluster, so it needs a cluster opened with a kubeconfig: on a host, use kubectl in a terminal")
 
 // ---- Show configuration ----
 
@@ -403,13 +400,40 @@ func (d *kubeDirect) putWorkload(ctx string, r kres, ns, name string, obj map[st
 	return d.do(ctx, "PUT", r.path(ns, name)+"?"+q.Encode(), "application/json", mustJSON(obj))
 }
 
+// replaceOnHost sends the edited object to kubectl replace on the host, on its standard input (a spec can hold values that must not
+// be in a command line). The object carries its resourceVersion, so the cluster refuses it when the object changed since it was read,
+// as it does for the API call.
+func (s *ServerService) replaceOnHost(sid, ctx, ns string, obj map[string]any, dryRun bool) ([]byte, error) {
+	body := string(mustJSON(obj))
+	run := func(validate string) (string, error) {
+		args := []string{"replace", "-f", "-", "--validate=" + validate, "-o", "json"}
+		if dryRun {
+			args = append(args, "--dry-run=server")
+		}
+		return s.kubectlStdin(sid, serverTimeout, kcmd{ctx: ctx, ns: ns, args: args}, body)
+	}
+	out, err := run("strict")
+	if err != nil && strings.Contains(err.Error(), "--validate") { // a kubectl before 1.25 has no strict
+		out, err = run("true")
+	}
+	return []byte(out), err
+}
+
+// putEdited replaces the workload: with a request to the API for a cluster opened with a kubeconfig, with kubectl on a host.
+func (s *ServerService) putEdited(sid, ctx string, d *kubeDirect, r kres, ns, name string, obj map[string]any, dryRun bool) ([]byte, error) {
+	if d != nil {
+		return d.putWorkload(ctx, r, ns, name, obj, dryRun)
+	}
+	return s.replaceOnHost(sid, ctx, ns, obj, dryRun)
+}
+
 // K8sEditPreview asks the cluster to check an edited YAML (a dry run that changes nothing) and returns what would change.
 func (s *ServerService) K8sEditPreview(sid, ctx, kind, ns, name, text string) (K8sEditPreview, error) {
 	r, title, d, cur, obj, err := s.editBase(sid, ctx, kind, ns, name, text)
 	if err != nil {
 		return K8sEditPreview{}, err
 	}
-	out, err := d.putWorkload(ctx, r, ns, name, obj, true)
+	out, err := s.putEdited(sid, ctx, d, r, ns, name, obj, true)
 	if err != nil {
 		return K8sEditPreview{}, err
 	}
@@ -429,7 +453,7 @@ func (s *ServerService) K8sEditApply(sid, ctx, kind, ns, name, text string) erro
 	if err != nil {
 		return err
 	}
-	out, err := d.putWorkload(ctx, r, ns, name, obj, false)
+	out, err := s.putEdited(sid, ctx, d, r, ns, name, obj, false)
 	if err == nil {
 		if after, e2 := editableOf(out); e2 == nil {
 			_, n := lineDiff(strings.Split(strings.TrimRight(cur.YAML, "\n"), "\n"), strings.Split(strings.TrimRight(after.YAML, "\n"), "\n"))
@@ -453,10 +477,7 @@ func (s *ServerService) editBase(sid, ctx, kind, ns, name, text string) (kres, s
 	if err := k8sName(kind, name); err != nil {
 		return r, "", nil, K8sEditable{}, nil, err
 	}
-	d := s.kubeOf(sid)
-	if d == nil {
-		return r, "", nil, K8sEditable{}, nil, errNeedsKubeconfig
-	}
+	d := s.kubeOf(sid) // nil on a host: the change is made with kubectl there
 	obj, err := checkEdit(kind, title, ns, name, text)
 	if err != nil {
 		return r, "", nil, K8sEditable{}, nil, err
@@ -614,9 +635,10 @@ func (s *ServerService) K8sSetContainer(sid, ctx, kind, ns, name string, e K8sCo
 	}
 	d := s.kubeOf(sid)
 	if d == nil {
-		return errNeedsKubeconfig
+		err = s.editOnHost(sid, ctx, kind, ns, name, func(obj map[string]any) error { return applyContainerEdit(obj, e) })
+	} else {
+		err = d.patchWorkload(ctx, r, ns, name, patch)
 	}
-	err = d.patchWorkload(ctx, r, ns, name, patch)
 	s.audit(sid, fmt.Sprintf("changed the %s of container %s of %s %s in %s (%s)", strings.Join(did, " and the "), e.Container, kind, name, ns, ctx), err)
 	return err
 }
@@ -657,9 +679,6 @@ func (s *ServerService) K8sAddSidecar(sid, ctx, kind, ns, name string, c K8sSide
 		}
 	}
 	d := s.kubeOf(sid)
-	if d == nil {
-		return errNeedsKubeconfig
-	}
 	spec, err := s.K8sWorkloadSpec(sid, ctx, kind, ns, name)
 	if err != nil {
 		return err
@@ -676,7 +695,171 @@ func (s *ServerService) K8sAddSidecar(sid, ctx, kind, ns, name string, c K8sSide
 	if len(c.Args) > 0 {
 		box["args"] = c.Args
 	}
-	err = d.patchWorkload(ctx, r, ns, name, map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{"containers": []any{box}}}}})
+	if d == nil {
+		err = s.editOnHost(sid, ctx, kind, ns, name, func(obj map[string]any) error { return addSidecarTo(obj, box) })
+	} else {
+		err = d.patchWorkload(ctx, r, ns, name, map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{"containers": []any{box}}}}})
+	}
 	s.audit(sid, fmt.Sprintf("added the sidecar %s (%s) to %s %s in %s (%s)", c.Name, c.Image, kind, name, ns, ctx), err)
+	return err
+}
+
+// ---- the same changes on a host: read the object, change it here, replace it with kubectl ----
+
+// workloadObject reads a workload as it is now, ready to be changed and sent back: without its status and managedFields, with its
+// resourceVersion (a change made by someone else in between is then refused by the cluster).
+func (s *ServerService) workloadObject(sid, ctx, kind, ns, name string) (map[string]any, error) {
+	out, err := s.k8sGet(sid, ctx, ns, "get", kind, name, "-o", "json")
+	if err != nil {
+		return nil, err
+	}
+	var v map[string]any
+	if err := json.Unmarshal([]byte(out), &v); err != nil || v == nil {
+		return nil, errors.New("the cluster did not answer with the object")
+	}
+	delete(v, "status")
+	if md, ok := v["metadata"].(map[string]any); ok {
+		delete(md, "managedFields")
+	}
+	return v, nil
+}
+
+func podSpecOf(obj map[string]any) (map[string]any, error) {
+	spec, _ := obj["spec"].(map[string]any)
+	tpl, _ := spec["template"].(map[string]any)
+	ps, _ := tpl["spec"].(map[string]any)
+	if ps == nil {
+		return nil, errors.New("that object has no pod template")
+	}
+	return ps, nil
+}
+
+// applyContainerEdit makes on obj the change that containerPatch asks of the cluster as a strategic merge patch: containers and
+// variables are matched by name, a null removes an entry of the requests or limits.
+func applyContainerEdit(obj map[string]any, e K8sContainerEdit) error {
+	patch, _, err := containerPatch(e)
+	if err != nil {
+		return err
+	}
+	ps, err := podSpecOf(obj)
+	if err != nil {
+		return err
+	}
+	key := "containers"
+	if e.Init {
+		key = "initContainers"
+	}
+	want := mustJSONMap(patch)["spec"].(map[string]any)["template"].(map[string]any)["spec"].(map[string]any)[key].([]any)[0].(map[string]any)
+	list, _ := ps[key].([]any)
+	var c map[string]any
+	for _, x := range list {
+		if m, ok := x.(map[string]any); ok && m["name"] == e.Container {
+			c = m
+		}
+	}
+	if c == nil {
+		return errors.New("there is no container named " + e.Container)
+	}
+	if img, ok := want["image"]; ok {
+		c["image"] = img
+	}
+	if envs, ok := want["env"].([]any); ok {
+		cur, _ := c["env"].([]any)
+		for _, w := range envs {
+			wm := w.(map[string]any)
+			idx := -1
+			for i, x := range cur {
+				if m, ok := x.(map[string]any); ok && m["name"] == wm["name"] {
+					idx = i
+				}
+			}
+			if wm["$patch"] == "delete" {
+				if idx >= 0 {
+					cur = append(cur[:idx], cur[idx+1:]...)
+				}
+				continue
+			}
+			if idx >= 0 {
+				if m := cur[idx].(map[string]any); m["valueFrom"] != nil {
+					return fmt.Errorf("%s comes from a Secret or a ConfigMap: it can only be removed here", wm["name"])
+				}
+				cur[idx] = map[string]any{"name": wm["name"], "value": wm["value"]}
+			} else {
+				cur = append(cur, map[string]any{"name": wm["name"], "value": wm["value"]})
+			}
+		}
+		if len(cur) == 0 {
+			delete(c, "env")
+		} else {
+			c["env"] = cur
+		}
+	}
+	if res, ok := want["resources"].(map[string]any); ok {
+		have, _ := c["resources"].(map[string]any)
+		if have == nil {
+			have = map[string]any{}
+		}
+		for _, part := range []string{"requests", "limits"} {
+			edits, ok := res[part].(map[string]any)
+			if !ok {
+				continue
+			}
+			m, _ := have[part].(map[string]any)
+			if m == nil {
+				m = map[string]any{}
+			}
+			for k, v := range edits {
+				if v == nil {
+					delete(m, k)
+				} else {
+					m[k] = v
+				}
+			}
+			if len(m) == 0 {
+				delete(have, part)
+			} else {
+				have[part] = m
+			}
+		}
+		if len(have) == 0 {
+			delete(c, "resources")
+		} else {
+			c["resources"] = have
+		}
+	}
+	return nil
+}
+
+func mustJSONMap(v any) map[string]any {
+	var m map[string]any
+	_ = json.Unmarshal(mustJSON(v), &m)
+	return m
+}
+
+// addSidecarTo appends a container to the pod template of obj.
+func addSidecarTo(obj map[string]any, box map[string]any) error {
+	ps, err := podSpecOf(obj)
+	if err != nil {
+		return err
+	}
+	list, _ := ps["containers"].([]any)
+	ps["containers"] = append(list, box)
+	return nil
+}
+
+// editOnHost reads the workload, lets change edit it, and replaces it with kubectl (the dry run first: what the cluster would refuse
+// is said before anything is stored).
+func (s *ServerService) editOnHost(sid, ctx, kind, ns, name string, change func(map[string]any) error) error {
+	obj, err := s.workloadObject(sid, ctx, kind, ns, name)
+	if err != nil {
+		return err
+	}
+	if err := change(obj); err != nil {
+		return err
+	}
+	if _, err := s.replaceOnHost(sid, ctx, ns, obj, true); err != nil {
+		return err
+	}
+	_, err = s.replaceOnHost(sid, ctx, ns, obj, false)
 	return err
 }

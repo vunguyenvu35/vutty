@@ -79,14 +79,10 @@ describe('what the login may do decides what is on', () => {
     expect(item(m, /^Execute shell/)).toHaveAttribute('title', 'This login may not open a shell in pods')
   })
 
-  it('on a host, locks the changes with the reason but keeps Show configuration, Download and Execute shell', async () => {
+  it('on a host, every item is there and enabled for a login that may change the workload', async () => {
     await workloads()
     const m = await menuOf('web')
-    for (const label of [/^Edit config/, /^Add sidecar/, /^Edit YAML/]) {
-      expect(item(m, label)).toBeDisabled()
-      expect(item(m, label)).toHaveAttribute('title', 'Needs a cluster opened with a kubeconfig: on a host use kubectl in a terminal')
-    }
-    for (const label of [/^Show configuration/, /^Download YAML/, /^Execute shell/]) expect(item(m, label)).toBeEnabled()
+    for (const label of [/^Edit config/, /^Add sidecar/, /^Edit YAML/, /^Show configuration/, /^Download YAML/, /^Execute shell/]) expect(item(m, label)).toBeEnabled()
   })
 })
 

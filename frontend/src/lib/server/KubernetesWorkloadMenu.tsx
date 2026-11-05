@@ -27,7 +27,6 @@ const IMAGE_RE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,511}$/
 const ENV_RE = /^[-._a-zA-Z][-._a-zA-Z0-9]{0,252}$/
 const QTY_RE = /^[0-9]+(\.[0-9]+)?(m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$/
 
-export const kubeconfigOnly = (t: TFn) => t('Needs a cluster opened with a kubeconfig: on a host use kubectl in a terminal')
 
 /** the pods that a workload owns: the owner text of a pod ends with "Deployment api" (after the ReplicaSet), "StatefulSet db" or "DaemonSet node-exporter" */
 const ownedBy = (p: K8sPod, w: Who) => { const o = `${w.kind} ${w.name}`; return p.owner === o || p.owner.endsWith(' ' + o) }
@@ -51,9 +50,9 @@ export function WorkloadMenu({w}: {w: Who}) {
     setAt(null)
     void k.run('download:' + rid(w), async () => { toast.info(t('Saved to {path}', {path: await k.be.server.k8sSaveYAML(k.sid, k.ctx, kindOf(w), w.namespace, w.name)})) })
   }
-  /** a change is a request to the API: locked on a host, and by the right it needs */
-  const item = (id: string, label: string, hint: string, o: {write?: boolean; right?: string; need?: string; run(): void}) => {
-    const reason = o.write && !k.direct ? kubeconfigOnly(t) : o.right && !k.can(o.right) ? (o.right === 'edit' ? t('This login may not edit this workload') : o.right === 'restart' ? t('This login may not change this workload') : lockText(t, o.right)) : o.need ?? ''
+  /** a change is locked by the right it needs */
+  const item = (id: string, label: string, hint: string, o: {right?: string; need?: string; run(): void}) => {
+    const reason = o.right && !k.can(o.right) ? (o.right === 'edit' ? t('This login may not edit this workload') : o.right === 'restart' ? t('This login may not change this workload') : lockText(t, o.right)) : o.need ?? ''
     return <button key={id} role="menuitem" className="k8s-mi" disabled={!!reason} title={reason || undefined} onClick={() => { setAt(null); o.run() }}><b>{label}</b><small>{hint}</small></button>
   }
   const show = (d: Dlg) => () => setDlg(d)
@@ -66,9 +65,9 @@ export function WorkloadMenu({w}: {w: Who}) {
           <h4>{t('{kind} {name}', {kind: w.kind, name: w.name})}</h4>
           {item('shell', t('Execute shell'), t('A terminal in one of its pods'), {right: 'exec', need: canShell ? '' : t('A terminal cannot be opened from here'), run: show('shell')})}
           {item('show', t('Show configuration'), t('Containers, images, variables, resources'), {run: show('show')})}
-          {item('config', t('Edit config'), t('Image, variables, requests and limits of a container'), {write: true, right: 'restart', run: show('config')})}
-          {item('sidecar', t('Add sidecar'), t('Another container in the same pods'), {write: true, right: 'restart', run: show('sidecar')})}
-          {item('yaml', t('Edit YAML'), t('Change the whole spec, with a preview of what changes'), {write: true, right: 'edit', run: show('yaml')})}
+          {item('config', t('Edit config'), t('Image, variables, requests and limits of a container'), {right: 'restart', run: show('config')})}
+          {item('sidecar', t('Add sidecar'), t('Another container in the same pods'), {right: 'restart', run: show('sidecar')})}
+          {item('yaml', t('Edit YAML'), t('Change the whole spec, with a preview of what changes'), {right: 'edit', run: show('yaml')})}
           {item('download', t('Download YAML'), t('Save it in your Downloads folder'), {run: download})}
         </div>, document.body)}
       {dlg && createPortal(<>

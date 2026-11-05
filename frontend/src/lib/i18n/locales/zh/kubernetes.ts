@@ -395,7 +395,6 @@ export default {
   "More actions": "更多操作",
   "More actions for {name}": "{name} 的更多操作",
   "NAME": "名称",
-  "Needs a cluster opened with a kubeconfig: on a host use kubectl in a terminal": "需要用 kubeconfig 打开的集群：在主机上请在终端中使用 kubectl",
   "No changes: this is what the cluster has.": "没有更改：与集群中的内容相同。",
   "No running pod of {name} was found.": "没有找到 {name} 正在运行的 Pod。",
   "Only what you change is sent. The pods are replaced by new ones that have the new settings.": "只会发送你更改的部分。Pod 将被使用新设置的新 Pod 替换。",

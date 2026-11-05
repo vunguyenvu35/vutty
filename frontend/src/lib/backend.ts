@@ -293,7 +293,7 @@ export interface Backend {
     k8sShellCommand(sid: string, ctx: string, ns: string, pod: string, container: string): Promise<string>
     /** a shell in a pod of a cluster opened with a kubeconfig: the id of a terminal tab (host_id) that opens it, and a name for the tab */
     k8sShellSession(sid: string, ctx: string, ns: string, pod: string, container: string): Promise<{host_id: string; title: string}>
-    /** the Rancher-style menu of a Deployment, StatefulSet or DaemonSet. Reading works for a host and a cluster; the changes (preview, apply, set container, sidecar) only for a cluster opened with a kubeconfig */
+    /** the Rancher-style menu of a Deployment, StatefulSet or DaemonSet. Reading and the changes (preview, apply, set container, sidecar) work for a host and a cluster */
     k8sWorkloadSpec(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string): Promise<K8sWorkloadSpec>
     k8sEditable(sid: string, ctx: string, kind: K8sWorkloadKind, ns: string, name: string): Promise<K8sEditable>
     /** the path of the file written in the Downloads folder */

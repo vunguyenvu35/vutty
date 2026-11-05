@@ -395,7 +395,6 @@ export default {
   "More actions": "Thêm thao tác",
   "More actions for {name}": "Thêm thao tác cho {name}",
   "NAME": "TÊN",
-  "Needs a cluster opened with a kubeconfig: on a host use kubectl in a terminal": "Cần cluster mở bằng kubeconfig: trên máy chủ, hãy dùng kubectl trong terminal",
   "No changes: this is what the cluster has.": "Không có thay đổi: giống với những gì cluster đang có.",
   "No running pod of {name} was found.": "Không tìm thấy pod nào của {name} đang chạy.",
   "Only what you change is sent. The pods are replaced by new ones that have the new settings.": "Chỉ những gì bạn đổi mới được gửi đi. Các pod được thay bằng pod mới có cài đặt mới.",

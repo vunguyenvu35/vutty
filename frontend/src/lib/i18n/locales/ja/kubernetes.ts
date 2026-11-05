@@ -395,7 +395,6 @@ export default {
   "More actions": "その他の操作",
   "More actions for {name}": "{name} のその他の操作",
   "NAME": "名前",
-  "Needs a cluster opened with a kubeconfig: on a host use kubectl in a terminal": "kubeconfig で開いたクラスターが必要です。ホストではターミナルで kubectl を使ってください",
   "No changes: this is what the cluster has.": "変更はありません。クラスターの内容と同じです。",
   "No running pod of {name} was found.": "{name} の実行中の Pod が見つかりません。",
   "Only what you change is sent. The pods are replaced by new ones that have the new settings.": "変更した部分だけが送られます。Pod は新しい設定の Pod に置き換えられます。",

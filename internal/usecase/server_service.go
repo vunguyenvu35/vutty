@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"sync"
@@ -156,11 +157,20 @@ func (s *ServerService) runTimeout(sid, script string, limit time.Duration) (str
 
 // runScript runs a script on an open connection, on a session of its own.
 func runScript(cl *sshx.Client, script string, limit time.Duration) (string, error) {
+	return runScriptStdin(cl, script, nil, limit)
+}
+
+// runScriptStdin is runScript with text on the standard input of the script: a way to hand it a value that must not be on a command
+// line, where every user of the host can read it.
+func runScriptStdin(cl *sshx.Client, script string, stdin io.Reader, limit time.Duration) (string, error) {
 	sess, err := cl.NewSession()
 	if err != nil {
 		return "", err
 	}
 	defer sess.Close()
+	if stdin != nil {
+		sess.Stdin = stdin
+	}
 	var out, errOut capped
 	out.max, errOut.max = serverOutputCap, 16<<10
 	sess.Stdout, sess.Stderr = &out, &errOut

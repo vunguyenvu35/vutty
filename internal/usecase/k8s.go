@@ -209,6 +209,25 @@ func (s *ServerService) kubectl(sid string, limit time.Duration, c kcmd) (string
 	return s.runTimeout(sid, st.wrap(st.line(c)), limit)
 }
 
+// kubectlStdin is kubectl with text on its standard input (replace -f -): the text is never in the command line.
+func (s *ServerService) kubectlStdin(sid string, limit time.Duration, c kcmd, body string) (string, error) {
+	if s.kubeOf(sid) != nil {
+		return "", errNoKubectl
+	}
+	st, err := s.k8sOf(sid)
+	if err != nil {
+		return "", err
+	}
+	x, err := s.get(sid)
+	if err != nil {
+		return "", err
+	}
+	if x.client == nil {
+		return "", errNoKubectl
+	}
+	return runScriptStdin(x.client, st.wrap(st.line(c)), strings.NewReader(body), limit)
+}
+
 // k8sGet is a read: a list or a get, with a request timeout.
 func (s *ServerService) k8sGet(sid, ctx, ns string, args ...string) (string, error) {
 	if d := s.kubeOf(sid); d != nil {
