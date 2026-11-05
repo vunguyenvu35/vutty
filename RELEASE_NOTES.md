@@ -4,6 +4,10 @@
 
 Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
+## Unreleased
+
+- **Fix (macOS): a crash when the screen locks or the Mac sleeps.** Locking the vault on a sleep or a screen lock told the page from the thread that macOS had posted the notification on, and Wails (up to 2.17.1) releases the string it queues for the page once too often, which on that thread kills the app in the run loop (SIGSEGV). The lock now runs on a goroutine and the notification waits for it, so the vault is still locked before the computer sleeps. This was found by reading the crash and reproducing the Wails pattern in a small program, and a test keeps the handler off that thread; it was not yet seen to stop the crash in the app itself, which needs a screen lock with the app open.
+
 ## What's new in 1.6.2
 
 - **Files of a shell in a pod.** The Files section of the terminal sidebar now shows the files inside the pod when the terminal is a shell in a pod of a cluster opened with a kubeconfig: browse the folders, open a file with the system, copy files out into a folder of this computer. Read only (no upload, rename or delete yet), and a folder cannot be copied out yet. Nothing is installed in the pod: it needs `sh`, `stat` and `cat` there, so a container without a shell says so. Tried on real Alpine (busybox) and Debian (GNU) pods.

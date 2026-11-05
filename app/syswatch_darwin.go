@@ -6,6 +6,7 @@ package app
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Cocoa
 #import <Cocoa/Cocoa.h>
+#include <pthread.h>
 
 extern void goSystemEvent(int kind);
 
@@ -22,15 +23,25 @@ static void startSystemWatch(void) {
 static void postSleepNotification(void) {
     [[[NSWorkspace sharedWorkspace] notificationCenter] postNotificationName:NSWorkspaceWillSleepNotification object:nil];
 }
+
+static unsigned long long currentThread(void) { return (unsigned long long)(uintptr_t)pthread_self(); }
 */
 import "C"
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 var (
 	sysMu   sync.Mutex
 	sysFunc func(reason string)
 )
+
+// callbackThread is the thread macOS called goSystemEvent on (a test compares it with the thread of the handler).
+var callbackThread atomic.Uint64
+
+func currentThreadID() uint64 { return uint64(C.currentThread()) }
 
 //export goSystemEvent
 func goSystemEvent(kind C.int) {
@@ -40,11 +51,22 @@ func goSystemEvent(kind C.int) {
 	if f == nil {
 		return
 	}
+	reason := "the screen was locked"
 	if kind == 0 {
-		f("the computer went to sleep")
-	} else {
-		f("the screen was locked")
+		reason = "the computer went to sleep"
 	}
+	callbackThread.Store(currentThreadID())
+	// This runs on the thread that posted the notification: the main thread, inside a pass of the run loop that has an autorelease
+	// pool. What f does tells the page (the vault locks, a line is written to the log), and Wails' ExecJS releases the string it was
+	// given, which it does not own: on a thread with a pool that is one release too many, and the app dies in the run loop
+	// (SIGSEGV in the block that ExecJS queues). So f runs on a goroutine, which is never on this thread, and this waits for it: the
+	// vault has to be locked before the computer goes to sleep.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f(reason)
+	}()
+	<-done
 }
 
 // watchSystem calls f when macOS says the computer is going to sleep or the screen was locked.
