@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"sort"
 	"strconv"
@@ -23,7 +24,7 @@ import (
 // a host; only the way it is answered differs: a read that the host path makes as `kubectl get ... -o json` is turned into the
 // request of the API server that gives the same JSON, so the parsers (k8s_parse.go) and the screens do not know the difference.
 // The rules stay those of k8s.go: every name is checked before it gets here, a change is audited, and a Secret's values are
-// never listed. What a kubeconfig cannot give is a terminal: Shell and Port-forward need a host with kubectl.
+// never listed. Shell and Port-forward go through the API server (WebSocket), so they need no kubectl either.
 
 // ---- ports: how the use cases reach an API server (internal/kubeapi implements them) ----
 
@@ -39,6 +40,8 @@ type KubeAPI interface {
 	Exec(ctx context.Context, ns, pod, container string, command []string, cols, rows int, onData func([]byte)) (Shell, error)
 	// Run runs a command without a terminal and waits for it to end: what it writes to stdout goes to stdout (a write that fails ends it).
 	Run(ctx context.Context, ns, pod, container string, command []string, stdout io.Writer) (KubeRun, error)
+	// PortForward opens one TCP connection to a port of a pod, through the API server.
+	PortForward(ctx context.Context, ns, pod string, port int) (net.Conn, error)
 }
 
 // KubeRun is how a command run in a pod ended: its exit code and the start of its stderr.

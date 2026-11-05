@@ -1553,6 +1553,10 @@ func (f *k8sFwd) stop() {
 	f.info.Status = "stopped"
 	f.mu.Unlock()
 	f.closeLocal()
+	if f.sess == nil { // a forward through the API server has no remote command
+		close(f.done)
+		return
+	}
 	_ = f.stdin.Close()
 	_ = f.sess.Signal(ssh.SIGTERM)
 	select {
@@ -1646,9 +1650,6 @@ func (s *ServerService) K8sPortForwardStart(sid, ctx, ns, service string, local,
 	if err != nil {
 		return K8sForward{}, err
 	}
-	if x.kube != nil {
-		return K8sForward{}, errNoKubectl
-	}
 	st := &x.k8s
 	st.mu.Lock()
 	running := 0
@@ -1664,6 +1665,9 @@ func (s *ServerService) K8sPortForwardStart(sid, ctx, ns, service string, local,
 	ln, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(local))
 	if err != nil {
 		return K8sForward{}, fmt.Errorf("port %d is already in use on this computer", local)
+	}
+	if x.kube != nil { // a cluster opened with a kubeconfig: through the API server, no kubectl
+		return s.k8sForwardDirect(sid, x, st, ln, ctx, ns, service, local, remote)
 	}
 	var f *k8sFwd
 	var hostPort int

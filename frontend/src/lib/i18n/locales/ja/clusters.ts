@@ -53,7 +53,6 @@ export default {
   "{name} at {server} did not answer within 8 seconds. Check that this computer can reach the cluster: a VPN or a bastion may be needed.": "{server} の {name} が 8 秒以内に応答しませんでした。このコンピューターからクラスターに到達できるか確認してください。VPN や踏み台サーバーが必要な場合があります。",
   "The credentials in the kubeconfig were refused. A token or a client certificate has probably expired. Ask whoever gave you the kubeconfig for a new one and use Replace kubeconfig, or for a cloud cluster sign in again with the provider's CLI.": "kubeconfig の認証情報が拒否されました。トークンまたはクライアント証明書の期限が切れた可能性があります。kubeconfig をくれた相手に新しいものを依頼して「kubeconfig を置き換える」を使うか、クラウドのクラスターならプロバイダーの CLI で再度サインインしてください。",
   "The cluster answered with the message below.": "クラスターは次のメッセージを返しました。",
-  "Needs kubectl on a server: not available for a cluster opened with a kubeconfig": "サーバー上の kubectl が必要です。kubeconfig で開いたクラスターでは使えません",
   "server {v} · direct": "server {v} · 直接接続",
   "Choose a pod": "Pod を選択",
   "Choose a pod above, or press Logs on one in the Pods view.": "上で Pod を選ぶか、Pod 画面で Pod の Logs を押してください。",

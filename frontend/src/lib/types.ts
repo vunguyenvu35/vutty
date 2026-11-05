@@ -688,7 +688,7 @@ export interface ServerFleetHost {
 }
 
 /** The Kubernetes tab of the Panel: kubectl run on the host over SSH (see usecase.ServerService, K8s*). */
-/** direct: a cluster opened with a kubeconfig, with no host and no kubectl (so no Shell and no Port-forward) */
+/** direct: a cluster opened with a kubeconfig, with no host and no kubectl (the shell and the port-forward go through the API server) */
 export interface K8sDetect {found: boolean; cmd: string; path: string; client_version: string; tried: string[]; direct?: boolean}
 export type KubeAuth = 'token' | 'certificate' | 'exec' | 'password' | 'none'
 /** auth and exec say how a kubeconfig signs in, and the login program it runs (the whole command line) */

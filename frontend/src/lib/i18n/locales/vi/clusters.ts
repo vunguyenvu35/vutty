@@ -53,7 +53,6 @@ export default {
   "{name} at {server} did not answer within 8 seconds. Check that this computer can reach the cluster: a VPN or a bastion may be needed.": "{name} tại {server} không trả lời trong 8 giây. Hãy kiểm tra máy tính này có tới được cluster không: có thể cần VPN hoặc bastion.",
   "The credentials in the kubeconfig were refused. A token or a client certificate has probably expired. Ask whoever gave you the kubeconfig for a new one and use Replace kubeconfig, or for a cloud cluster sign in again with the provider's CLI.": "Thông tin đăng nhập trong kubeconfig bị từ chối. Có thể token hoặc chứng chỉ client đã hết hạn. Hãy xin người đã đưa kubeconfig một tệp mới rồi dùng Thay kubeconfig, hoặc với cluster đám mây thì đăng nhập lại bằng CLI của nhà cung cấp.",
   "The cluster answered with the message below.": "Cluster trả lời bằng thông báo bên dưới.",
-  "Needs kubectl on a server: not available for a cluster opened with a kubeconfig": "Cần kubectl trên một máy chủ: không dùng được với cluster mở bằng kubeconfig",
   "server {v} · direct": "server {v} · trực tiếp",
   "Choose a pod": "Chọn một pod",
   "Choose a pod above, or press Logs on one in the Pods view.": "Hãy chọn một pod ở trên, hoặc bấm Logs ở một pod trong màn hình Pod.",

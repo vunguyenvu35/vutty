@@ -287,7 +287,7 @@ describe('a cluster tab', () => {
     expect(await screen.findByText('server v1.30.2 · direct')).toBeInTheDocument()
   })
 
-  it('opens a shell in a pod as a terminal tab of its own, and has no Port-forward, with the reason in the tooltip', async () => {
+  it('opens a shell in a pod as a terminal tab of its own, and can forward a port, as the API server does it', async () => {
     const be = await openProd()
     await userEvent.click(await screen.findByRole('radio', {name: /prod-cluster/}))
     await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
@@ -295,7 +295,7 @@ describe('a cluster tab', () => {
     const views = within(await screen.findByRole('tablist', {name: 'Kubernetes views'}))
     await userEvent.click(views.getByRole('tab', {name: 'Network'}))
     const forwards = await screen.findAllByRole('button', {name: /^Port-forward /})
-    for (const b of forwards) { expect(b).toBeDisabled(); expect(b).toHaveAttribute('title', expect.stringMatching(/Needs kubectl on a server/)) }
+    for (const b of forwards) expect(b).toBeEnabled() // no kubectl is needed: the forward goes over the cluster's API
     await userEvent.click(views.getByRole('tab', {name: 'Pods'}))
     const shells = (await screen.findAllByRole('button', {name: /^Shell/})).filter(b => !(b as HTMLButtonElement).disabled && b.textContent === 'Shell') // a pod of one container opens at once
     expect(shells.length).toBeGreaterThan(0) // no kubectl is needed: the shell goes over the cluster's API

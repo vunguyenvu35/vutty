@@ -53,7 +53,6 @@ export default {
   "{name} at {server} did not answer within 8 seconds. Check that this computer can reach the cluster: a VPN or a bastion may be needed.": "{server} 上的 {name} 在 8 秒内没有响应。请检查本机能否访问该集群：可能需要 VPN 或堡垒机。",
   "The credentials in the kubeconfig were refused. A token or a client certificate has probably expired. Ask whoever gave you the kubeconfig for a new one and use Replace kubeconfig, or for a cloud cluster sign in again with the provider's CLI.": "kubeconfig 中的凭据被拒绝。令牌或客户端证书可能已过期。请向提供 kubeconfig 的人索取新的并使用“替换 kubeconfig”；云集群则请用服务商的 CLI 重新登录。",
   "The cluster answered with the message below.": "集群返回了下面的消息。",
-  "Needs kubectl on a server: not available for a cluster opened with a kubeconfig": "需要服务器上的 kubectl：用 kubeconfig 打开的集群不可用",
   "server {v} · direct": "server {v} · 直连",
   "Choose a pod": "选择一个 Pod",
   "Choose a pod above, or press Logs on one in the Pods view.": "请在上方选择一个 Pod，或在 Pod 视图中点击某个 Pod 的 Logs。",

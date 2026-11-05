@@ -2,8 +2,11 @@ package usecase
 
 import (
 	"bytes"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -11,7 +14,8 @@ import (
 // A run against a real cluster (kind or minikube), by both ways in. It is skipped unless VUTTY_LIVE_KUBECONFIG names a kubeconfig, and
 // VUTTY_LIVE_CONTEXT its context. The cluster needs, in the namespace shop: a Deployment web-demo, a Helm release `web` (two revisions,
 // a Secret in its manifest, the password hunter2 given as a value), and a CRD widgets.example.com with printer columns Size and Phase
-// and one Widget w1 (spec.size large, status.phase Ready). See docs/Development.md.
+// and one Widget w1 (spec.size large, status.phase Ready). TestLiveSecurityAndPortForward also needs a Service web in shop (port 8080) that
+// leads to an nginx. See docs/Development.md.
 
 func liveSession(t *testing.T, h *harness, mode string) (sid, ctx string) {
 	t.Helper()
@@ -244,4 +248,48 @@ func TestLivePodFiles(t *testing.T) {
 			t.Fatalf("the answer must say so: %v", err)
 		}
 	})
+}
+
+// Port-forward through the API server of a real cluster (the Service web in shop, port 8080 to an nginx on 80), and the look at what
+// the cluster exposes, by both ways in (kube-proxy of kind is privileged and uses the host network).
+func TestLiveSecurityAndPortForward(t *testing.T) {
+	for _, mode := range []string{"kubeconfig", "host"} {
+		t.Run(mode, func(t *testing.T) {
+			h := newHarness(t).unlocked(t)
+			sid, ctx := liveSession(t, h, mode)
+			s := h.app.Server
+			r, err := s.K8sSecurity(sid, ctx, "")
+			if err != nil || r.Pods == 0 {
+				t.Fatalf("%+v %v", r, err)
+			}
+			var priv, host bool
+			for _, f := range r.Findings {
+				priv = priv || (f.Rule == "privileged" && f.Name == "kube-proxy")
+				host = host || (f.Rule == "host-namespace" && f.Namespace == "kube-system")
+			}
+			if !priv || !host {
+				t.Fatalf("kube-proxy should be found (privileged %v, host namespace %v): %+v", priv, host, r.Findings)
+			}
+			if mode != "kubeconfig" {
+				return
+			}
+			local := freePort(t)
+			fw, err := s.K8sPortForwardStart(sid, ctx, "shop", "web", local, 8080)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.K8sPortForwardStop(sid, fw.ID)
+			for i := 0; i < 3; i++ { // each request is a connection of its own
+				resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(local) + "/")
+				if err != nil {
+					t.Fatal(err)
+				}
+				b, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				if resp.StatusCode != 200 || !strings.Contains(string(b), "Welcome to nginx") {
+					t.Fatalf("%d %q", resp.StatusCode, b)
+				}
+			}
+		})
+	}
 }

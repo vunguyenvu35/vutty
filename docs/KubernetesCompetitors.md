@@ -16,7 +16,7 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | Chỉ cần kubeconfig | ✅ | ✅ | ✅ | ✅ | ◐ | ◐ |
 | Pod, workload, service, node, event, log | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Shell, scale, restart, rollback, drain | ✅ | ✅ | ✅ | ✅ | ◐ | ✅ |
-| Port-forward | ◐ (host có; kubeconfig chưa) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Port-forward | ✅ (host và kubeconfig) | ✅ | ✅ | ✅ | ❌ | ❌ |
 | CRD / resource tuỳ ý | ✅ (chỉ đọc) | ✅ | ✅ | ✅ | ◐ | ✅ |
 | Sửa YAML / apply | ◐ (chỉ workload, chỉ khi mở bằng kubeconfig; không tạo mới) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Helm | ◐ (chỉ xem release; không có repo/chart) | ✅ | ◐ ? | plugin | ✅ | ✅ |
@@ -40,7 +40,7 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | User | Điểm | Thiếu chính |
 |---|---|---|
 | Sysadmin (VPS, k3s/MicroK8s) | 5 | Gần như không |
-| Dev | 4 | Port-forward cho cluster mở bằng kubeconfig; sửa YAML ngoài workload và CRD. (Log nhiều pod và xem CRD đã có) |
+| Dev | 5 | Sửa YAML ngoài workload và CRD. (Log nhiều pod và xem CRD đã có) |
 | Người mới học K8s | 4 | Đã có lý do cho CrashLoop, OOM, ImagePull, Evicted, Init, Pending; thiếu hướng dẫn cách sửa và các lỗi khác (PVC, probe, quota: chưa kiểm) |
 | DevOps / SRE | 3 | apply, thay đổi release Helm (hiện chỉ xem), metrics lịch sử, so sánh nhiều cluster |
 | Platform / cluster admin | 3 | RBAC, quota. (CRD xem được, chỉ đọc) |
@@ -54,7 +54,7 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 | 1 | ~~Xem resource tuỳ ý và CRD (chỉ đọc)~~ **đã làm** (tab Resources) | Mọi người | Vừa | |
 | 2 | ~~Log nhiều pod theo selector/deployment~~ **đã làm** (Logs trên workload và Service) | Dev, SRE | Vừa | |
 | 3 | Gợi ý khi lỗi: **làm một phần** (cột Why). Còn: cách sửa, các lỗi khác | Mới học, sysadmin | Thấp | Chỉ đọc event và status đã có |
-| 4 | Port-forward cho cluster dùng kubeconfig | Dev | Vừa | Nút đang báo chưa làm được; dùng `portforward` WebSocket |
+| 4 | ~~Port-forward cho cluster dùng kubeconfig~~ **đã làm** (qua API server, đã thử trên kind 1.37) | Dev | Vừa | |
 | 5 | Metrics có lịch sử (sparkline trong phiên, hoặc đọc Prometheus) | SRE, sysadmin | Vừa | Tuỳ chọn |
 | 6 | Sửa YAML ngoài workload và cho CRD | DevOps | Cao | Workload đã sửa được (Edit YAML: dry-run, diff, audit, chặn khi đối tượng đã đổi) |
 | 7 | Sửa workload cho cluster mở bằng host (kubectl) | Sysadmin, DevOps | Vừa | Hiện báo "cần kubeconfig"; đường host chưa có |
@@ -65,9 +65,9 @@ Vutty không cạnh tranh về độ rộng với Lens hay Rancher. Lợi thế 
 2. Helm: đã chọn chỉ xem release (tab Apps). Có cần ghi thay đổi (rollback, upgrade) không? Hiện dùng terminal; nút Copy rollback có sẵn.
 3. Hướng chính: sysadmin/dev (làm 3, 4, 7, giữ gọn) hay DevOps/SRE (thêm 5, 6, đối đầu Lens)?
 
-Ngày 2026-11-05 (sau #29): thêm tab **Security** và nút **Copy kubectl** ([KubernetesPanel.md](KubernetesPanel.md) mục 25); dòng File của pod bổ sung vào bảng. Ô đối thủ mới ghi `?` là chưa kiểm.
+Ngày 2026-11-05 (sau #29): thêm tab **Security**, nút **Copy kubectl** và port-forward cho cluster mở bằng kubeconfig ([KubernetesPanel.md](KubernetesPanel.md) mục 25); dòng File của pod bổ sung vào bảng. Ô đối thủ mới ghi `?` là chưa kiểm.
 
-Tiến độ: mục 1 và 2 đã xong; mục 3 làm một phần; mục 4, 5, 7 chưa làm; mục 6 chờ quyết định.
+Tiến độ: mục 1 và 2 đã xong; mục 3 làm một phần; mục 4 đã xong; mục 5, 7 chưa làm; mục 6 chờ quyết định.
 
 ## Đã làm sau khi so với sidebar của Rancher
 

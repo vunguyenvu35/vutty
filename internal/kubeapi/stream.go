@@ -203,7 +203,20 @@ func (c *Client) dialExec(ctx context.Context, ns, pod, container string, comman
 	if container != "" {
 		q.Set("container", container)
 	}
-	u, err := url.Parse(c.URL("/api/v1/namespaces/" + url.PathEscape(ns) + "/pods/" + url.PathEscape(pod) + "/exec"))
+	conn, err := c.dialSocket(ctx, "/api/v1/namespaces/"+url.PathEscape(ns)+"/pods/"+url.PathEscape(pod)+"/exec", q)
+	if err != nil {
+		return nil, err
+	}
+	if conn.Subprotocol() != execProtocol {
+		_ = conn.Close()
+		return nil, errors.New("the server does not support a shell over WebSocket")
+	}
+	return conn, nil
+}
+
+// dialSocket opens a WebSocket on a path of the API server with the channel protocol (exec and port-forward both speak it).
+func (c *Client) dialSocket(ctx context.Context, path string, q url.Values) (*websocket.Conn, error) {
+	u, err := url.Parse(c.URL(path))
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +243,6 @@ func (c *Client) dialExec(ctx context.Context, ns, pod, container string, comman
 			return nil, apiError(resp.StatusCode, b[:n])
 		}
 		return nil, err
-	}
-	if conn.Subprotocol() != execProtocol {
-		_ = conn.Close()
-		return nil, errors.New("the server does not support a shell over WebSocket")
 	}
 	return conn, nil
 }

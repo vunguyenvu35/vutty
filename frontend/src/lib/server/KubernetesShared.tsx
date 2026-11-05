@@ -23,7 +23,7 @@ export interface K8sApi {
   be: Backend
   sid: string
   host: Host
-  /** a cluster opened with a kubeconfig: no host to run kubectl on, so no Shell and no Port-forward */
+  /** a cluster opened with a kubeconfig: no host to run kubectl on: the shell and the port-forward go through the API server */
   direct: boolean
   ctx: string
   /** '' = all namespaces */
@@ -84,7 +84,6 @@ export function useRunner(onDone: () => void) {
 
 /** why a button is locked: the right this login lacks */
 export function lockText(t: TFn, right: string, direct = false): string {
-  if (direct && right === 'portforward') return t('Needs kubectl on a server: not available for a cluster opened with a kubeconfig')
   switch (right) {
     case 'logs': return t('This login may not read logs')
     case 'exec': return t('This login may not open a shell in pods')

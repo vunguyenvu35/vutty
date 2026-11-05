@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -122,6 +124,21 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 		p := r.URL.Path
 		ok := func(s string) { _, _ = w.Write([]byte(s)) }
 		switch {
+		case strings.HasSuffix(p, "/portforward"):
+			f.serveForward(w, r)
+		case strings.HasSuffix(p, "/services/web-svc"):
+			ok(`{"spec":{"selector":{"app":"web","tier":"fe"},"ports":[{"port":80,"targetPort":"http"},{"port":81,"targetPort":8081},{"port":90}]}}`)
+		case strings.HasSuffix(p, "/services/headless"):
+			ok(`{"spec":{"ports":[{"port":80}]}}`)
+		case strings.HasSuffix(p, "/services/lonely"):
+			ok(`{"spec":{"selector":{"app":"lonely"},"ports":[{"port":80}]}}`)
+		case strings.HasSuffix(p, "/pods") && strings.Contains(r.URL.RawQuery, "labelSelector=app%3Dweb%2Ctier%3Dfe"):
+			ok(`{"items":[` +
+				`{"metadata":{"name":"web-0"},"spec":{"containers":[{"ports":[{"name":"http","containerPort":8080}]}]},"status":{"conditions":[{"type":"Ready","status":"False"}]}},` +
+				`{"metadata":{"name":"web-gone","deletionTimestamp":"2026-11-05T00:00:00Z"},"spec":{"containers":[{"ports":[{"name":"http","containerPort":8080}]}]},"status":{"conditions":[{"type":"Ready","status":"True"}]}},` +
+				`{"metadata":{"name":"web-1"},"spec":{"containers":[{"ports":[{"name":"http","containerPort":8080}]}]},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}`)
+		case strings.HasSuffix(p, "/pods") && strings.Contains(r.URL.RawQuery, "labelSelector=app%3Dlonely"):
+			ok(`{"items":[]}`)
 		case strings.HasSuffix(p, "/exec"):
 			if strings.HasSuffix(p, "/pods/multi/exec") && r.URL.Query().Get("container") == "" {
 				w.WriteHeader(400)
@@ -219,6 +236,27 @@ func newFakeCluster(t *testing.T) *fakeCluster {
 	}))
 	t.Cleanup(f.Close)
 	return f
+}
+
+// serveForward answers a port-forward like the kubelet: the port first on the data and the error channel, then an upper-case echo.
+func (f *fakeCluster) serveForward(w http.ResponseWriter, r *http.Request) {
+	up := websocket.Upgrader{Subprotocols: []string{"v4.channel.k8s.io"}}
+	c, err := up.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer c.Close()
+	_ = c.WriteMessage(websocket.BinaryMessage, []byte{0, 0x90, 0x1f})
+	_ = c.WriteMessage(websocket.BinaryMessage, []byte{1, 0x90, 0x1f})
+	for {
+		_, msg, err := c.ReadMessage()
+		if err != nil {
+			return
+		}
+		if msg[0] == 0 {
+			_ = c.WriteMessage(websocket.BinaryMessage, append([]byte{0}, strings.ToUpper(string(msg[1:]))...))
+		}
+	}
 }
 
 // serveExec answers a shell like the API server: it echoes what is typed and ends when it reads "exit".
@@ -642,18 +680,116 @@ func TestClusterRunsCronJobNowFromItsTemplate(t *testing.T) {
 
 // ---- what a kubeconfig cannot do ----
 
-func TestClusterHasNoShellNorPortForward(t *testing.T) {
+func TestClusterHasNoKubectlShellLineAndNoHostOnlyTab(t *testing.T) {
 	h := newHarness(t).unlocked(t)
 	f := newFakeCluster(t)
 	sid, _ := clusterSession(t, h, f, "{token: tok}")
 	if _, err := h.app.Server.K8sShellCommand(sid, "prod", "shop", "p", ""); err == nil || !strings.Contains(err.Error(), "kubectl") {
 		t.Fatalf("shell: %v", err)
 	}
-	if _, err := h.app.Server.K8sPortForwardStart(sid, "prod", "shop", "svc", 8080, 80); err == nil || !strings.Contains(err.Error(), "kubectl") {
-		t.Fatalf("port-forward: %v", err)
-	}
 	if _, err := h.app.Server.Overview(sid); err == nil {
 		t.Fatal("a host-only tab must not run anything for a cluster")
+	}
+}
+
+// askPort sends text to a local port and reads the answer of the same length.
+func askPort(t *testing.T, port int, text string) string {
+	t.Helper()
+	c, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), 3*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := c.Write([]byte(text)); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, len(text))
+	if _, err := io.ReadFull(c, buf); err != nil {
+		t.Fatalf("no answer: %v", err)
+	}
+	return string(buf)
+}
+
+func TestClusterPortForwardGoesThroughTheAPIServerToAReadyPod(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	sid, _ := clusterSession(t, h, f, "{token: tok}")
+	s := h.app.Server
+	local := freePort(t)
+	fw, err := s.K8sPortForwardStart(sid, "prod", "shop", "web-svc", local, 80)
+	if err != nil || fw.Status != "running" || fw.LocalPort != local {
+		t.Fatalf("%+v %v", fw, err)
+	}
+	// the Service port 80 is the container port called http (8080) of the pod that is ready: not the one that is not ready, not the one that is going away
+	if got := askPort(t, local, "hello"); got != "HELLO" {
+		t.Fatalf("%q", got)
+	}
+	if got := askPort(t, local, "again"); got != "AGAIN" { // each connection is a call of its own
+		t.Fatalf("%q", got)
+	}
+	if c := f.called("GET", "/api/v1/namespaces/shop/pods/web-1/portforward?ports=8080"); len(c) < 3 { // the first connection that proves the pod, and two more
+		t.Fatalf("%v", f.calls)
+	}
+	if c := f.called("GET", "/api/v1/namespaces/shop/pods/web-0/portforward"); len(c) != 0 {
+		t.Fatalf("a pod that is not ready was used: %v", c)
+	}
+	list, err := s.K8sPortForwards(sid)
+	if err != nil || len(list) != 1 || list[0].Service != "web-svc" {
+		t.Fatalf("%+v %v", list, err)
+	}
+	if err := s.K8sPortForwardStop(sid, fw.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(local), time.Second); err == nil {
+		t.Fatal("the local port still answers after the stop")
+	}
+	if l, _ := s.K8sPortForwards(sid); len(l) != 1 || l[0].Status != "stopped" {
+		t.Fatalf("%+v", l)
+	}
+	var started, stopped int
+	for _, e := range h.logs(t, domain.ActivityFilter{}) {
+		if strings.Contains(e.Message, "started port-forward svc/web-svc:80 on 127.0.0.1:"+strconv.Itoa(local)) && strings.Contains(e.Message, "pod web-1") {
+			started++
+		}
+		if strings.Contains(e.Message, "stopped port-forward svc/web-svc") {
+			stopped++
+		}
+	}
+	if started != 1 || stopped != 1 {
+		t.Fatalf("audit: started %d, stopped %d", started, stopped)
+	}
+}
+
+func TestClusterPortForwardPortsAndRefusals(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	sid, _ := clusterSession(t, h, f, "{token: tok}")
+	s := h.app.Server
+	for port, want := range map[int]string{81: "ports=8081", 90: "ports=90"} { // a number as it is; no targetPort is the Service port itself
+		local := freePort(t)
+		fw, err := s.K8sPortForwardStart(sid, "prod", "shop", "web-svc", local, port)
+		if err != nil {
+			t.Fatalf("%d: %v", port, err)
+		}
+		if got := askPort(t, local, "x"); got != "X" {
+			t.Fatalf("%q", got)
+		}
+		if c := f.called("GET", "/api/v1/namespaces/shop/pods/web-1/portforward?"+want); len(c) == 0 {
+			t.Fatalf("%d: %v", port, f.calls)
+		}
+		_ = s.K8sPortForwardStop(sid, fw.ID)
+	}
+	for _, c := range []struct{ svc, want string }{{"web-svc", "has no port 99"}, {"headless", "no selector"}, {"lonely", "running and ready"}} {
+		local := freePort(t)
+		if _, err := s.K8sPortForwardStart(sid, "prod", "shop", c.svc, local, map[bool]int{true: 99, false: 80}[c.svc == "web-svc"]); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v", c.svc, err)
+		}
+		if l, err := net.Listen("tcp", "127.0.0.1:"+strconv.Itoa(local)); err != nil {
+			t.Errorf("%s: the local port was left open after a refusal", c.svc)
+		} else {
+			_ = l.Close()
+		}
 	}
 }
 

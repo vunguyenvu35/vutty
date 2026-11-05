@@ -140,7 +140,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
 
   const api: K8sApi = useMemo(() => ({
     be, sid, host, direct, ctx, ns, rights, visible, rev, busy, run, onShell, onPodShell, onAccess, onLogs, kept, keep,
-    can: id => !(direct && id === 'portforward') && rights?.[id] !== false,
+    can: id => rights?.[id] !== false,
     go: (v, f = '') => { remember(); setView(v); setSeed(f); setPage(null) },
     open: (p: K8sPage | null) => { if (p) remember(); setPage(p) },
     setNs: (n: string) => { setNs(n); setPage(null) },
