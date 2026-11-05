@@ -6,7 +6,7 @@ import {usePref} from '../ui/ListTools'
 import {Select} from '../ui/Select'
 import {IconChevron} from '../ui/Icons'
 import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
-import {ActBtn, age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort, useMenuAnchor} from './KubernetesShared'
+import {ActBtn, age, Age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort, useMenuAnchor} from './KubernetesShared'
 import {CopyMenu} from './KubernetesCopy'
 import {DebugButton} from './KubernetesDebug'
 import type {K8sPod, K8sPodDetail} from '../types'
@@ -129,7 +129,7 @@ export function KubernetesPods({seed}: {seed: string}) {
     <tr key={p.namespace + '/' + p.name}>
       <td className="k8s-name"><button className="sp-link" onClick={() => k.open({k: 'pod', ns: p.namespace, name: p.name})}><b>{p.name}</b></button><small>{p.namespace}</small>{p.why && <span className="k8s-why">{p.why}</span>}</td>
       <td><Pill tone={p.tone}>{p.status}</Pill></td>
-      <td className="n m">{p.ready}</td><td className="n m">{p.restarts}</td><td className="m">{p.node || '–'}</td><td className="n">{age(p.age_sec)}</td>
+      <td className="n m">{p.ready}</td><td className="n m">{p.restarts}</td><td className="m">{p.node || '–'}</td><td className="n"><Age sec={p.age_sec} /></td>
       <td><div className="sp-acts">
         <ShellButton pod={p} />
         <ActBtn right="logs" onClick={() => k.onLogs({ns: p.namespace, name: p.name})}>{t('Logs')}</ActBtn>
@@ -230,7 +230,7 @@ export function PodDetail({ns, name}: {ns: string; name: string}) {
       </Card>
       <Card title={t('Events for this pod')}>
         {d.events.length === 0 && <div className="sp-note">{t('No events.')}</div>}
-        {d.events.map((e, i) => <div key={i} className="k8s-ev"><time>{age(e.age_sec)}</time><span><Pill tone={e.type === 'Warning' ? 'warn' : ''}>{e.reason}</Pill> {e.message}</span></div>)}
+        {d.events.map((e, i) => <div key={i} className="k8s-ev"><time><Age sec={e.age_sec} /></time><span><Pill tone={e.type === 'Warning' ? 'warn' : ''}>{e.reason}</Pill> {e.message}</span></div>)}
       </Card>
       <div className="sp-note">{t('Environment variables are not shown here: they can hold secrets. Open YAML to see which ones the pod declares; values that come from a Secret stay hidden.')}</div>
     </div>

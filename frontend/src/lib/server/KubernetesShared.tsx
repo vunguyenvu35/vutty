@@ -134,7 +134,7 @@ export function useMenuAnchor(width = 300) {
 /** useLoad that also asks again after a change (rev) */
 export function useKLoad<T>(load: () => Promise<T>, poll: boolean) {
   const k = useK8s()
-  const r = useLoad<T>(load, poll && k.visible ? 5000 : null)
+  const r = useLoad<T>(load, poll && k.visible ? 3000 : null)
   const first = useRef(k.rev)
   useEffect(() => { if (first.current !== k.rev) { first.current = k.rev; r.reload() } }, [k.rev]) // eslint-disable-line react-hooks/exhaustive-deps
   return r
@@ -195,4 +195,13 @@ export function Crumb({path, onBack}: {path: string[]; onBack(): void}) {
 export const matches = (q: string, ...fields: string[]) => {
   const s = q.trim().toLowerCase()
   return !s || fields.some(f => f.toLowerCase().includes(s))
+}
+
+/** an age that goes on counting each second between two loads of the list, so a table that loads every few seconds does not look stuck */
+export function Age({sec}: {sec: number}) {
+  const from = useRef({sec, at: Date.now()})
+  if (from.current.sec !== sec) from.current = {sec, at: Date.now()}
+  const [, tick] = useState(0)
+  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 1000); return () => clearInterval(id) }, [])
+  return <>{age(sec + (Date.now() - from.current.at) / 1000)}</>
 }

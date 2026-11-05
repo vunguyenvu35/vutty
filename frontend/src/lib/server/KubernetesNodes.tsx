@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {Err, Loading, Toolbar} from './shared'
-import {ActBtn, age, Crumb, Meter, Pill, useK8s, useKLoad, useSort} from './KubernetesShared'
+import {ActBtn, Age, Crumb, Meter, Pill, useK8s, useKLoad, useSort} from './KubernetesShared'
 import {CopyMenu} from './KubernetesCopy'
 import type {K8sDrainOpts, K8sDrainPlan, K8sNode} from '../types'
 
@@ -43,7 +43,7 @@ export function Nodes() {
             <td><Pill tone={n.status === 'Ready' ? 'ok' : n.status === 'NotReady' ? 'bad' : 'warn'}>{n.status === 'NotReady' ? t('NotReady') : n.status === 'Ready' ? t('Ready') : t('Unknown')}</Pill>{n.unschedulable && <> <Pill tone="warn">{t('Unschedulable')}</Pill></>}</td>
             <td>{n.roles || '–'}</td>
             <td><Meter value={n.cpu_pct} label={t('CPU of {name}', {name: n.name})} /></td><td><Meter value={n.mem_pct} label={t('Memory of {name}', {name: n.name})} /></td>
-            <td className="n m">{n.pods} / {n.pods_max}</td><td className="n">{age(n.age_sec)}</td>
+            <td className="n m">{n.pods} / {n.pods_max}</td><td className="n"><Age sec={n.age_sec} /></td>
             <td><div className="sp-acts">
               <ActBtn id={'cordon:' + n.name} right="cordon" className={n.unschedulable ? 'primary' : ''} label={(n.unschedulable ? t('Uncordon {name}', {name: n.name}) : t('Cordon {name}', {name: n.name}))} onClick={() => void cordon(n.name, !n.unschedulable)}>{n.unschedulable ? t('Uncordon') : t('Cordon')}</ActBtn>
               <CopyMenu target={{kind: 'node', name: n.name, ip: n.ip || undefined, jump: k.direct ? undefined : `${k.host.username}@${k.host.hostname}`}} />

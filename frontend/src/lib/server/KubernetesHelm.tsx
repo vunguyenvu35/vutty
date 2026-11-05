@@ -5,7 +5,7 @@ import {Modal} from '../ui/Modal'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
 import {Err, Loading, Toolbar, FilterInput} from './shared'
-import {age, Crumb, matches, Pill, useK8s, useKept, useKLoad, useSort, type K8sPage} from './KubernetesShared'
+import {Age, Crumb, matches, Pill, useK8s, useKept, useKLoad, useSort, type K8sPage} from './KubernetesShared'
 import type {K8sHelmDetail, K8sHelmRelease} from '../types'
 
 type HelmPage = Extract<K8sPage, {k: 'helm'}>
@@ -36,7 +36,7 @@ export function KubernetesHelm() {
             <td className="k8s-name"><button className="sp-link" onClick={() => k.open({k: 'helm', ns: r.namespace, name: r.name, rev: 0})}><b>{r.name}</b></button><small>{r.namespace}</small></td>
             <td className="n m">{r.revision}</td>
             <td><Pill tone={tone(r.status)}>{r.status}</Pill></td>
-            <td className="n">{age(r.age_sec)}</td>
+            <td className="n"><Age sec={r.age_sec} /></td>
           </tr>))}</tbody>
       </table>{data && rows.length === 0 && <div className="sp-empty">{t('No Helm releases.')}</div>}</div>
       <div className="sp-note k8s-hint">{t('These are the releases Helm 3 stores in the cluster. Chart repositories are kept by Helm or Rancher, not by the cluster, so they are not listed here.')}</div>
@@ -74,7 +74,7 @@ export function HelmDetail({page}: {page: HelmPage}) {
             <tr><td>{t('Chart')}</td><td>{d.chart} {d.chart_version}</td></tr>
             <tr><td>{t('App version')}</td><td>{d.app_version || '–'}</td></tr>
             <tr><td>{t('Namespace')}</td><td>{r.namespace}</td></tr>
-            <tr><td>{t('Updated')}</td><td>{age(r.age_sec)}</td></tr>
+            <tr><td>{t('Updated')}</td><td><Age sec={r.age_sec} /></td></tr>
           </tbody></table>
           {d.description && <div className="sp-note">{d.description}</div>}
         </div>
@@ -89,7 +89,7 @@ export function HelmDetail({page}: {page: HelmPage}) {
         <thead><tr><th className="n">{t('Revision')}</th><th>{t('Status')}</th><th className="n">{t('Updated')}</th><th /></tr></thead>
         <tbody>{d.history.map(h => (
           <tr key={h.revision} aria-current={h.revision === r.revision || undefined}>
-            <td className="n m">{h.revision}</td><td><Pill tone={tone(h.status)}>{h.status}</Pill></td><td className="n">{age(h.age_sec)}</td>
+            <td className="n m">{h.revision}</td><td><Pill tone={tone(h.status)}>{h.status}</Pill></td><td className="n"><Age sec={h.age_sec} /></td>
             <td><div className="sp-acts">
               {h.revision !== r.revision && <button aria-label={t('View revision {n}', {n: h.revision})} onClick={() => k.open({k: 'helm', ns: page.ns, name: page.name, rev: h.revision})}>{t('View')}</button>}
               {h.revision !== latest && <button aria-label={t('Copy the rollback command to revision {n}', {n: h.revision})} title={t('Vutty does not change releases: run it in a terminal')} onClick={() => void copy(`helm rollback ${page.name} ${h.revision} -n ${page.ns}`, t('Command copied'))}>{t('Copy rollback')}</button>}

@@ -6,7 +6,7 @@ import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
 import {Card, Err, Loading, RefreshButton, Toolbar} from './shared'
 import {level} from './format'
-import {ActBtn, age, matches, Pill, useK8s, useKept, useKLoad} from './KubernetesShared'
+import {ActBtn, Age, matches, Pill, useK8s, useKept, useKLoad} from './KubernetesShared'
 import type {K8sConfig, K8sConfigItem} from '../types'
 
 /** how long a revealed Secret key stays on the screen */
@@ -71,7 +71,7 @@ export function KubernetesConfig() {
           <thead><tr><th>{t('Name')}</th><th>{t('Keys')}</th><th>{t('Used by')}</th><th className="n">{t('Age')}</th><th /></tr></thead>
           <tbody>{maps.map(c => (
             <tr key={c.namespace + '/' + c.name}>
-              <td className="k8s-name"><b>{c.name}</b><small>{c.namespace}</small></td><td className="m">{used(c.keys)}</td><td className="m">{used(c.used_by)}</td><td className="n">{age(c.age_sec)}</td>
+              <td className="k8s-name"><b>{c.name}</b><small>{c.namespace}</small></td><td className="m">{used(c.keys)}</td><td className="m">{used(c.used_by)}</td><td className="n"><Age sec={c.age_sec} /></td>
               <td><div className="sp-acts"><button aria-label={t('View {name}', {name: c.name})} onClick={() => setViewing(c)}>{t('View')}</button></div></td>
             </tr>))}</tbody>
         </table>{data && data.configmaps.length === 0 && <div className="sp-empty">{t('No ConfigMaps.')}</div>}{data && data.configmaps.length > 0 && maps.length === 0 && <div className="sp-empty">{t('No ConfigMap matches.')}</div>}</div>
@@ -87,7 +87,7 @@ export function KubernetesConfig() {
                 <td className="m">{choosing === s.name
                   ? <span className="k8s-keys">{s.keys.map(key => <button key={key} onClick={() => void reveal(s, key)}>{key}</button>)}<button className="ghost" onClick={() => setChoosing('')}>{t('Cancel')}</button></span>
                   : used(s.keys)}</td>
-                <td className="m">{used(s.used_by)}</td><td className="n">{age(s.age_sec)}</td>
+                <td className="m">{used(s.used_by)}</td><td className="n"><Age sec={s.age_sec} /></td>
                 <td><div className="sp-acts"><ActBtn id={id} right="secrets" disabled={s.keys.length === 0} label={t('Reveal a key of {name}', {name: s.name})}
                   onClick={() => (s.keys.length === 1 ? void reveal(s, s.keys[0]) : setChoosing(s.name))}>{t('Reveal')}</ActBtn></div></td>
               </tr>

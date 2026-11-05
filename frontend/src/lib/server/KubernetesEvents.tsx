@@ -1,7 +1,7 @@
 import {useCallback, useState} from 'react'
 import {useT} from '../i18n'
 import {Err, Loading, Toolbar, FilterInput} from './shared'
-import {age, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
+import {Age, matches, Pill, useK8s, useKept, useKLoad, useSort} from './KubernetesShared'
 import type {K8sEvent} from '../types'
 
 type EventSort = 'age' | 'reason' | 'object' | 'count'
@@ -33,7 +33,7 @@ export function Events() {
         <thead><tr>{th('age', t('Last seen'), 'n')}{th('reason', t('Reason'))}{th('object', t('Object'))}<th>{t('Message')}</th>{th('count', t('Count'), 'n')}</tr></thead>
         <tbody>{rows.map((e, i) => (
           <tr key={i}>
-            <td className="n">{age(e.age_sec)}</td>
+            <td className="n"><Age sec={e.age_sec} /></td>
             <td><Pill tone={e.type === 'Warning' ? (/BackOff|NotReady|Failed(?!Sched)|Evicted|OOM/.test(e.reason) ? 'bad' : 'warn') : ''}>{e.reason}</Pill></td>
             <td className="k8s-name"><b>{e.object}</b><small>{e.namespace || t('cluster')}</small></td>
             <td className="k8s-msg">{e.message}</td><td className="n m">{e.count}</td>

@@ -92,7 +92,9 @@
 .k8s-env { margin-top: 6px; }
 .k8s-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 .k8s-pick-list { display: flex; flex-direction: column; gap: 6px; }
-.k8s-pick-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.k8s-pick-row { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.k8s-pick-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.k8s-pick-row .sp-acts { justify-content: flex-start; flex-wrap: wrap; }
 .k8s-yaml-edit { width: 100%; min-height: 340px; font: 12.5px ui-monospace, Menlo, monospace; white-space: pre; resize: vertical; }
 .k8s-diff { max-height: 260px; overflow: auto; margin: 8px 0 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font: 12px ui-monospace, Menlo, monospace; }
 .k8s-diff .add { color: var(--ok); background: #3fb95014; }
