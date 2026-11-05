@@ -6,7 +6,7 @@ Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: be
 
 ## Unreleased
 
-- **Fix (macOS): a crash when the screen locks or the Mac sleeps.** Locking the vault on a sleep or a screen lock told the page from the thread that macOS had posted the notification on, and Wails (up to 2.17.1) releases the string it queues for the page once too often, which on that thread kills the app in the run loop (SIGSEGV). The lock now runs on a goroutine and the notification waits for it, so the vault is still locked before the computer sleeps. This was found by reading the crash and reproducing the Wails pattern in a small program, and a test keeps the handler off that thread; it was not yet seen to stop the crash in the app itself, which needs a screen lock with the app open.
+- **Fix (macOS): a crash when the screen locks or the Mac sleeps.** Locking the vault on a sleep or a screen lock told the page from the thread that macOS had posted the notification on, and Wails (up to 2.17.1) releases the string it queues for the page once too often, which on that thread kills the app in the run loop (SIGSEGV). The lock now runs on a goroutine and the notification waits for it, so the vault is still locked before the computer sleeps. It was found by reading the crash and reproducing the Wails pattern in a small program, and a test keeps the handler off that thread. Locking the screen with the app open did kill the running app before this change (reported on a Mac); that the fixed app survives the same lock is still to be seen.
 
 ## What's new in 1.6.2
 
