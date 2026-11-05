@@ -82,7 +82,7 @@ export function ShellButton({pod}: {pod: K8sPod}) {
       <button ref={btn} aria-haspopup={own.length > 1 ? 'menu' : undefined} aria-expanded={own.length > 1 ? !!at : undefined} aria-busy={k.busy(id)}
         disabled={none || !k.can('exec') || !(k.direct ? k.onPodShell : k.onShell) || k.busy(id)}
         title={!k.can('exec') ? t('This login may not open a shell in pods') : none ? t('Needs a running container: this pod has none') : !(k.direct ? k.onPodShell : k.onShell) ? t('A terminal cannot be opened from here') : undefined}
-        onClick={click}>{own.length > 1 ? t('Shell ▾') : t('Shell')}</button>
+        className="k8s-shell" onClick={click}>{own.length > 1 ? t('Shell ▾') : t('Shell')}</button>
       {at && createPortal(
         <div ref={menu} className="k8s-menu" role="menu" aria-label={t('Open a shell in {name}', {name: pod.name})} style={menuStyle}>
           <h4>{t('Containers of {name}', {name: pod.name})}</h4>

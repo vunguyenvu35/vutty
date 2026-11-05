@@ -148,3 +148,5 @@
 .k8s-nav .sp-tabs { flex: 1 1 auto; min-width: 0; }
 .k8s-back { flex: none; width: 30px; height: 30px; margin-bottom: 5px; padding: 0; display: grid; place-items: center; }
 .k8s-back:disabled { opacity: .35; cursor: default; }
+/* Shell with and without the ▾ (a pod with several containers) is the same width, so a column of them lines up */
+.k8s-shell { min-width: 74px; justify-content: center; text-align: center; white-space: nowrap; }
