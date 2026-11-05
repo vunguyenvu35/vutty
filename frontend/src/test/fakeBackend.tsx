@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -56,6 +56,7 @@ export interface Fake extends Backend {
       processes: ServerProcess[]
       units: ServerUnit[]
       docker: ServerContainers
+      dockerObjects: DockerObjects
       logs: string
       ports: ServerPorts
       certs: ServerCerts
@@ -186,6 +187,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       processes: [{pid: 2210, user: 'app', cpu: 38.5, mem: 12.4, command: 'node server.js'}, {pid: 3011, user: 'redis', cpu: 1.3, mem: 2.6, command: 'redis-server *:6379'}],
       units: [{name: 'app-worker', description: 'Job queue', active: 'failed', sub: 'failed', enabled: 'enabled'}, {name: 'nginx', description: 'Web server', active: 'active', sub: 'running', enabled: 'enabled'}],
       docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp', project: 'shop'}, {id: 'c3', name: 'db', image: 'postgres:16', state: 'running', status: 'Up 2 hours', ports: '', project: 'shop'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: '', project: ''}]},
+      dockerObjects: {images: [{id: 'aa11bb22', name: 'registry/api:1.8', size: '210MB', created: '2 days ago', in_use: true}, {id: 'cc33dd44', name: '<none>', size: '95MB', created: '1 month ago', in_use: false}], volumes: [{name: 'pgdata', driver: 'local', in_use: true}, {name: 'old-cache', driver: 'local', in_use: false}], networks: [{id: 'n1', name: 'bridge', driver: 'bridge', scope: 'local'}, {id: 'n2', name: 'shop_default', driver: 'bridge', scope: 'local'}]},
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
       ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}]},
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
@@ -569,6 +571,16 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         rec('server.containerAction', name, action)
         if (state.server.failAction) throw state.server.failAction
         state.server.docker.containers = state.server.docker.containers.map(c => (c.name === name ? {...c, state: action === 'stop' ? 'exited' : 'running'} : c))
+      },
+      dockerShellCommand: async (sid, name) => { rec('server.dockerShellCommand', name); return 'docker exec -it ' + name + ' sh' },
+      dockerStats: async () => state.server.docker.containers.filter(c => c.state === 'running').map((c, i) => ({name: c.name, cpu: 12 - i * 5, mem_pct: 4 + i, mem_usage: (60 + i * 40) + 'MiB'})),
+      dockerInspect: async (sid, name) => ({name, image: 'registry/' + name, created: '2026-01-01T00:00:00Z', state: 'running', restart: 'always', command: 'node app.js', env: [{key: 'NODE_ENV', value: 'production'}, {key: 'DB_PASSWORD', value: 'hunter2'}], mounts: [{type: 'volume', source: '/var/lib/docker/volumes/data', dest: '/data', rw: true}], ports: ['0.0.0.0:3000 → 3000/tcp'], networks: ['bridge'], labels: {}}),
+      dockerObjects: async () => ({images: state.server.dockerObjects.images.map(i => ({...i})), volumes: state.server.dockerObjects.volumes.map(v => ({...v})), networks: state.server.dockerObjects.networks.map(n => ({...n}))}),
+      dockerRemove: async (sid, kind, id) => {
+        rec('server.dockerRemove', kind, id)
+        if (state.server.failAction) throw state.server.failAction
+        if (kind === 'image') state.server.dockerObjects.images = state.server.dockerObjects.images.filter(i => i.id !== id)
+        else state.server.dockerObjects.volumes = state.server.dockerObjects.volumes.filter(v => v.name !== id)
       },
       logs: async (sid, kind, name, opts) => { rec('server.logs', kind, name, ...(opts ? [opts] : [])); return state.server.logs },
       ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),

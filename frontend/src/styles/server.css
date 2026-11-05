@@ -99,3 +99,8 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-filter-box .sp-filter-clear:hover:not(:disabled) { color: var(--text); background: var(--card-hover); border: 0; }
 
 .sp-pod { font-weight: 600; }
+.sp-view > .segmented { align-self: flex-start; margin-bottom: 4px; }
+.sp-inspect table { width: 100%; border-collapse: collapse; }
+.sp-inspect td { padding: 5px 10px 5px 0; vertical-align: top; word-break: break-all; }
+.sp-inspect table:first-of-type td:first-child { width: 140px; color: var(--muted); word-break: normal; }
+.sp-inspect h4 { margin: 16px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }

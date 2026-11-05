@@ -10,6 +10,7 @@ import {errMsg} from '../util'
 import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
+import {Docker} from './Docker'
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
 import {Security} from './Security'
@@ -91,7 +92,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'overview' && <Overview sid={sid} host={host} feed={feed} onGo={setSection} />}
             {section === 'processes' && <Processes sid={sid} visible={visible} />}
             {section === 'services' && <Services sid={sid} onLogs={name => showLogs({kind: 'service', name})} />}
-            {section === 'docker' && <Docker sid={sid} onLogs={showLogs} />}
+            {section === 'docker' && <Docker sid={sid} host={host} onLogs={showLogs} onShell={onShell} />}
             {k8sOpened && <div className="sp-keep" hidden={section !== 'kubernetes'}><Kubernetes sid={sid} host={host} visible={visible && section === 'kubernetes'} onShell={onShell} onAccess={onAccess} onContext={setK8sCtx} onNamespace={setK8sNs} onLogs={p => showLogs(logSourceOf(p))} /></div>}
             {section === 'web' && <Web sid={sid} onLogs={(kind, name) => showLogs({kind, name})} />}
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={k8sCtx} k8sNs={k8sNs} />}
@@ -311,86 +312,6 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
           })}
         </tbody>
       </table>{data && shown.length === 0 && <div className="sp-empty">{t('No service matches.')}</div>}</div>
-    </div>
-  )
-}
-
-function Docker({sid, onLogs}: {sid: string; onLogs(s: LogSource): void}) {
-  const be = useBackend()
-  const t = useT()
-  const tn = useTn()
-  const toast = useToast()
-  const confirm = useConfirm()
-  const [working, setWorking] = useState('')
-  const load = useCallback(() => be.server.containers(sid), [be, sid])
-  const {data, error, busy, reload} = useLoad<ServerContainers>(load, null)
-  const act = async (name: string, action: ServerAction) => {
-    const q = actionQuestion(t, 'container', action, name)
-    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action !== 'start'}))) return
-    setWorking(name)
-    try { await be.server.containerAction(sid, name, action); toast.info(t('{name}: done', {name})) } catch (e) { toast.error(errMsg(e)) }
-    setWorking('')
-    reload()
-  }
-  const stack = async (project: string, action: StackAction) => {
-    const q = stackQuestion(t, action, project)
-    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action === 'stop'}))) return
-    setWorking('stack:' + project)
-    try { await be.server.stackAction(sid, project, action); toast.info(t('{name}: done', {name: project})) } catch (e) { toast.error(errMsg(e)) }
-    setWorking('')
-    reload()
-  }
-  // the containers of a Compose project together, the others after them
-  const groups = useMemo(() => {
-    const by = new Map<string, ServerContainer[]>()
-    for (const c of data?.containers ?? []) by.set(c.project, [...(by.get(c.project) ?? []), c])
-    const projects = [...by.keys()].filter(p => p !== '').sort()
-    return [...projects.map(p => ({project: p, items: by.get(p)!})), ...(by.has('') ? [{project: '', items: by.get('')!}] : [])]
-  }, [data])
-  const row = (c: ServerContainer) => (
-    <tr key={c.id}>
-      <td><b>{c.name}</b><div className="sp-note m">{c.image}</div></td>
-      <td>{c.state === 'running' ? <span className="sp-pill ok" title={c.status}>{t('Running')}</span> : <span className="sp-pill" title={c.status}>{t('Stopped')}</span>}</td>
-      <td className="m">{c.ports || '–'}</td>
-      <td><div className="sp-acts">
-        {c.state === 'running' ? (
-          <>
-            <button aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'restart')}>{t('Restart')}</button>
-            <button className="danger" aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'stop')}>{t('Stop')}</button>
-          </>
-        ) : <button className="primary" aria-busy={working === c.name} disabled={working === c.name} onClick={() => void act(c.name, 'start')}>{t('Start')}</button>}
-        <button onClick={() => onLogs({kind: 'container', name: c.name})}>{t('Logs')}</button>
-      </div></td>
-    </tr>
-  )
-  return (
-    <div className="sp-view">
-      <Bar2 busy={busy} onReload={reload} />
-      <Err error={error} />
-      {data && !data.installed && <div className="sp-empty">{t('Docker is not installed on this server.')}</div>}
-      {data?.installed && data.containers.length === 0 && <div className="sp-empty">{t('No containers.')}</div>}
-      {data?.installed && groups.map(g => (
-        <section key={g.project || '-'} className="sp-card sp-wide" aria-label={g.project || t('Other containers')}>
-          <div className="sp-card-head">
-            <h3>{g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')}</h3>
-            {g.project && (
-              <div className="sp-acts">
-                <span className="sp-note">{t('{n} running', {n: g.items.filter(c => c.state === 'running').length})} / {tn(g.items.length, '{n} container', '{n} containers')}</span>
-                <button className="primary" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'update')}>{t('Update')}</button>
-                <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'restart')}>{t('Restart')}</button>
-                {g.items.some(c => c.state === 'running')
-                  ? <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
-                  : <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
-                <button onClick={() => onLogs({kind: 'stack', name: g.project})}>{t('Logs')}</button>
-              </div>
-            )}
-          </div>
-          <div className="sp-table"><table>
-            <thead><tr><th>{t('Container')}</th><th>{t('Status')}</th><th>{t('Ports')}</th><th /></tr></thead>
-            <tbody>{g.items.map(row)}</tbody>
-          </table></div>
-        </section>
-      ))}
     </div>
   )
 }

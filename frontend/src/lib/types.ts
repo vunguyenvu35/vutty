@@ -546,6 +546,13 @@ export interface ServerContainers {
   installed: boolean
   containers: ServerContainer[]
 }
+export interface DockerStat {name: string; cpu: number; mem_pct: number; mem_usage: string}
+export interface DockerInspect {name: string; image: string; created: string; state: string; restart: string; command: string; env: {key: string; value: string}[]; mounts: {type: string; source: string; dest: string; rw: boolean}[]; ports: string[]; networks: string[]; labels: Record<string, string>}
+export interface DockerObjects {
+  images: {id: string; name: string; size: string; created: string; in_use: boolean}[]
+  volumes: {name: string; driver: string; in_use: boolean}[]
+  networks: {id: string; name: string; driver: string; scope: string}[]
+}
 export interface ServerPort {
   port: number
   process: string

@@ -1,7 +1,7 @@
 import {createContext, useContext} from 'react'
 import {t} from './i18n'
 import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sDebug, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
-import type {ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
+import type {DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
@@ -219,6 +219,14 @@ export interface Backend {
     serviceAction(sid: string, name: string, action: 'start' | 'stop' | 'restart' | 'enable' | 'disable'): Promise<void>
     containers(sid: string): Promise<ServerContainers>
     containerAction(sid: string, name: string, action: 'start' | 'stop' | 'restart'): Promise<void>
+    /** the line to type into a terminal tab on the host to get a shell in a container; nothing is run */
+    dockerShellCommand(sid: string, name: string): Promise<string>
+    /** one reading of the CPU and memory of the running containers */
+    dockerStats(sid: string): Promise<DockerStat[]>
+    dockerInspect(sid: string, name: string): Promise<DockerInspect>
+    dockerObjects(sid: string): Promise<DockerObjects>
+    /** delete an image (by id) or a volume (by name); Docker refuses one in use */
+    dockerRemove(sid: string, kind: 'image' | 'volume', id: string): Promise<void>
     /** the last lines of the journal: kind is '' (the whole system), 'service', 'container', 'stack' (a Compose project) or 'web' (name: nginx or caddy) */
     /** the last lines of a log; opts is for another number of lines (100, 300, 1000, 5000) and a time (15m, 1h, 24h) */
     logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, opts?: {lines: number; since: '' | '15m' | '1h' | '24h'}): Promise<string>
@@ -576,6 +584,11 @@ export function wailsBackend(): Backend {
       serviceAction: (s, n, a) => u('ServerService', 'ServiceAction', s, n, a),
       containers: async s => { const r = await u<ServerContainers>('ServerService', 'Containers', s); return {...r, containers: r.containers ?? []} },
       containerAction: (s, n, a) => u('ServerService', 'ContainerAction', s, n, a),
+      dockerShellCommand: (s, n) => u('ServerService', 'DockerShellCommand', s, n),
+      dockerStats: async s => (await u<DockerStat[]>('ServerService', 'DockerStats', s)) ?? [],
+      dockerInspect: async (s, n) => { const r = await u<DockerInspect>('ServerService', 'DockerInspect', s, n); return {...r, env: r.env ?? [], mounts: r.mounts ?? [], ports: r.ports ?? [], networks: r.networks ?? [], labels: r.labels ?? {}} },
+      dockerObjects: async s => { const r = await u<DockerObjects>('ServerService', 'DockerObjects', s); return {images: r.images ?? [], volumes: r.volumes ?? [], networks: r.networks ?? []} },
+      dockerRemove: (s, k, i) => u('ServerService', 'DockerRemove', s, k, i),
       logs: (s, k, n, o) => (o ? u('ServerService', 'LogsFor', s, k, n, o.lines, o.since) : u('ServerService', 'Logs', s, k, n)),
       stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),
       certificates: async s => { const r = await u<ServerCerts>('ServerService', 'Certificates', s); return {...r, certs: r.certs ?? []} },
