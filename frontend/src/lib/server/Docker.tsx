@@ -128,7 +128,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
 /** the ⋮ of a row: the actions that are not the main one, in a small menu */
 function RowMenu({name, items}: {name: string; items: {label: string; danger?: boolean; disabled?: boolean; run(): void}[]}) {
   const t = useT()
-  const {btn, menu, at, setAt, toggle, style} = useMenuAnchor()
+  const {btn, menu, at, setAt, toggle, style} = useMenuAnchor(180)
   useEffect(() => {
     if (!at) return
     const away = (e: MouseEvent) => { if (!(e.target as Element).closest?.('.k8s-menu') && !btn.current?.contains(e.target as Node)) setAt(null) }

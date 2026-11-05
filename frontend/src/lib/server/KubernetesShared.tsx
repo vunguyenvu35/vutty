@@ -114,7 +114,7 @@ export function ActBtn({id, right, className = '', title, disabled, onClick, chi
 }
 
 /** where a button's popup menu (position: fixed) goes: below the button, else above it (the last row of a table sits at the bottom of the window), never out of the window */
-export function useMenuAnchor() {
+export function useMenuAnchor(width = 300) {
   const btn = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState<{left: number; top: number; above: number} | null>(null)
@@ -126,7 +126,7 @@ export function useMenuAnchor() {
     if (h <= below || up <= below) setFit({top: at.top, maxHeight: below})
     else setFit({top: Math.max(8, at.above - 4 - Math.min(h, up)), maxHeight: up})
   }, [at])
-  const toggle = () => { const r = btn.current?.getBoundingClientRect(); setAt(a => (a ? null : {left: Math.max(8, (r?.right ?? 300) - 300), top: (r?.bottom ?? 0) + 4, above: r?.top ?? 0})) }
+  const toggle = () => { const r = btn.current?.getBoundingClientRect(); setAt(a => (a ? null : {left: Math.max(8, (r?.right ?? width) - width), top: (r?.bottom ?? 0) + 4, above: r?.top ?? 0})) }
   const style = at ? {left: at.left, top: fit?.top ?? at.top, maxHeight: fit?.maxHeight, visibility: fit ? 'visible' as const : 'hidden' as const} : undefined
   return {btn, menu, at, setAt, toggle, style}
 }
