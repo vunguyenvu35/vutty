@@ -31,6 +31,8 @@ type ServerInfo struct {
 
 type serverSession struct {
 	hostID, label string
+	login         string // the account the panel logs in as and the port it connects to: what an action must not cut off
+	sshPort       int
 	client        *sshx.Client
 	stop          chan struct{}
 	once          sync.Once
@@ -85,7 +87,7 @@ func (s *ServerService) Open(hostID, promptKey string) (ServerInfo, error) {
 		return ServerInfo{}, err
 	}
 	sid := domain.NewID()
-	sess := &serverSession{hostID: host.ID, label: host.Label, client: cl, stop: make(chan struct{})}
+	sess := &serverSession{hostID: host.ID, label: host.Label, client: cl, stop: make(chan struct{}), login: host.Username, sshPort: host.Port}
 	s.c.record(domain.ActConnect, host.ID, host.Label, "Server panel connection opened", true)
 	s.mu.Lock()
 	s.sessions[sid] = sess

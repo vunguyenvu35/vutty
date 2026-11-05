@@ -348,3 +348,119 @@ deploy                                                     **Never logged in**
 		t.Fatalf("%+v", u.Sessions)
 	}
 }
+
+func TestServerAdminChecksBeforeItTouchesTheServer(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	sid, cmds := h.serverSession(t, func(cmd string) (string, string, int) { return "", "", 0 })
+	x, err := h.app.Server.get(sid)
+	if err != nil || x.login == "" || x.sshPort == 0 {
+		t.Fatalf("%+v %v", x, err)
+	}
+	good := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl laptop"
+	fp := "SHA256:" + strings.Repeat("a", 43)
+	before := len(*cmds)
+	for _, bad := range []string{"", "Root", "a b", "x;reboot", "$(id)", "-rf", "a/b"} {
+		if _, err := h.app.Server.SSHKeys(sid, bad); err == nil {
+			t.Fatalf("%q accepted for keys", bad)
+		}
+		if err := h.app.Server.AddSSHKey(sid, bad, good); err == nil {
+			t.Fatalf("%q accepted for a new key", bad)
+		}
+		if err := h.app.Server.RemoveSSHKey(sid, bad, fp); err == nil {
+			t.Fatalf("%q accepted for a key removal", bad)
+		}
+		if err := h.app.Server.AddUser(sid, bad, false); err == nil {
+			t.Fatalf("%q accepted as a new account", bad)
+		}
+		if err := h.app.Server.DeleteUser(sid, bad, true); err == nil {
+			t.Fatalf("%q accepted for deletion", bad)
+		}
+	}
+	for _, key := range []string{"", "not a key", good + "\nssh-rsa AAAA x", "command=\"rm -rf /\" " + good, "ssh-ed25519 AAAA$(id)"} {
+		if err := h.app.Server.AddSSHKey(sid, "deploy", key); err == nil {
+			t.Fatalf("%q accepted as a key", key)
+		}
+	}
+	for _, f := range []string{"", "SHA256:short", fp + ";id", "MD5:aa"} {
+		if err := h.app.Server.RemoveSSHKey(sid, "deploy", f); err == nil {
+			t.Fatalf("%q accepted as a fingerprint", f)
+		}
+	}
+	for _, p := range []int{0, -1, 65536} {
+		if err := h.app.Server.FirewallAllow(sid, p, "tcp"); err == nil {
+			t.Fatalf("port %d accepted", p)
+		}
+	}
+	if err := h.app.Server.FirewallAllow(sid, 80, "icmp"); err == nil {
+		t.Fatal("a protocol was accepted")
+	}
+	if err := h.app.Server.FirewallDelete(sid, x.sshPort, "tcp"); err == nil {
+		t.Fatal("the SSH port of the connection can be closed")
+	}
+	if err := h.app.Server.DeleteUser(sid, "root", false); err == nil {
+		t.Fatal("root can be deleted")
+	}
+	if err := h.app.Server.DeleteUser(sid, x.login, false); err == nil {
+		t.Fatal("the account of the panel can be deleted")
+	}
+	if err := h.app.Server.SetSudo(sid, x.login, false); err == nil {
+		t.Fatal("the account of the panel can lose sudo")
+	}
+	if _, err := h.app.Server.CertRenew(sid, "a b;id", false); err == nil {
+		t.Fatal("an odd certificate name was accepted")
+	}
+	for _, w := range []string{"", "* * *", "0 3 * * * rm", "$(id) * * * *", "0 3 * * *; id"} {
+		if err := h.app.Server.CronAdd(sid, w, "echo hi"); err == nil {
+			t.Fatalf("%q accepted as a schedule", w)
+		}
+	}
+	for _, c := range []string{"", "echo a\nrm -rf /", strings.Repeat("x", 501)} {
+		if err := h.app.Server.CronAdd(sid, "0 3 * * *", c); err == nil {
+			t.Fatalf("%q accepted as a command", c)
+		}
+	}
+	if err := h.app.Server.CronRemove(sid, "a\nb"); err == nil {
+		t.Fatal("a two-line removal was accepted")
+	}
+	if len(*cmds) != before {
+		t.Fatalf("a refused call reached the server: %v", (*cmds)[before:])
+	}
+}
+
+func TestServerAdminRunsFixedCommands(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	sid, cmds := h.serverSession(t, func(cmd string) (string, string, int) {
+		if strings.Contains(cmd, "ssh-keygen -lf /dev/stdin 2>/dev/null\ndone") {
+			return "256 SHA256:" + strings.Repeat("b", 43) + " me@laptop (ED25519)\n", "", 0
+		}
+		return "", "", 0
+	})
+	keys, err := h.app.Server.SSHKeys(sid, "deploy")
+	if err != nil || len(keys) != 1 || keys[0].Type != "ED25519" || keys[0].Comment != "me@laptop" {
+		t.Fatalf("%+v %v", keys, err)
+	}
+	if err := h.app.Server.FirewallAllow(sid, 8080, "tcp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.FirewallDelete(sid, 8080, "tcp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.AddUser(sid, "deploy", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.app.Server.CronAdd(sid, "0 3 * * *", "/usr/local/bin/backup.sh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.app.Server.CertRenew(sid, "example.com", true); err != nil {
+		t.Fatal(err)
+	}
+	all := strings.Join(*cmds, "\n")
+	for _, want := range []string{"ufw allow 8080/tcp", "ufw delete allow 8080/tcp", "useradd -m -s /bin/bash deploy", "certbot renew --cert-name example.com --dry-run", "crontab \"$tmp\""} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("%q was not run:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "backup.sh") {
+		t.Fatal("the cron command is on the command line: it must travel on the standard input")
+	}
+}
