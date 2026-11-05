@@ -122,3 +122,8 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 /* a long value (an image name) is cut with … and shown whole in the tooltip */
 .sp-table td.cut { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sp-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+/* the key form under the list of keys: set apart by a line and room, with the label and the box not touching */
+.sp-keys-add { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sp-keys-add label.field { margin-bottom: 12px; }
+.sp-keys-add label.field > span { margin-bottom: 8px; font-size: 12px; }
+.sp-keys-add textarea { width: 100%; box-sizing: border-box; resize: vertical; font: 12px ui-monospace, Menlo, monospace; }

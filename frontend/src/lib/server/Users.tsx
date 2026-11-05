@@ -123,8 +123,10 @@ function Keys({sid, name, me, onClose}: {sid: string; name: string; me: boolean;
           ))}</tbody>
         </table></div>
       )}
-      <Field label={t('Add a public key')}><textarea rows={3} value={key} spellCheck={false} onChange={e => setKey(e.target.value)} placeholder="ssh-ed25519 AAAA… me@laptop" /></Field>
-      <div><button className="primary" disabled={busy || key.trim() === ''} onClick={add}>{t('Add key')}</button></div>
+      <div className="sp-keys-add">
+        <Field label={t('Add a public key')}><textarea rows={3} value={key} spellCheck={false} onChange={e => setKey(e.target.value)} placeholder="ssh-ed25519 AAAA… me@laptop" /></Field>
+        <button className="primary" disabled={busy || key.trim() === ''} onClick={add}>{t('Add key')}</button>
+      </div>
     </Modal>
   )
 }
