@@ -1,14 +1,14 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.5
+# Vutty 1.6.6
 
 Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.6.6
 
-- **Panel: the sections are in a list on the left, in three groups.** Monitor (Overview, Processes, Logs, Incident), Run (Services, Docker, Kubernetes, Web, Schedule) and Manage (Ports & firewall, Security, Users, Maintenance), instead of one row of 13 tabs. What the Overview lists under *Needs attention* is marked on the section it belongs to (a failed service on Services, a certificate on Web, updates and the disk on Maintenance) and counted on its group, so it can be seen without opening the Overview. The list can show icons only (kept on this computer). Under 760 px it becomes a row.
-- **Panel: Logs for an on-call.** *Choose a range…* reads a log between two times you type (in the time of the server, whose zone is shown), **Previous boot** reads the boot before this one, a click on a line offers the 1, 5 or 30 minutes around it, **Context** keeps 3 lines around each match, and the range stays when you change the source. **Follow** is now a real stream (`journalctl -f`, `docker logs -f`, `tail -F`) with the lines sent in batches, not a re-read every 2 seconds; if it cannot start, it falls back to the re-read and says so.
-- **Panel: an Incident tab.** What the server wrote down about the last hour to 3 days or a range of your own: failed and restarted services, processes the kernel killed for memory, boots and shutdowns, error lines by minute (a bar opens the log of that time) and containers that started, stopped or restarted. It warns when the journal is kept in memory only (a reboot erases it) and offers, after asking, to keep it on disk.
+- **Panel: the sections are in a list on the left, in three groups (#64).** Monitor (Overview, Processes, Logs, Incident), Run (Services, Docker, Kubernetes, Web, Schedule) and Manage (Ports & firewall, Security, Users, Maintenance), instead of one row of 13 tabs. What the Overview lists under *Needs attention* is marked on the section it belongs to (a failed service on Services, a certificate on Web, updates and the disk on Maintenance) and counted on its group, so it can be seen without opening the Overview. The list can show icons only (kept on this computer). Under 760 px it becomes a row.
+- **Panel: Logs for an on-call (#63).** *Choose a range…* reads a log between two times you type (in the time of the server, whose zone is shown), **Previous boot** reads the boot before this one, a click on a line offers the 1, 5 or 30 minutes around it, **Context** keeps 3 lines around each match, and the range stays when you change the source. **Follow** is now a real stream (`journalctl -f`, `docker logs -f`, `tail -F`) with the lines sent in batches, not a re-read every 2 seconds; if it cannot start, it falls back to the re-read and says so.
+- **Panel: an Incident tab (#63).** What the server wrote down about the last hour to 3 days or a range of your own: failed and restarted services, processes the kernel killed for memory, boots and shutdowns, error lines by minute (a bar opens the log of that time) and containers that started, stopped or restarted. It warns when the journal is kept in memory only (a reboot erases it) and offers, after asking, to keep it on disk.
 - Not done on purpose: CPU and memory history while the app is closed. It needs either `sar` on the host or something installed there, and is left as the open question in [docs/PanelRoadmap.md](docs/PanelRoadmap.md).
 
 Not yet seen against a real server: the time ranges, the previous boot, the Incident reads and the stream are covered by tests with sample output and by a shell check that the host command stops when the input ends; try them on a throwaway VPS first.
