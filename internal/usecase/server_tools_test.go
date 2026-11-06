@@ -464,3 +464,29 @@ func TestServerToolScriptsAreValidShell(t *testing.T) {
 		}
 	}
 }
+
+func TestParseFleetCertDays(t *testing.T) {
+	out := "##certs\nnotAfter=Jan 12 00:00:00 2027 GMT\nnotAfter=Jan  2 00:00:00 2027 GMT\n##now\n1798000000\n"
+	// 1798000000 = 2026-12-23 04:26:40 UTC; the soonest end is 2027-01-02 00:00:00 UTC, 9 days and a few hours later
+	if d := parseFleetCertDays(out); d == nil || *d != 9 {
+		t.Fatalf("%v", d)
+	}
+	if d := parseFleetCertDays("##certs\n##now\n1798000000\n"); d != nil {
+		t.Fatalf("%v", *d)
+	}
+	if d := parseFleetCertDays("##certs\nnotAfter=Dec 20 00:00:00 2026 GMT\n##now\n1798000000\n"); d == nil || *d != -4 {
+		t.Fatalf("%v", d)
+	}
+}
+
+func TestClipNotificationText(t *testing.T) {
+	if got := clip("a\nb\r\nc", 80); got != "a b  c" {
+		t.Fatalf("%q", got)
+	}
+	if got := clip("abcdef", 4); got != "abc…" {
+		t.Fatalf("%q", got)
+	}
+	if err := (&ServerService{}).Notify("", "x"); err == nil {
+		t.Fatal("title")
+	}
+}

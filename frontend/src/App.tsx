@@ -34,6 +34,7 @@ import {SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SidebarTab, TerminalSidebar} from './l
 import {DEFAULT_SETTINGS} from './lib/settings/defaults'
 import {Nav, Page} from './lib/shell/Nav'
 import {FleetPage} from './lib/server/FleetPage'
+import {FleetMonitor} from './lib/server/FleetMonitor'
 import {ClustersPage} from './lib/server/ClustersPage'
 import {ClusterAddForm, ClusterEditForm} from './lib/server/ClusterForm'
 import {TopBar} from './lib/shell/TopBar'
@@ -621,6 +622,7 @@ export default function App({initial}: {/** an app window opened for this place 
         onSplit={split} onSettings={() => openSettings()} onToggleMaximise={() => void be.system.toggleMaximise()} onRename={renameTab} onMoveTab={moveTabTo} onDuplicate={duplicateTab} onDuplicateWindow={duplicateWindow} onSplitTab={splitTab} snippets={snippets} hosts={hosts} onRunSnippet={runSnippet}
         sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} updateVersion={newVersion} onUpdate={() => setDialog({k: 'about', check: true})} />
       {chordHint && <div className="chord-hint" role="status"><kbd className="keycap">{chordHint}</kbd> was pressed. Waiting for the next key… (Esc to cancel)</div>}
+      <FleetMonitor hosts={hosts} fleetShown={page === 'fleet'} />
       <div className="body">
         <div className="home" style={{display: onHome ? 'flex' : 'none'}}>
           <Nav page={page} onPage={p => { if (p === 'hosts' && page === 'hosts') { setHostsReset(n => n + 1); setDialog(null) } else changePage(p) }} shortcuts={bindings} onData={() => setDialog({k: 'data'})} settingsOpen={settingsOpen} onSettings={() => openSettings()} onLock={() => { void be.vault.lock().then(refreshVault) }} />

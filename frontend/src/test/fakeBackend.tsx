@@ -666,6 +666,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         state.server.schedule.cron = state.server.schedule.cron.filter(c => !(c.source === owner && c.schedule === schedule && c.command === command))
       },
       backup: async (sid, path) => { rec('server.backup', path); return {...state.server.backup} },
+      notify: async (title, body) => { rec('server.notify', title, body) },
       fleetHost: async hostId => {
         rec('server.fleetHost', hostId)
         const err = state.server.fleetErrors[hostId]
