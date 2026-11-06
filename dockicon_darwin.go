@@ -6,6 +6,7 @@ package main
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Cocoa
 #import <Cocoa/Cocoa.h>
+#include <stdlib.h>
 
 // setDockIcon makes the running app wear the given PNG in the Dock and the app switcher. macOS keeps an
 // icon cache per app bundle that survives a rebuild (so a changed logo can show up weeks late), and a
@@ -15,6 +16,19 @@ static void setDockIcon(const void *bytes, int length) {
     NSImage *image = [[NSImage alloc] initWithData:data];
     if (image == nil) return;
     dispatch_async(dispatch_get_main_queue(), ^{ [NSApp setApplicationIconImage:image]; });
+}
+
+// postNotification shows a notification of the app itself, so that it wears the icon of Vutty (a notification sent through
+// osascript wears the one of Script Editor). The text is handed over as objects, never parsed.
+static void postNotification(const char *title, const char *body) {
+    NSString *t = [NSString stringWithUTF8String:title];
+    NSString *b = [NSString stringWithUTF8String:body];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSUserNotification *n = [[NSUserNotification alloc] init];
+        n.title = t;
+        n.informativeText = b;
+        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:n];
+    });
 }
 
 // slimFullScreenBar makes the bar macOS slides over the page in full screen low, with the app's name in it, like
@@ -45,6 +59,15 @@ func setDockIcon(png []byte) {
 		return
 	}
 	C.setDockIcon(unsafe.Pointer(&png[0]), C.int(len(png)))
+}
+
+// nativeNotify shows a desktop notification wearing the icon of the app.
+func nativeNotify(title, body string) error {
+	ct, cb := C.CString(title), C.CString(body)
+	defer C.free(unsafe.Pointer(ct))
+	defer C.free(unsafe.Pointer(cb))
+	C.postNotification(ct, cb)
+	return nil
 }
 
 // slimFullScreenBar: see the C function. Call it once, before wails.Run.

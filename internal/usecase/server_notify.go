@@ -9,12 +9,18 @@ import (
 	"time"
 )
 
+// NativeNotify, when the app sets it (macOS), shows the notification as the app itself, with its icon.
+var NativeNotify func(title, body string) error
+
 // Notify shows a desktop notification of the operating system (the Fleet page asks for one when a server needs a look). The text goes
 // to the program as an argument or an environment variable, never inside a script that is parsed.
 func (s *ServerService) Notify(title, body string) error {
 	title, body = clip(title, 80), clip(body, 240)
 	if title == "" {
 		return errors.New("a notification needs a title")
+	}
+	if NativeNotify != nil {
+		return NativeNotify(title, body)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

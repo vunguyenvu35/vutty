@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
 	"vutty/app"
+	"vutty/internal/usecase"
 )
 
 //go:embed all:frontend/dist
@@ -40,7 +41,8 @@ func main() {
 			a.System.OpenSSHLink(arg)
 		}
 	}
-	slimFullScreenBar() // a low bar with the app's name when macOS slides it over the page in full screen
+	slimFullScreenBar()                 // a low bar with the app's name when macOS slides it over the page in full screen
+	usecase.NativeNotify = nativeNotify // a notification that wears the icon of the app (macOS)
 	err = wails.Run(&options.App{
 		Title:     "Vutty",
 		Width:     1280,
