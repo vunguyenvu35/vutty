@@ -7,7 +7,7 @@ import {IconDownload, IconPower, IconTerminal} from '../ui/Icons'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type StackAction, FilterInput} from './shared'
+import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker} from './Docker'
@@ -307,9 +307,9 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
     const q = filter.trim().toLowerCase()
     return (data ?? []).filter(u => !q || u.name.toLowerCase().includes(q) || u.description.toLowerCase().includes(q))
   }, [data, filter])
-  const act = async (u: ServerUnit, action: ServerAction) => {
+  const act = async (u: ServerUnit, action: ServiceAction) => {
     const q = actionQuestion(t, 'service', action, u.name)
-    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action !== 'start'}))) return
+    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action !== 'start' && action !== 'enable'}))) return
     setWorking(u.name)
     try { await be.server.serviceAction(sid, u.name, action); toast.info(t('{name}: done', {name: u.name})) } catch (e) { toast.error(errMsg(e)) }
     setWorking('')
@@ -336,6 +336,7 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
                       <button className="danger" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'stop')}>{t('Stop')}</button>
                     </>
                   ) : <button className="primary" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'start')}>{t('Start')}</button>}
+                  {(u.enabled === 'enabled' || u.enabled === 'disabled') && <button aria-busy={working === u.name} disabled={working === u.name} aria-label={u.enabled === 'enabled' ? t('Do not start {name} on boot', {name: u.name}) : t('Start {name} on boot', {name: u.name})} onClick={() => void act(u, u.enabled === 'enabled' ? 'disable' : 'enable')}>{u.enabled === 'enabled' ? t('Disable on boot') : t('Enable on boot')}</button>}
                   <button onClick={() => onLogs(u.name)}>{t('Logs')}</button>
                 </div></td>
               </tr>

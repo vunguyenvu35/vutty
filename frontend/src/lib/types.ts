@@ -595,6 +595,11 @@ export interface ServerCerts {
   found: boolean
   certs: ServerCert[]
 }
+/** A file of /etc/nginx/sites-available, and whether sites-enabled links to it. */
+export interface WebSiteFile {
+  name: string
+  enabled: boolean
+}
 /** One server { } block of nginx, or one site of a Caddyfile. */
 export interface ServerSite {
   names: string[]

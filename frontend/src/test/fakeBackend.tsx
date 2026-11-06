@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -61,6 +61,7 @@ export interface Fake extends Backend {
       ports: ServerPorts
       certs: ServerCerts
       web: ServerWeb
+      webSites: WebSiteFile[]
       webResult: ServerWebResult
       updates: ServerUpdates
       cleanup: ServerCleanup
@@ -193,6 +194,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
       ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}], rules: [{num: 1, to: '22/tcp', action: 'ALLOW', from: 'Anywhere'}]},
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
+      webSites: [{name: 'shop.conf', enabled: true}, {name: 'staging.conf', enabled: false}],
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
@@ -569,7 +571,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       serviceAction: async (sid, name, action) => {
         rec('server.serviceAction', name, action)
         if (state.server.failAction) throw state.server.failAction
-        state.server.units = state.server.units.map(u => (u.name === name ? {...u, active: action === 'stop' ? 'inactive' : 'active', sub: action === 'stop' ? 'dead' : 'running'} : u))
+        state.server.units = state.server.units.map(u => (u.name === name ? {...u, ...(action === 'enable' || action === 'disable' ? {enabled: action === 'enable' ? 'enabled' : 'disabled'} : {active: action === 'stop' ? 'inactive' : 'active', sub: action === 'stop' ? 'dead' : 'running'})} : u))
       },
       containers: async () => ({installed: state.server.docker.installed, containers: state.server.docker.containers.map(c => ({...c}))}),
       containerAction: async (sid, name, action) => {
@@ -610,6 +612,15 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       },
       certificates: async () => ({found: state.server.certs.found, certs: state.server.certs.certs.map(c => ({...c}))}),
       web: async () => ({...state.server.web, sites: state.server.web.sites.map(x => ({...x}))}),
+      webSites: async () => state.server.webSites.map(x => ({...x})),
+      webSiteSet: async (sid, name, enabled) => {
+        rec('server.webSiteSet', name, enabled)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.webSites = state.server.webSites.map(x => (x.name === name ? {...x, enabled} : x))
+      },
+      certRenew: async (sid, name, force) => { rec('server.certRenew', name, force); if (state.server.failAction) throw state.server.failAction; return 'Congratulations, all renewals succeeded' },
+      certRenewTest: async () => { rec('server.certRenewTest'); return 'Congratulations, all simulated renewals succeeded' },
+      certRequest: async (sid, domains, email) => { rec('server.certRequest', domains.join(','), email); if (state.server.failAction) throw state.server.failAction; return 'Successfully received certificate' },
       webTest: async (sid, kind) => { rec('server.webTest', kind); return {...state.server.webResult} },
       webReload: async (sid, kind) => { rec('server.webReload', kind); if (state.server.failAction) throw state.server.failAction; return {...state.server.webResult} },
       updates: async () => ({...state.server.updates, packages: state.server.updates.packages.map(p => ({...p}))}),

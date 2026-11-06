@@ -111,6 +111,52 @@ describe('Web tab', () => {
   })
 })
 
+describe('Web and Services changes', () => {
+  it('switches a site off after asking, and renews a certificate', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be} = setup()
+    await open('Web')
+    await userEvent.click(await screen.findByRole('button', {name: 'Switch off the site shop.conf'}))
+    await waitFor(() => expect(calls(be, 'server.webSiteSet')).toEqual([['server.webSiteSet', 'shop.conf', false]]))
+    await userEvent.click(await screen.findByRole('button', {name: 'Renew the certificate example.com'}))
+    await waitFor(() => expect(calls(be, 'server.certRenew')).toEqual([['server.certRenew', 'example.com', false]]))
+    expect(await screen.findByText(/all renewals succeeded/)).toBeInTheDocument()
+    ask.mockRestore()
+  })
+
+  it('does nothing when the question is answered No', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Web')
+    await userEvent.click(await screen.findByRole('button', {name: 'Renew example.com now'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Switch off the site shop.conf'}))
+    expect(calls(be, 'server.certRenew')).toHaveLength(0)
+    expect(calls(be, 'server.webSiteSet')).toHaveLength(0)
+    ask.mockRestore()
+  })
+
+  it('gets a certificate for the domains of the form', async () => {
+    const {be} = setup()
+    await open('Web')
+    await userEvent.click(await screen.findByRole('button', {name: 'Get certificate'}))
+    const dlg = await screen.findByRole('dialog')
+    await userEvent.type(within(dlg).getByPlaceholderText(/example.com www/), 'a.example.com b.example.com')
+    await userEvent.type(within(dlg).getByPlaceholderText('you@example.com'), 'me@example.com')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Get certificate'}))
+    await waitFor(() => expect(calls(be, 'server.certRequest')).toEqual([['server.certRequest', 'a.example.com,b.example.com', 'me@example.com']]))
+  })
+
+  it('turns the start on boot of a service off after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be} = setup()
+    await open('Services')
+    await userEvent.click(await screen.findByRole('button', {name: 'Do not start nginx on boot'}))
+    await waitFor(() => expect(calls(be, 'server.serviceAction')).toEqual([['server.serviceAction', 'nginx', 'disable']]))
+    expect(await screen.findByRole('button', {name: 'Start nginx on boot'})).toBeInTheDocument()
+    ask.mockRestore()
+  })
+})
+
 describe('Docker stacks', () => {
   it('groups containers by Compose project, and asks before an action on the whole stack', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)

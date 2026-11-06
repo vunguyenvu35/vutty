@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -236,6 +236,16 @@ export interface Backend {
     certificates(sid: string): Promise<ServerCerts>
     web(sid: string): Promise<ServerWeb>
     /** nginx -t / caddy validate: changes nothing */
+    /** the nginx site files that can be switched on or off ([] when the server has no sites-available) */
+    webSites(sid: string): Promise<WebSiteFile[]>
+    /** link or unlink a site; the configuration is tested and put back if it fails. Does not reload. */
+    webSiteSet(sid: string, name: string, enabled: boolean): Promise<void>
+    /** renew one certificate; returns what certbot said. force renews it whatever its age. */
+    certRenew(sid: string, name: string, force: boolean): Promise<string>
+    /** a trial renewal of every certificate: changes nothing */
+    certRenewTest(sid: string): Promise<string>
+    /** get a new certificate with the nginx plug-in of certbot */
+    certRequest(sid: string, domains: string[], email: string): Promise<string>
     webTest(sid: string, kind: 'nginx' | 'caddy'): Promise<ServerWebResult>
     /** tests the configuration and reloads only when it passed */
     webReload(sid: string, kind: 'nginx' | 'caddy'): Promise<ServerWebResult>
@@ -611,6 +621,11 @@ export function wailsBackend(): Backend {
       stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),
       certificates: async s => { const r = await u<ServerCerts>('ServerService', 'Certificates', s); return {...r, certs: r.certs ?? []} },
       web: async s => { const r = await u<ServerWeb>('ServerService', 'Web', s); return {...r, sites: (r.sites ?? []).map(x => ({...x, names: x.names ?? [], listen: x.listen ?? [], targets: x.targets ?? []}))} },
+      webSites: async s => (await u<WebSiteFile[]>('ServerService', 'WebSites', s)) ?? [],
+      webSiteSet: (s, n, e) => u('ServerService', 'WebSiteSet', s, n, e),
+      certRenew: (s, n, f) => u('ServerService', 'CertRenew', s, n, f),
+      certRenewTest: s => u('ServerService', 'CertRenewTest', s),
+      certRequest: (s, d, e) => u('ServerService', 'CertRequest', s, d, e),
       webTest: (s, k) => u('ServerService', 'WebTest', s, k),
       webReload: (s, k) => u('ServerService', 'WebReload', s, k),
       updates: async s => { const r = await u<ServerUpdates>('ServerService', 'Updates', s); return {...r, packages: r.packages ?? []} },

@@ -138,11 +138,14 @@ export function useLoad<T>(load: () => Promise<T>, ms: number | null): {data: T 
 }
 
 export type ServerAction = 'start' | 'stop' | 'restart'
+export type ServiceAction = ServerAction | 'enable' | 'disable'
 
 /** The question asked before a service or container is started, stopped or restarted: nothing the panel does to a server runs unasked. */
-export function actionQuestion(t: TFn, kind: 'service' | 'container', action: ServerAction, name: string): {message: string; label: string} {
+export function actionQuestion(t: TFn, kind: 'service' | 'container', action: ServiceAction, name: string): {message: string; label: string} {
   const p = {name}
   if (kind === 'service') {
+    if (action === 'enable') return {message: t('Start the service {name} every time the server boots?', p), label: t('Enable')}
+    if (action === 'disable') return {message: t('Stop starting the service {name} when the server boots? It keeps running until you stop it.', p), label: t('Disable')}
     if (action === 'start') return {message: t('Start the service {name}?', p), label: t('Start')}
     if (action === 'restart') return {message: t('Restart the service {name}? Its connections drop for a moment.', p), label: t('Restart')}
     return {message: t('Stop the service {name}?', p), label: t('Stop')}
