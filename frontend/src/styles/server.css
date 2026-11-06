@@ -158,3 +158,7 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-opt b { color: var(--text); }
 .hosts-page > .sp-card + .sp-card { margin-top: 12px; }
 .hosts-page > .sp-card + .sec-title { margin-top: 16px; }
+
+/* the state of the upgrade, with room before the log under it */
+.sp-upgrade-head { margin-bottom: 12px; }
+.sp-upgrade-head + .error, .sp-upgrade-head + .sp-pre { margin-top: 0; }

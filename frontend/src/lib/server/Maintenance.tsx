@@ -290,7 +290,7 @@ function UpgradeProgress({sid, onClose}: {sid: string; onClose(): void}) {
   const done = !!s?.done
   return (
     <Modal wide title={t('Installing updates')} onClose={onClose} footer={<button className={done ? 'primary' : ''} onClick={onClose}>{done ? t('Close') : t('Hide: it goes on')}</button>}>
-      <div className="sp-bar">
+      <div className="sp-bar sp-upgrade-head">
         {!s && <span className="sp-pill">{t('Starting…')}</span>}
         {s?.running && <span className="sp-pill warn">{t('Running')}</span>}
         {done && (s!.ok ? <span className="sp-pill ok">{t('Finished')}</span> : <span className="sp-pill bad">{t('Failed (exit code {code})', {code: s!.code})}</span>)}
