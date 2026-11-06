@@ -301,18 +301,21 @@ type ServerPort struct {
 
 // ServerPorts is the Ports section. Firewall is "active" or "inactive" for ufw, "unknown" when there is no ufw or the login may not ask it.
 type ServerPorts struct {
-	Firewall string       `json:"firewall"`
-	Ports    []ServerPort `json:"ports"`
+	Firewall string         `json:"firewall"`
+	Ports    []ServerPort   `json:"ports"`
+	Rules    []FirewallRule `json:"rules"`
 }
 
 // parsePorts reads `ss -tlnpH` (state recv-q send-q local peer [users:(("name",pid=1,fd=3))]) and `ufw status`.
 func parsePorts(out string) ServerPorts {
-	res := ServerPorts{Firewall: "unknown", Ports: []ServerPort{}}
+	res := ServerPorts{Firewall: "unknown", Ports: []ServerPort{}, Rules: []FirewallRule{}}
 	allowed := map[int]bool{}
 	switch ufw := section(out, "ufw"); {
 	case strings.Contains(ufw, "Status: active"):
 		res.Firewall = "active"
+		res.Rules = parseFirewallRules(ufw)
 		for _, ln := range strings.Split(ufw, "\n") {
+			ln = ruleNumRe.ReplaceAllString(ln, "")
 			f := strings.Fields(ln)
 			if len(f) < 3 || f[1] != "ALLOW" {
 				continue

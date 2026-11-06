@@ -385,7 +385,7 @@ func (s *ServerService) audit(sid, what string, err error) {
 // Ports lists the TCP ports something listens on, with what the ufw firewall says about each (when there is one).
 func (s *ServerService) Ports(sid string) (ServerPorts, error) {
 	out, err := s.run(sid, asRoot+`echo '##ss'; $SUDO ss -tlnpH 2>/dev/null || ss -tlnH 2>/dev/null
-echo '##ufw'; command -v ufw >/dev/null 2>&1 && $SUDO ufw status 2>/dev/null; true`)
+echo '##ufw'; command -v ufw >/dev/null 2>&1 && $SUDO ufw status numbered 2>/dev/null; true`)
 	if err != nil {
 		return ServerPorts{}, err
 	}

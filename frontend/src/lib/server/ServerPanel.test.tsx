@@ -38,7 +38,7 @@ describe('Server panel (tab)', () => {
     await waitFor(() => expect(calls(be, 'server.kill')).toEqual([['server.kill', 2210, 'KILL']]))
   })
 
-  it('shows the firewall state of each port and offers no way to change it', async () => {
+  it('shows the firewall state of each port and its rules', async () => {
     const {be} = setup()
     await screen.findByText(/up 41d 0h/)
     await open('Ports & firewall')
@@ -47,9 +47,66 @@ describe('Server panel (tab)', () => {
     expect(within(minio).getByText('Shut', {selector: '.sp-pill'})).toBeInTheDocument()
     expect(within(screen.getByText('sshd').closest('tr') as HTMLElement).getByText('Allowed')).toBeInTheDocument()
     expect(screen.queryByText(/Open to the outside/)).toBeNull() // minio listens everywhere but the firewall keeps it out
-    expect(screen.getByText(/only shown here/)).toBeInTheDocument()
-    expect(within(screen.getByRole('region')).queryAllByRole('button').filter(x => /^(Allow|Shut)$/.test(x.textContent ?? ''))).toHaveLength(0)
-    expect(calls(be, 'server.firewallRule')).toHaveLength(0)
+    expect(screen.getByText('Firewall rules')).toBeInTheDocument()
+    expect(calls(be, 'server.firewallAdd')).toHaveLength(0)
+  })
+
+  it('asks before allowing a port, does nothing on No, then allows it', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await screen.findByText(/up 41d 0h/)
+    await open('Ports & firewall')
+    await userEvent.click(await screen.findByRole('button', {name: 'Allow port 9000'}))
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(calls(be, 'server.firewallAdd')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Allow port 9000'}))
+    await waitFor(() => expect(calls(be, 'server.firewallAdd')).toEqual([['server.firewallAdd', 'allow', 9000, 'tcp', '', false]]))
+    expect(await screen.findByText('9000/tcp')).toBeInTheDocument()
+    ask.mockRestore()
+  })
+
+  it('asks twice before denying the port of this connection, and passes force', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be} = setup()
+    await screen.findByText(/up 41d 0h/)
+    await open('Ports & firewall')
+    await userEvent.click(await screen.findByRole('button', {name: 'Deny port 22'}))
+    await waitFor(() => expect(calls(be, 'server.firewallAdd')).toEqual([['server.firewallAdd', 'deny', 22, 'tcp', '', true]]))
+    expect(ask).toHaveBeenCalledTimes(2)
+    expect(String(ask.mock.calls[1][0])).toMatch(/could lock you out/)
+    ask.mockRestore()
+  })
+
+  it('adds a rule from the form and deletes one after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await screen.findByText(/up 41d 0h/)
+    await open('Ports & firewall')
+    await userEvent.click(await screen.findByRole('button', {name: 'Add rule'}))
+    const dlg = await screen.findByRole('dialog')
+    await userEvent.type(within(dlg).getByPlaceholderText('8080'), '8080')
+    await userEvent.type(within(dlg).getByPlaceholderText(/Anyone, or an address/), '10.0.0.0/8')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Add rule'}))
+    await waitFor(() => expect(calls(be, 'server.firewallAdd')).toEqual([['server.firewallAdd', 'allow', 8080, 'tcp', '10.0.0.0/8', false]]))
+    const row = (await screen.findByText('8080/tcp')).closest('tr') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', {name: /Delete the rule/}))
+    expect(calls(be, 'server.firewallDelete')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(within(row).getByRole('button', {name: /Delete the rule/}))
+    await waitFor(() => expect(calls(be, 'server.firewallDelete')).toEqual([['server.firewallDelete', 2, false]]))
+    ask.mockRestore()
+  })
+
+  it('turns the firewall off after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be} = setup()
+    await screen.findByText(/up 41d 0h/)
+    await open('Ports & firewall')
+    await userEvent.click(await screen.findByRole('button', {name: 'Turn off'}))
+    await waitFor(() => expect(calls(be, 'server.firewallDisable')).toHaveLength(1))
+    expect(await screen.findByRole('button', {name: 'Turn on'})).toBeInTheDocument()
+    ask.mockRestore()
   })
 
   it('asks before starting, restarting or stopping a service or a container, and does nothing on No', async () => {

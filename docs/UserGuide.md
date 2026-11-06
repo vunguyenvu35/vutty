@@ -246,7 +246,7 @@ _The screenshots use sample data, not a real server._
 
 ![Panel: asking before a restart](screenshots/panel/asks-before-restart.png)
 
-**Processes**, **Logs** and **Ports & firewall** (read only):
+**Processes**, **Logs** and **Ports & firewall**. Ports & firewall can also change ufw: **Allow** or **Deny** a listening port, **Add rule** (a port, TCP or UDP, for anyone or one address or network), **Delete** a rule, **Turn on** or **Turn off** the firewall. Turning it on allows the SSH port of the connection first, and anything that could cut that connection asks a second time:
 
 ![Panel: Processes](screenshots/panel/processes.png)
 
@@ -259,8 +259,8 @@ _The screenshots use sample data, not a real server._
 ![Panel: Access host opens a terminal](screenshots/panel/access-host.png)
 
 
-- It runs fixed commands (`/proc`, `ps`, `systemctl`, `docker`, `journalctl`, `ss`, `ufw status`) over a connection of its own and installs nothing on the server. A name from the screen is checked before it goes into a command, and a process is only ever ended by number.
-- **Every change asks first**: ending a process, and starting, restarting or stopping a service or a container. The firewall is only shown: the panel never changes it.
+- It runs fixed commands (`/proc`, `ps`, `systemctl`, `docker`, `journalctl`, `ss`, `ufw`) over a connection of its own and installs nothing on the server. A name from the screen is checked before it goes into a command, and a process is only ever ended by number.
+- **Every change asks first**: ending a process, and starting, restarting or stopping a service or a container. Firewall changes (allow, deny, delete a rule, turn on or off) ask too, and are run with `ufw` (through `sudo` when the login is not root).
 - Changes use `sudo -n` unless you log in as root, so a login that needs a password for sudo gets the server's own error.
 - Process command lines and logs can hold secrets: take care before sharing a screenshot.
 - Linux with systemd is the target; on another system the parts that do not apply show the server's message.

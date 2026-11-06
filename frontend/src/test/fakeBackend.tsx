@@ -191,7 +191,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp', project: 'shop'}, {id: 'c3', name: 'db', image: 'postgres:16', state: 'running', status: 'Up 2 hours', ports: '', project: 'shop'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: '', project: ''}]},
       dockerObjects: {images: [{id: 'aa11bb22', name: 'registry/api:1.8', size: '210MB', created: '2 days ago', in_use: true}, {id: 'cc33dd44', name: '<none>', size: '95MB', created: '1 month ago', in_use: false}], volumes: [{name: 'pgdata', driver: 'local', in_use: true}, {name: 'old-cache', driver: 'local', in_use: false}], networks: [{id: 'n1', name: 'bridge', driver: 'bridge', scope: 'local'}, {id: 'n2', name: 'shop_default', driver: 'bridge', scope: 'local'}]},
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
-      ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}]},
+      ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}], rules: [{num: 1, to: '22/tcp', action: 'ALLOW', from: 'Anywhere'}]},
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
@@ -588,7 +588,21 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         else state.server.dockerObjects.volumes = state.server.dockerObjects.volumes.filter(v => v.name !== id)
       },
       logs: async (sid, kind, name, opts) => { rec('server.logs', kind, name, ...(opts ? [opts] : [])); return state.server.logs },
-      ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p}))}),
+      ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p})), rules: state.server.ports.rules.map(r => ({...r}))}),
+      firewallAdd: async (sid, action, port, proto, from, force) => {
+        rec('server.firewallAdd', action, port, proto, from, force)
+        if (state.server.failAction) throw state.server.failAction
+        const pt = state.server.ports
+        pt.rules.push({num: pt.rules.length + 1, to: port + (proto ? '/' + proto : ''), action: action.toUpperCase(), from: from || 'Anywhere'})
+        pt.ports = pt.ports.map(p => (p.port === port && !from ? {...p, open: action === 'allow'} : p))
+      },
+      firewallDelete: async (sid, rule, force) => {
+        rec('server.firewallDelete', rule.num, force)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.ports.rules = state.server.ports.rules.filter(r => r.num !== rule.num).map((r, i) => ({...r, num: i + 1}))
+      },
+      firewallEnable: async () => { rec('server.firewallEnable'); state.server.ports.firewall = 'active' },
+      firewallDisable: async () => { rec('server.firewallDisable'); state.server.ports.firewall = 'inactive' },
       stackAction: async (sid, project, action) => {
         rec('server.stackAction', project, action)
         if (state.server.failAction) throw state.server.failAction

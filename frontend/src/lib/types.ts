@@ -571,6 +571,14 @@ export interface ServerPorts {
   /** ufw: 'active' or 'inactive'; 'unknown' when the server has none or the login may not ask */
   firewall: 'active' | 'inactive' | 'unknown'
   ports: ServerPort[]
+  /** the rules of ufw, numbered as ufw numbers them (only when it is on) */
+  rules: FirewallRule[]
+}
+export interface FirewallRule {
+  num: number
+  to: string
+  action: string
+  from: string
 }
 
 /** Let's Encrypt certificates found on the server (read only). */

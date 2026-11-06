@@ -17,9 +17,10 @@ import {Maintenance} from './Maintenance'
 import {Security} from './Security'
 import {Users} from './Users'
 import {Schedule} from './Schedule'
+import {Ports} from './Firewall'
 import {Kubernetes} from './Kubernetes'
 import type {K8sLogTarget} from './KubernetesShared'
-import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerPorts, ServerProcess, ServerUnit, ServerUpdates} from '../types'
+import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
 type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
@@ -509,31 +510,3 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   )
 }
 
-function Ports({sid, sshPort}: {sid: string; sshPort: number}) {
-  const be = useBackend()
-  const t = useT()
-  const load = useCallback(() => be.server.ports(sid), [be, sid])
-  const {data, error, busy, reload} = useLoad<ServerPorts>(load, null)
-  const exposed = (data?.ports ?? []).filter(p => !p.local && p.open && ![22, 80, 443, sshPort].includes(p.port))
-  return (
-    <div className="sp-view">
-      <Bar2 busy={busy} onReload={reload}>
-        {data && <span className="sp-os">{data.firewall === 'active' ? t('Firewall (ufw) is on') : data.firewall === 'inactive' ? t('Firewall (ufw) is off') : t('No ufw firewall found, or this login cannot read it')}</span>}
-      </Bar2>
-      <Err error={error} />
-      <div className="sp-table"><table>
-        <thead><tr><th>{t('Port')}</th><th>{t('Process')}</th><th>{t('Listens on')}</th><th>{t('Firewall')}</th></tr></thead>
-        <tbody>
-          {(data?.ports ?? []).map(p => (
-            <tr key={p.port}>
-              <td className="m">{p.port}</td><td>{p.process || '–'}</td><td className="m">{p.local ? t('This server only') : t('Everywhere')}</td>
-              <td>{p.open ? <span className="sp-pill ok">{t('Allowed')}</span> : <span className="sp-pill">{t('Shut')}</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>{data && data.ports.length === 0 && <div className="sp-empty">{t('No listening ports found.')}</div>}</div>
-      <div className="sp-note">{t('The firewall is only shown here. To change it, use the terminal.')}</div>
-      {exposed.length > 0 && <div className="sp-note">{t('Open to the outside: {ports}. Limit them by address or put them behind a web server if they should not be public.', {ports: exposed.map(p => p.port).join(', ')})}</div>}
-    </div>
-  )
-}

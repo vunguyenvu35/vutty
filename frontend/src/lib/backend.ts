@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
 } from './types'
 
 /**
@@ -264,8 +264,14 @@ export interface Backend {
     backup(sid: string, path: string): Promise<ServerBackup>
     /** one saved host: connects on its own, answers or says why not (never asks a question) */
     fleetHost(hostId: string): Promise<ServerFleetHost>
-    /** the TCP ports something listens on, with what the ufw firewall says about each (read only: the panel never changes the firewall) */
+    /** the TCP ports something listens on, with what the ufw firewall says about each, and its rules */
     ports(sid: string): Promise<ServerPorts>
+    /** allow or deny a port (proto '' = tcp and udp, from '' = anyone). force: the port is the one of this connection */
+    firewallAdd(sid: string, action: 'allow' | 'deny', port: number, proto: string, from: string, force: boolean): Promise<void>
+    /** delete a rule, found again by its number and its text so that another change cannot make it a different rule */
+    firewallDelete(sid: string, rule: FirewallRule, force: boolean): Promise<void>
+    firewallEnable(sid: string): Promise<void>
+    firewallDisable(sid: string): Promise<void>
     /** The Kubernetes tab: kubectl on the host. ctx is the kubeconfig context, ns the namespace ('' = all, for lists). Every change asks first (the screen) and is audited (Go). */
     k8sDetect(sid: string): Promise<K8sDetect>
     k8sContexts(sid: string): Promise<K8sContexts>
@@ -626,7 +632,11 @@ export function wailsBackend(): Backend {
       cronDelete: (s, o, sc, c) => u('ServerService', 'CronDelete', s, o, sc, c),
       backup: (s, p) => u('ServerService', 'Backup', s, p),
       fleetHost: h => u('ServerService', 'FleetHost', h),
-      ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? []} },
+      ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? [], rules: r.rules ?? []} },
+      firewallAdd: (s, a, p, pr, f, force) => u('ServerService', 'FirewallAdd', s, a, p, pr, f, force),
+      firewallDelete: (s, r, force) => u('ServerService', 'FirewallDelete', s, r.num, r.to, r.action, r.from, force),
+      firewallEnable: s => u('ServerService', 'FirewallEnable', s),
+      firewallDisable: s => u('ServerService', 'FirewallDisable', s),
       k8sDetect: async s => { const r = await u<K8sDetect>('ServerService', 'K8sDetect', s); return {...r, tried: r.tried ?? []} },
       k8sContexts: async s => { const r = await u<K8sContexts>('ServerService', 'K8sContexts', s); return {...r, contexts: r.contexts ?? []} },
       k8sCheck: (s, c) => u('ServerService', 'K8sCheck', s, c),
