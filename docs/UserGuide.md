@@ -206,20 +206,24 @@ When a host asks which protocol to use (the **Ask which protocol to use** settin
 
 ![Choose Panel on the protocol screen](screenshots/panel/choose-panel.png)
 
-**Overview** shows the load and what needs attention (a failed service, a disk that is filling up). **Access host**, at the top right, opens a terminal on the same host in a new tab.
+**Overview** shows the load and what needs attention (a failed service, a disk that is filling up). At the top right: **Reboot** (asks first), **Files** (opens the host in the SFTP tab) and **Access host** (opens a terminal on the same host in a new tab).
+
+Every box of the panel has a head you can click (the arrow, the title or the empty space) to put the box away; what you put away is remembered for next time. A row with many actions keeps the main one and puts the others in a **⋮** menu.
 
 More tabs for a server you run by hand:
 
-- **Web**: the Let's Encrypt certificates (green, yellow under 14 days, red under 7) and the sites of nginx or Caddy. *Test configuration* changes nothing; *Reload* asks, tests, and reloads only if the test passes.
+- **Web**: the Let's Encrypt certificates (green, yellow under 14 days, red under 7) and the sites of nginx or Caddy. *Test configuration* changes nothing; *Reload* asks, tests, and reloads only if the test passes. Per certificate, *Renew* (certbot renews only one within 30 days of its end) and *Renew now* (whatever its age: Let's Encrypt allows only a few of these a week); *Test renewal* tries all of them without changing anything; *Get certificate* asks Let's Encrypt for new domains with the nginx plug-in of certbot (the domains must already point at the server and an nginx site must serve them on port 80). Under **Site files**, *Switch on* and *Switch off* link or unlink a site of `sites-available` (Debian and Ubuntu); the configuration is tested and put back if it fails, and *Reload* applies it. After a renewal the web server is reloaded.
 
 ![Web tab: certificates and the sites of nginx](screenshots/panel/web.png)
-- **Docker** groups containers by Compose project. A stack has *Update* (pull the images, then `up -d`), *Restart*, *Stop*/*Start* and *Logs*, all after a question. It needs Docker Compose v2.
+- **Docker** groups containers by Compose project. A stack has *Update* (pull the images, then `up -d`), *Restart* and *Stop*/*Start*, and in its **⋮** menu *Up* (`up -d`: create what is missing, recreate what changed), *Logs* and *Down* (removes the containers and the network, keeps the volumes; the panel cannot bring a stack back after that, run `docker compose up` in its folder), all after a question. It needs Docker Compose v2. **Images** has *Pull image* (a name such as `nginx:1.27`) and *Pull* on each listed image, which downloads the newest of its tag; containers keep running the old image until they are recreated.
 
 ![Docker tab: containers grouped by Compose project](screenshots/panel/docker-stacks.png)
 - **Logs** has **Follow**: it reads the log again every 2 seconds and keeps the newest line in view until you scroll up.
 
 ![Logs with Follow on](screenshots/panel/logs-follow.png)
-- **Maintenance**: pending package updates (security ones marked, and whether a reboot is needed; installing them is for the terminal), the disks, and a cleanup of Docker layers, unused images, the journal and the package cache, each with how much it frees. Docker volumes are listed but never cleaned here. *Where the space went* scans one folder at a time.
+- **Services** lists systemd services, failed ones first. A row has *Restart* (or *Start*) and a **⋮** menu with *Stop*, *Disable on boot* or *Enable on boot*, and *Logs*.
+- **Users**: who can log in, who has sudo, how many SSH keys each has, who is logged in now. *Add user*, *Keys* (add or remove public keys), and in the **⋮** menu *Give sudo* or *Take sudo* (never from the last account that has it), *Lock* or *Unlock* and *Delete*. A locked account (marked *Locked*) cannot log in with its password or its SSH keys; programs it already runs keep running, and an account that is logged in now is not locked. Root, system accounts and the account of this connection are never locked or deleted here.
+- **Maintenance**: a **System** box (rename the server, set its time zone, create or remove the swap file `/swapfile` of 256 MB to 32 GB, which needs 1 GB of disk to stay free; a swap partition is shown and left alone), pending package updates (security ones marked, and whether a reboot is needed; installing them is for the terminal), the disks, and a cleanup of Docker layers, unused images, the journal and the package cache, each with how much it frees. Docker volumes are listed but never cleaned here. *Where the space went* scans one folder at a time.
 
 ![Maintenance tab: updates, disks, cleanup, folder sizes](screenshots/panel/maintenance.png)
 - **Security**: a **Security check** at the top (root and password login of sshd, fail2ban, a firewall, automatic updates, a reboot waiting, other accounts with user id 0, accounts with an empty password, sudo rules without a password), each marked OK, Look or Fix, with how many pass; the **SSH settings**, where *Turn off* switches root login or password login off (in a file of its own in `sshd_config.d`, tested, undone if it fails, and refused when it could lock you out); failed SSH logins in the last 24 hours by address, each with *Ban*; the **Recent logins** that worked (user, address, time), where an address or a user you do not know means someone else has your key or password; and fail2ban jails with *Unban* and *Ban address*. A check the login cannot make (it cannot read `/etc/shadow`, for instance) is left out, not shown as fine.
@@ -232,9 +236,13 @@ More tabs for a server you run by hand:
 
 ![Overview with history and what needs attention](screenshots/panel/overview.png)
 
+**Ports & firewall**, **Security** and the other tabs that change the server follow the same rules: every change asks first, names and addresses are checked before they reach a command, and a change that could cut the connection (denying the SSH port, turning off root login while logged in as root) is refused or asked about twice.
+
 **Fleet** (in the left menu) shows every saved host on one page: up or down, CPU, memory, disk, load and failed services, the hosts with trouble first. Each host gets a short connection of its own that never asks a question, so a host whose key is not trusted yet shows as down: open it once in a terminal. *Open panel* opens its dashboard in a tab.
 
-The **Alerts** box at the top of Fleet lists what needs a look: a server that does not answer (after two failed checks in a row), a disk or memory over its limit (90% and 95% by default), a failed service, a Let's Encrypt certificate that ends in under 14 days (or has ended). The limits are boxes you can change; each is taken when you leave the box. Turn on **Desktop notifications** to get a system notification for every new alert (once each, until it clears). While it is on, the hosts are also checked once a minute when another page or another app is in front, which is the only time Vutty connects to your hosts by itself. The notification uses `osascript` on macOS, `notify-send` on Linux and a balloon on Windows.
+The **Alerts** box at the top of Fleet lists what needs a look: a server that does not answer (after two failed checks in a row), a disk or memory over its limit (90% and 95% by default), a failed service, a Let's Encrypt certificate that ends in under 14 days (or has ended). The limits are boxes you can change; each is taken when you leave the box. Turn on **Desktop notifications** to get a system notification for every new alert (once each, until it clears). While it is on, the hosts are also checked once a minute when another page or another app is in front, which is the only time Vutty connects to your hosts by itself. On macOS the notification comes from Vutty itself and wears its icon; Linux uses `notify-send` and Windows a balloon.
+
+**Do on several servers** (also on Fleet): tick servers in the list (or *Select all*), then *Look at the updates* (how many updates and security updates wait on each, and whether it needs a reboot; changes nothing) or *Renew certificates* (asks first; `certbot renew` on each, then its web server is reloaded). Each server answers in its own row, and one that fails does not stop the others. Installing updates is still done in each server's panel.
 
 ![Fleet: every saved host on one page](screenshots/panel/fleet.png)
 
