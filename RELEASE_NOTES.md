@@ -1,8 +1,17 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.4
+# Vutty 1.6.5
 
-Release date: 2026-11-05 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.5
+
+- **Panel: Users.** Add and delete users, manage their SSH keys, and a Reboot button that asks first (#48). The add-key form has room and a divider above it (#49).
+- **Panel: Cron.** Add, change and delete the cron jobs of the login and of root (#50).
+- **Panel: Ports & firewall.** Allow, deny and delete firewall rules, and turn ufw on or off (#52).
+- **Panel: certificates, sites, sshd, Docker and system settings**, plus SFTP shortcuts and Fleet alerts (#59).
+
+Not yet seen against a real server: try the new panel actions on a throwaway VPS first.
 
 ## What's new in 1.6.4
 
