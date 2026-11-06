@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -274,6 +274,8 @@ export interface Backend {
     addUserKey(sid: string, name: string, key: string): Promise<void>
     removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
     unban(sid: string, jail: string, ip: string): Promise<void>
+    audit(sid: string): Promise<ServerAudit>
+    logins(sid: string): Promise<ServerLogin[]>
     /** ban an address on a fail2ban jail (the address of this connection is refused) */
     ban(sid: string, jail: string, ip: string): Promise<void>
     /** change PermitRootLogin ('root_login': no | prohibit-password | yes) or PasswordAuthentication ('password_auth': no | yes) of sshd; refused when it could lock the login out */
@@ -660,6 +662,8 @@ export function wailsBackend(): Backend {
       addUserKey: (s, n, k) => u('ServerService', 'AddUserKey', s, n, k),
       removeUserKey: (s, n, f) => u('ServerService', 'RemoveUserKey', s, n, f),
       security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
+      audit: async s => { const r = await u<ServerAudit>('ServerService', 'Audit', s); return {...r, uid0: r.uid0 ?? [], empty_passwords: r.empty_passwords ?? []} },
+      logins: async s => (await u<ServerLogin[]>('ServerService', 'Logins', s)) ?? [],
       unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
       ban: (s, j, ip) => u('ServerService', 'Ban', s, j, ip),
       sshSet: (s, k, v) => u('ServerService', 'SSHSet', s, k, v),

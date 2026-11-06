@@ -415,6 +415,23 @@ describe('Security tab', () => {
     await waitFor(() => expect(screen.queryByText('203.0.113.5')).toBeNull())
   })
 
+  it('shows the security check, the recent logins, and bans a failing address after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Security')
+    expect(await screen.findByText(/checks pass/)).toBeInTheDocument()
+    expect(screen.getByText('Root can log in over SSH')).toBeInTheDocument()
+    expect(screen.getByText('The firewall is installed but off')).toBeInTheDocument()
+    expect(screen.getByText('203.0.113.7')).toBeInTheDocument()
+    expect(screen.getByText('Logged in now')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: 'Ban 203.0.113.9'}))
+    expect(calls(be, 'server.ban')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Ban 203.0.113.9'}))
+    await waitFor(() => expect(calls(be, 'server.ban')).toEqual([['server.ban', 'sshd', '203.0.113.9']]))
+    ask.mockRestore()
+  })
+
   it('turns password login off only after asking', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const {be} = setup()

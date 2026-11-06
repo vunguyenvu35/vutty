@@ -682,6 +682,30 @@ export interface ServerSecurity {
   /** failed SSH logins in the last 24 hours, by address, most first; known is false when there is no log to read */
   failed: {known: boolean; total: number; top: Array<{ip: string; count: number}>}
 }
+/** What the Security check reads besides ServerSecurity. */
+export interface ServerAudit {
+  /** ufw, firewalld, nft (on); ufw-off, firewalld-off, none */
+  firewall: string
+  /** yes, no (installed, not scheduled), none (not installed) */
+  auto_updates: string
+  /** accounts other than root with user id 0 */
+  uid0: string[]
+  empty_passwords: string[]
+  /** the login could read /etc/shadow */
+  passwords_known: boolean
+  /** sudoers rules that need no password; -1 when unknown */
+  nopasswd: number
+  reboot_required: boolean
+}
+/** A login that worked (one line of last). */
+export interface ServerLogin {
+  user: string
+  tty: string
+  from: string
+  when: string
+  /** "still logged in", or how it ended */
+  status: string
+}
 export interface ServerTimer {
   /** the timer unit, e.g. backup.timer */
   name: string

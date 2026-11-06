@@ -7,7 +7,10 @@ import {errMsg} from '../util'
 import {Field, Modal} from '../ui/Modal'
 import {Select} from '../ui/Select'
 import {Card, Err, Toolbar, useLoad} from './shared'
-import type {ServerSecurity} from '../types'
+import {securityChecks, securityScore} from './securityChecks'
+import type {ServerAudit, ServerLogin, ServerSecurity} from '../types'
+
+const RANK = {bad: 0, warn: 1, info: 2, ok: 3}
 
 /** The Security tab: who is knocking (failed SSH logins), who fail2ban keeps out, and how sshd is set up. */
 export function Security({sid}: {sid: string}) {
@@ -17,7 +20,24 @@ export function Security({sid}: {sid: string}) {
   const confirm = useConfirm()
   const [working, setWorking] = useState('')
   const load = useCallback(() => be.server.security(sid), [be, sid])
-  const {data, error, busy, reload} = useLoad<ServerSecurity>(load, null)
+  const {data, error, busy, reload: reloadMain} = useLoad<ServerSecurity>(load, null)
+  // what the check reads besides that: a server that cannot answer leaves its checks out instead of failing the tab
+  const loadAudit = useCallback(() => be.server.audit(sid).catch((): ServerAudit | null => null), [be, sid])
+  const {data: audit, reload: reloadAudit} = useLoad<ServerAudit | null>(loadAudit, null)
+  const loadLogins = useCallback(() => be.server.logins(sid).catch((): ServerLogin[] => []), [be, sid])
+  const {data: logins, reload: reloadLogins} = useLoad<ServerLogin[]>(loadLogins, null)
+  const reload = () => { reloadMain(); reloadAudit(); reloadLogins() }
+  const checks = securityChecks(t, data, audit ?? null)
+  const score = securityScore(checks)
+  const jails = data?.fail2ban.running ? data.fail2ban.jails.map(j => j.name) : []
+  const banIp = async (ip: string) => {
+    const jail = jails.includes('sshd') ? 'sshd' : jails[0]
+    if (!(await confirm(t('Ban {ip} on the jail {jail}? It cannot connect until it is unbanned.', {ip, jail}), {confirmLabel: t('Ban'), danger: true}))) return
+    setWorking(ip)
+    try { await be.server.ban(sid, jail, ip); toast.info(t('{name}: done', {name: ip})) } catch (e) { toast.error(errMsg(e)) }
+    setWorking('')
+    reload()
+  }
   const unban = async (jail: string, ip: string) => {
     if (!(await confirm(t('Let {ip} in again? It is removed from the jail {jail}.', {ip, jail}), {confirmLabel: t('Unban')}))) return
     setWorking(ip)
@@ -37,7 +57,18 @@ export function Security({sid}: {sid: string}) {
   return (
     <div className="sp-view">
       <Err error={error} />
-      <Card title={t('SSH settings')} right={<Toolbar busy={busy} onReload={reload} />}>
+      <Card title={t('Security check')} right={<><span className={'sp-pill ' + (score.total === 0 ? '' : score.ok === score.total ? 'ok' : score.ok >= score.total - 1 ? 'warn' : 'bad')}>{score.total === 0 ? '–' : t('{ok} of {total} checks pass', score)}</span><Toolbar busy={busy} onReload={reload} /></>}>
+        {data && checks.length === 0 && <div className="sp-empty">{t('This login cannot read enough of the server to check it.')}</div>}
+        <ul className="sp-checks">
+          {[...checks].sort((x, y) => RANK[x.level] - RANK[y.level]).map(c => (
+            <li key={c.id}>
+              <span className={'sp-pill ' + (c.level === 'info' ? '' : c.level)}>{c.level === 'ok' ? t('OK') : c.level === 'bad' ? t('Fix') : c.level === 'warn' ? t('Look') : t('Note')}</span>
+              <div><div>{c.title}</div>{c.detail && <div className="sp-note">{c.detail}</div>}</div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card title={t('SSH settings')}>
         {data && !ssh?.known && <div className="sp-empty">{t('This login cannot read the SSH configuration.')}</div>}
         {ssh?.known && (
           <table className="sp-kv"><tbody>
@@ -55,12 +86,32 @@ export function Security({sid}: {sid: string}) {
             <div className="sp-bar"><span className={'sp-pill ' + (data.failed.total > 100 ? 'warn' : 'ok')}>{t('{n} failed logins', {n: data.failed.total})}</span></div>
             {data.failed.top.length > 0 && (
               <div className="sp-table"><table>
-                <thead><tr><th>{t('Address')}</th><th className="n">{t('Attempts')}</th></tr></thead>
-                <tbody>{data.failed.top.map(x => <tr key={x.ip}><td className="m">{x.ip}</td><td className="n">{x.count}</td></tr>)}</tbody>
+                <thead><tr><th>{t('Address')}</th><th className="n">{t('Attempts')}</th><th /></tr></thead>
+                <tbody>{data.failed.top.map(x => (
+                  <tr key={x.ip}>
+                    <td className="m">{x.ip}</td><td className="n">{x.count}</td>
+                    <td>{jails.length > 0 && <div className="sp-acts"><button className="danger" disabled={working === x.ip} aria-label={t('Ban {ip}', {ip: x.ip})} onClick={() => void banIp(x.ip)}>{t('Ban')}</button></div>}</td>
+                  </tr>
+                ))}</tbody>
               </table></div>
             )}
           </>
         )}
+      </Card>
+      <Card title={t('Recent logins')}>
+        {logins && logins.length === 0 && <div className="sp-empty">{t('No logins to show, or this login cannot read them.')}</div>}
+        {logins && logins.length > 0 && (
+          <div className="sp-table"><table>
+            <thead><tr><th>{t('User')}</th><th>{t('From')}</th><th>{t('Terminal')}</th><th>{t('When')}</th><th /></tr></thead>
+            <tbody>{logins.map((l, i) => (
+              <tr key={i}>
+                <td><b>{l.user}</b></td><td className="m">{l.from}</td><td className="m">{l.tty}</td><td className="m">{l.when}</td>
+                <td>{l.status.startsWith('still') ? <span className="sp-pill ok">{t('Logged in now')}</span> : <span className="sp-note">{l.status}</span>}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+        <div className="sp-note">{t('An address or a user you do not know here means someone else has your key or password.')}</div>
       </Card>
       <Card title="fail2ban" right={data?.fail2ban.running && data.fail2ban.jails.length > 0 ? <button onClick={() => setBanning(true)}>{t('Ban address')}</button> : undefined}>
         {data && !data.fail2ban.installed && <div className="sp-empty">{t('fail2ban is not installed on this server.')}</div>}

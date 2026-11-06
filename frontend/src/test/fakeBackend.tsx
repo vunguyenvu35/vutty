@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -61,6 +61,8 @@ export interface Fake extends Backend {
       ports: ServerPorts
       certs: ServerCerts
       system: ServerSystem
+      audit: ServerAudit
+      logins: ServerLogin[]
       web: ServerWeb
       webSites: WebSiteFile[]
       webResult: ServerWebResult
@@ -198,6 +200,8 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       webSites: [{name: 'shop.conf', enabled: true}, {name: 'staging.conf', enabled: false}],
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
+      audit: {firewall: 'ufw-off', auto_updates: 'none', uid0: [], empty_passwords: [], passwords_known: true, nopasswd: 1, reboot_required: false},
+      logins: [{user: 'root', tty: 'pts/0', from: '203.0.113.7', when: 'Fri Nov 6 09:00:12 2026', status: 'still logged in'}, {user: 'ubuntu', tty: 'pts/1', from: '198.51.100.4', when: 'Thu Nov 5 22:10:01 2026', status: '- Thu Nov 5 22:40:00 2026  (00:29)'}],
       system: {hostname: 'web-1', timezone: 'UTC', systemd: true, swap_total: 0, swap_file: 0, swap_other: false, ram: 2 * 1024 ** 3, disk_free: 20 * 1024 ** 3},
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
       cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
@@ -627,6 +631,8 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       certRequest: async (sid, domains, email) => { rec('server.certRequest', domains.join(','), email); if (state.server.failAction) throw state.server.failAction; return 'Successfully received certificate' },
       webTest: async (sid, kind) => { rec('server.webTest', kind); return {...state.server.webResult} },
       webReload: async (sid, kind) => { rec('server.webReload', kind); if (state.server.failAction) throw state.server.failAction; return {...state.server.webResult} },
+      audit: async () => ({...state.server.audit}),
+      logins: async () => state.server.logins.map(l => ({...l})),
       system: async () => ({...state.server.system}),
       setHostname: async (sid, name) => { rec('server.setHostname', name); if (state.server.failAction) throw state.server.failAction; state.server.system.hostname = name },
       setTimezone: async (sid, zone) => { rec('server.setTimezone', zone); if (state.server.failAction) throw state.server.failAction; state.server.system.timezone = zone },
