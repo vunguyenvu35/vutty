@@ -6,6 +6,7 @@ import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {formatBytes} from '../sftp/format'
+import {openInSftp} from '../sftp/openRequest'
 import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {backupLevel, formatUptime, validPath} from './format'
@@ -121,6 +122,7 @@ function BackupCheck({sid, host}: {sid: string; host: Host}) {
       <form className="sp-bar" onSubmit={e => { e.preventDefault(); void save() }}>
         <input className="sp-filter" aria-label={t('Backup folder on the server')} placeholder={t('Backup folder on the server, e.g. /var/backups')} value={path} onChange={e => setPath(e.target.value)} spellCheck={false} />
         <button type="submit" className="primary" disabled={path.trim() === saved}>{t('Save')}</button>
+        {saved && <button type="button" onClick={() => openInSftp(host, saved)}>{t('Open in SFTP')}</button>}
       </form>
       <Err error={error} />
       {!saved && <div className="sp-note">{t('Name the folder where your backups land. The panel then shows how old the newest file in it is.')}</div>}

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import {replaceQuestion, SftpBrowser, summarize} from './SftpBrowser'
 import {breadcrumbs, formatBytes, joinPath, kindOf, parentOf, validName} from './format'
 import {host, makeFake, Providers} from '../../test/fakeBackend'
+import {openInSftp} from './openRequest'
 
 type Fake = ReturnType<typeof makeFake>
 
@@ -879,5 +880,35 @@ describe('SftpBrowser: This computer on the right', () => {
     await waitFor(() => expect(calls(be, 'local.copy')).toHaveLength(1))
     expect(calls(be, 'local.copy')[0].slice(1)).toEqual([['/Users/me/Documents/cv.pdf'], '/Users/me', false])
     await waitFor(() => expect(names(L())).toEqual(['Documents', 'cv.pdf', 'notes.txt']))
+  })
+})
+
+describe('SftpBrowser: opened from a Server panel', () => {
+  const mount = () => {
+    const be = makeFake({hosts: [host({id: 'h1', label: 'web-1', hostname: 'w1.example.com'}), host({id: 'h2', label: 'db-1', hostname: 'db.example.com'})]})
+    render(<Providers be={be}><SftpBrowser main /></Providers>)
+    return be
+  }
+
+  it('opens the host in a tab at the folder it was asked for', async () => {
+    const be = mount()
+    act(() => openInSftp({id: 'h2', label: 'db-1'}, '/projects'))
+    await waitFor(() => expect(calls(be, 'sftp.open').map(c => c[1])).toEqual(['h2']))
+    await waitFor(() => expect(names(R())).toEqual(['app.log']))
+  })
+
+  it('shows the home folder when the folder cannot be listed', async () => {
+    const be = mount()
+    act(() => openInSftp({id: 'h2', label: 'db-1'}, '/gone'))
+    await waitFor(() => expect(calls(be, 'sftp.open')).toHaveLength(1))
+    await waitFor(() => expect(names(R())).toEqual(['projects', 'readme.txt']))
+  })
+
+  it('is ignored by an SFTP screen that is not the main one', async () => {
+    const be = makeFake({hosts: [host({id: 'h2', label: 'db-1', hostname: 'db.example.com'})]})
+    render(<Providers be={be}><SftpBrowser /></Providers>)
+    act(() => openInSftp({id: 'h2', label: 'db-1'}, '/projects'))
+    await new Promise(r => setTimeout(r, 30))
+    expect(calls(be, 'sftp.open')).toHaveLength(0)
   })
 })

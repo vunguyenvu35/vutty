@@ -251,4 +251,8 @@ export default {
   "Size in MB, e.g. {mb}": "サイズ (MB)、例: {mb}",
   "RAM {ram}, free disk {disk}.": "RAM {ram}、空きディスク {disk}。",
   "The swap file is /swapfile: 256 MB to 32 GB, and 1 GB of disk must stay free.": "スワップファイルは /swapfile：256 MB～32 GB で、ディスクの空きが 1 GB 残る必要があります。",
+  "Files": "ファイル",
+  "Browse the files of this host in the SFTP tab": "このホストのファイルを SFTP タブで開く",
+  "Open in SFTP": "SFTP で開く",
+  "{path} cannot be opened here: showing the home folder.": "{path} を開けません。ホームフォルダを表示します。",
 } as Record<string, string>

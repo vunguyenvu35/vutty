@@ -251,4 +251,8 @@ export default {
   "Size in MB, e.g. {mb}": "Kích thước theo MB, ví dụ {mb}",
   "RAM {ram}, free disk {disk}.": "RAM {ram}, ổ đĩa trống {disk}.",
   "The swap file is /swapfile: 256 MB to 32 GB, and 1 GB of disk must stay free.": "Tệp swap là /swapfile: từ 256 MB đến 32 GB, và phải còn trống 1 GB ổ đĩa.",
+  "Files": "Tệp",
+  "Browse the files of this host in the SFTP tab": "Duyệt tệp của máy này trong tab SFTP",
+  "Open in SFTP": "Mở trong SFTP",
+  "{path} cannot be opened here: showing the home folder.": "Không mở được {path}: hiển thị thư mục home.",
 } as Record<string, string>

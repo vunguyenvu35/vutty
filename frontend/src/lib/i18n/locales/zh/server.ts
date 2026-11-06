@@ -251,4 +251,8 @@ export default {
   "Size in MB, e.g. {mb}": "大小（MB），例如 {mb}",
   "RAM {ram}, free disk {disk}.": "内存 {ram}，可用磁盘 {disk}。",
   "The swap file is /swapfile: 256 MB to 32 GB, and 1 GB of disk must stay free.": "交换文件为 /swapfile：256 MB 到 32 GB，且磁盘必须保留 1 GB 可用空间。",
+  "Files": "文件",
+  "Browse the files of this host in the SFTP tab": "在 SFTP 标签页中浏览此主机的文件",
+  "Open in SFTP": "在 SFTP 中打开",
+  "{path} cannot be opened here: showing the home folder.": "无法打开 {path}：显示主目录。",
 } as Record<string, string>

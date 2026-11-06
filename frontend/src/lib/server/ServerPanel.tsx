@@ -3,7 +3,8 @@ import {useBackend} from '../backend'
 import {useT, useTn, type TFn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {IconDownload, IconPower, IconTerminal} from '../ui/Icons'
+import {IconDownload, IconFolder, IconPower, IconTerminal} from '../ui/Icons'
+import {openInSftp} from '../sftp/openRequest'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
@@ -79,6 +80,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
         <h1>{host.label}</h1>
         <span>{host.username ? host.username + '@' : ''}{host.hostname}{host.port !== 22 ? ':' + host.port : ''}</span>
         {phase === 'ready' && sid && <button className="sp-reboot" onClick={reboot} title={t('Restart the server')}><IconPower size={14} /> {t('Reboot')}</button>}
+        {phase === 'ready' && <button className="sp-access" onClick={() => openInSftp(host)} title={t('Browse the files of this host in the SFTP tab')}><IconFolder size={14} /> {t('Files')}</button>}
         {onAccess && <button className="sp-access" onClick={onAccess} title={t('Open a terminal on this host in a new tab')}><IconTerminal size={14} /> {t('Access host')}</button>}
       </div>
       {phase === 'ready' && sid ? (
@@ -113,7 +115,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'web' && <Web sid={sid} onLogs={(kind, name) => showLogs({kind, name})} />}
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={k8sCtx} k8sNs={k8sNs} />}
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
-            {section === 'maintenance' && <Maintenance sid={sid} />}
+            {section === 'maintenance' && <Maintenance sid={sid} host={host} />}
             {section === 'security' && <Security sid={sid} />}
             {section === 'users' && <Users sid={sid} />}
             {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
