@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -270,6 +270,12 @@ export interface Backend {
     users(sid: string): Promise<ServerUsers>
     addUser(sid: string, name: string, shell: string, sudo: boolean, key: string): Promise<void>
     deleteUser(sid: string, name: string, removeHome: boolean): Promise<void>
+    /** lock (password and account end) or unlock an account; refused for root, system accounts and this connection */
+    setUserLocked(sid: string, name: string, locked: boolean): Promise<void>
+    /** add an account to the sudo group, or take it out of all of them (never from the last one that has it) */
+    setUserSudo(sid: string, name: string, sudo: boolean): Promise<void>
+    /** one action on one saved host, for the Fleet page to do on many: 'updates' (looks only) or 'renew' (certbot renew) */
+    fleetAction(hostId: string, action: 'updates' | 'renew'): Promise<ServerFleetResult>
     userKeys(sid: string, name: string): Promise<UserKey[]>
     addUserKey(sid: string, name: string, key: string): Promise<void>
     removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
@@ -657,6 +663,9 @@ export function wailsBackend(): Backend {
       diskUsage: async (s, p) => (await u<ServerFolder[]>('ServerService', 'DiskUsage', s, p)) ?? [],
       users: async s => { const r = await u<ServerUsers>('ServerService', 'Users', s); return {users: r.users ?? [], sessions: r.sessions ?? [], me: r.me ?? ''} },
       addUser: (s, n, sh, sudo, k) => u('ServerService', 'AddUser', s, n, sh, sudo, k),
+      setUserLocked: (s, n, l) => u('ServerService', 'SetUserLocked', s, n, l),
+      setUserSudo: (s, n, v) => u('ServerService', 'SetUserSudo', s, n, v),
+      fleetAction: (h, a) => u('ServerService', 'FleetAction', h, a),
       deleteUser: (s, n, h) => u('ServerService', 'DeleteUser', s, n, h),
       userKeys: async (s, n) => (await u<UserKey[]>('ServerService', 'UserKeys', s, n)) ?? [],
       addUserKey: (s, n, k) => u('ServerService', 'AddUserKey', s, n, k),

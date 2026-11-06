@@ -230,6 +230,11 @@ describe('Server panel: managing users', () => {
     return be
   }
 
+  const viaMenu = async (name: string, item: string) => {
+    await userEvent.click(screen.getByRole('button', {name: 'More actions for ' + name}))
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', {name: item}))
+  }
+
   it('adds a user with a shell, sudo and a first key, and lists it', async () => {
     const be = await openUsers()
     await userEvent.click(screen.getByRole('button', {name: 'Add user'}))
@@ -249,8 +254,8 @@ describe('Server panel: managing users', () => {
 
   it('deletes only after the name is typed, never offers root or the account of the connection, and shows a refusal', async () => {
     const be = await openUsers()
-    expect(screen.queryByRole('button', {name: 'Delete root'})).toBeNull()
-    await userEvent.click(screen.getByRole('button', {name: 'Delete deploy'}))
+    expect(screen.queryByRole('button', {name: 'More actions for root'})).toBeNull() // root has no menu: it is not locked, deleted or changed here
+    await viaMenu('deploy', 'Delete')
     const dlg = screen.getByRole('dialog', {name: 'Delete deploy'})
     const del = within(dlg).getByRole('button', {name: 'Delete'})
     expect(del).toBeDisabled()
@@ -261,10 +266,29 @@ describe('Server panel: managing users', () => {
     await waitFor(() => expect(screen.queryByText('/home/deploy')).toBeNull())
   })
 
+  it('gives and takes sudo, and locks and unlocks, each after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const be = await openUsers()
+    await viaMenu('deploy', 'Give sudo')
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Give sudo to deploy?'))
+    expect(calls(be, 'server.setUserSudo')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await viaMenu('deploy', 'Give sudo')
+    await waitFor(() => expect(calls(be, 'server.setUserSudo')).toEqual([['server.setUserSudo', 'deploy', true]]))
+    await viaMenu('deploy', 'Lock')
+    await waitFor(() => expect(calls(be, 'server.setUserLocked')).toEqual([['server.setUserLocked', 'deploy', true]]))
+    const row = screen.getByText('/home/deploy').closest('tr') as HTMLElement
+    expect(await within(row).findByText('Locked')).toBeInTheDocument()
+    await viaMenu('deploy', 'Unlock')
+    await waitFor(() => expect(calls(be, 'server.setUserLocked').at(-1)).toEqual(['server.setUserLocked', 'deploy', false]))
+    await viaMenu('deploy', 'Take sudo')
+    await waitFor(() => expect(calls(be, 'server.setUserSudo').at(-1)).toEqual(['server.setUserSudo', 'deploy', false]))
+  })
+
   it('keeps the dialog open and says why when the server refuses', async () => {
     const be = await openUsers()
     be.state.server.failAction = 'deploy is logged in now'
-    await userEvent.click(screen.getByRole('button', {name: 'Delete deploy'}))
+    await viaMenu('deploy', 'Delete')
     const dlg = screen.getByRole('dialog', {name: 'Delete deploy'})
     await userEvent.type(within(dlg).getByLabelText('Type deploy to confirm'), 'deploy')
     await userEvent.click(within(dlg).getByRole('button', {name: 'Delete'}))

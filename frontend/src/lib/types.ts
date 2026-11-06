@@ -547,9 +547,21 @@ export interface ServerContainers {
   containers: ServerContainer[]
 }
 export interface ServerUsers {
-  users: {name: string; uid: number; home: string; shell: string; sudo: boolean; keys: number; login: string}[]
+  users: {name: string; uid: number; home: string; shell: string; sudo: boolean; keys: number; login: string; /** the password is locked (and the account has ended) */ locked?: boolean}[]
   sessions: {user: string; tty: string; since: string; from: string}[]
   me: string // the account this connection is logged in as
+}
+/** What one saved host answered to an action the Fleet page does on many hosts. */
+export interface ServerFleetResult {
+  host_id: string
+  /** empty when the host answered and the action worked */
+  error: string
+  output: string
+  /** updates: apt, dnf, yum or '' */
+  manager: string
+  count: number
+  security: number
+  reboot_required: boolean
 }
 export interface UserKey {type: string; fingerprint: string; comment: string; options: boolean}
 export interface DockerStat {name: string; cpu: number; mem_pct: number; mem_usage: string}

@@ -1,4 +1,4 @@
-import {act, render, screen, waitFor} from '@testing-library/react'
+import {act, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {evaluate, fleetAlertConfig, keepFleetHosts, reportFleet, resetFleetAlerts, setFleetAlertConfig, setFleetNotifier, DEFAULT_ALERT_CONFIG, type FleetAlert} from './fleetAlerts'
 import {FleetMonitor} from './FleetMonitor'
@@ -96,6 +96,43 @@ describe('Fleet page alerts', () => {
     await userEvent.tab()
     expect(fleetAlertConfig().disk).toBe(80)
     expect(JSON.parse(localStorage.getItem('vutty.fleet.alerts')!).disk).toBe(80)
+  })
+})
+
+describe('Fleet: one action on several servers', () => {
+  const a = host({id: 'a', label: 'alpha', hostname: 'a.example.com'})
+  const b = host({id: 'b', label: 'bravo', hostname: 'b.example.com'})
+  const calls = (be: ReturnType<typeof makeFake>, n: string) => be.state.calls.filter(c => c[0] === n)
+
+  it('looks at the updates of the ticked servers only, without asking', async () => {
+    const be = makeFake({hosts: [a, b]})
+    render(<Providers be={be}><FleetPage hosts={[a, b]} onPanel={vi.fn()} /></Providers>)
+    const look = await screen.findByRole('button', {name: 'Look at the updates'})
+    expect(look).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', {name: 'Select alpha'}))
+    await userEvent.click(look)
+    await waitFor(() => expect(calls(be, 'server.fleetAction')).toEqual([['server.fleetAction', 'a', 'updates']]))
+    expect(await screen.findByText('12 updates, 3 security')).toBeInTheDocument()
+    expect(screen.getByText('Needs a reboot')).toBeInTheDocument()
+  })
+
+  it('renews certificates on all servers after asking, and shows the one that failed', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const be = makeFake({hosts: [a, b]})
+    be.state.server.fleetErrors = {b: 'certbot is not installed on this server'}
+    render(<Providers be={be}><FleetPage hosts={[a, b]} onPanel={vi.fn()} /></Providers>)
+    await userEvent.click(await screen.findByRole('checkbox', {name: 'Select all'}))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {name: 'Renew certificates'}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Renew the certificates on 2 servers?'))
+    expect(calls(be, 'server.fleetAction')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Renew certificates'}))
+    await waitFor(() => expect(calls(be, 'server.fleetAction').map(c => c.slice(1).join(':')).sort()).toEqual(['a:renew', 'b:renew']))
+    expect(await screen.findByText('Done')).toBeInTheDocument()
+    const box = screen.getByRole('button', {name: 'Do on several servers'}).closest('section') as HTMLElement
+    expect(await within(box).findByText('certbot is not installed on this server')).toBeInTheDocument()
+    ask.mockRestore()
   })
 })
 

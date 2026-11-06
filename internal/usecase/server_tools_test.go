@@ -510,3 +510,12 @@ func TestClipNotificationText(t *testing.T) {
 		t.Fatal("title")
 	}
 }
+
+func TestFleetActionRefusesUnknownAction(t *testing.T) {
+	if _, err := (&ServerService{}).FleetAction("h", "reboot"); err == nil || err.Error() != "unknown action" {
+		t.Fatal(err)
+	}
+	if lastLine("a\nb\n\n") != "b" {
+		t.Fatal("lastLine")
+	}
+}

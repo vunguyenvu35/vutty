@@ -12,13 +12,14 @@ import (
 
 // ServerUser is an account that can log in (a real shell), or root.
 type ServerUser struct {
-	Name  string `json:"name"`
-	UID   int    `json:"uid"`
-	Home  string `json:"home"`
-	Shell string `json:"shell"`
-	Sudo  bool   `json:"sudo"`  // root, or in the group sudo, wheel or admin
-	Keys  int    `json:"keys"`  // lines of authorized_keys; -1 when this login may not read the file
-	Login string `json:"login"` // the last login, as `lastlog` says; "" when never or unknown
+	Name   string `json:"name"`
+	UID    int    `json:"uid"`
+	Home   string `json:"home"`
+	Shell  string `json:"shell"`
+	Sudo   bool   `json:"sudo"`   // root, or in the group sudo, wheel or admin
+	Keys   int    `json:"keys"`   // lines of authorized_keys; -1 when this login may not read the file
+	Login  string `json:"login"`  // the last login, as `lastlog` says; "" when never or unknown
+	Locked bool   `json:"locked"` // the password is locked (passwd -S says L)
 }
 
 // ServerSession is a login that is open now.
@@ -45,6 +46,7 @@ echo '##keys'; getent passwd | awk -F: '$7 !~ /(nologin|false|sync|shutdown|halt
   else n=0; fi
   echo "$u ${n:-0}"
 done
+echo '##locked'; $SUDO passwd -S -a 2>/dev/null
 echo '##who'; who 2>/dev/null
 echo '##last'; lastlog 2>/dev/null | tail -n +2
 echo '##me'; id -un`
@@ -69,6 +71,7 @@ func parseUsers(out string) ServerUsers {
 			keys[f[0]], _ = strconv.Atoi(f[1])
 		}
 	}
+	locked := parseLocked(section(out, "locked"))
 	last := map[string]string{}
 	for _, ln := range strings.Split(section(out, "last"), "\n") {
 		f := strings.Fields(ln)
@@ -91,7 +94,7 @@ func parseUsers(out string) ServerUsers {
 		if !ok {
 			k = 0
 		}
-		res.Users = append(res.Users, ServerUser{Name: f[0], UID: uid, Home: f[5], Shell: shell, Sudo: uid == 0 || sudoers[f[0]], Keys: k, Login: last[f[0]]})
+		res.Users = append(res.Users, ServerUser{Name: f[0], UID: uid, Home: f[5], Shell: shell, Sudo: uid == 0 || sudoers[f[0]], Keys: k, Login: last[f[0]], Locked: locked[f[0]]})
 	}
 	sort.SliceStable(res.Users, func(i, j int) bool { return res.Users[i].UID < res.Users[j].UID })
 	for _, ln := range strings.Split(section(out, "who"), "\n") {

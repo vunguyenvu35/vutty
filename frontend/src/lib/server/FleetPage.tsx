@@ -7,8 +7,9 @@ import {errMsg} from '../util'
 import {Card, FilterInput} from './shared'
 import {type FleetAlert, fleetAlertConfig, alertText, DEFAULT_ALERT_CONFIG, reportFleet, setFleetAlertConfig, useFleetAlertConfig, useFleetAlerts} from './fleetAlerts'
 import {useToast} from '../ui/Toast'
+import {useConfirm} from '../ui/Confirm'
 import {formatUptime, level, pct} from './format'
-import type {Host, ServerFleetHost} from '../types'
+import type {Host, ServerFleetHost, ServerFleetResult} from '../types'
 
 const WORKERS = 4
 
@@ -33,6 +34,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   const be = useBackend()
   const t = useT()
   const toast = useToast()
+  const confirm = useConfirm()
   const alerts = useFleetAlerts()
   const cfg = useFleetAlertConfig()
   const [rows, setRows] = useState<Record<string, Row>>({})
@@ -91,6 +93,27 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
     for (const a of alerts) by.set(a.hostId, [...(by.get(a.hostId) ?? []), a])
     return [...by.entries()].sort((x, y) => x[1][0].label.localeCompare(y[1][0].label))
   }, [alerts])
+  // one action on the hosts that are ticked: each answers in its own row of the result box
+  const [picked, setPicked] = useState<string[]>([])
+  const [job, setJob] = useState<{action: 'updates' | 'renew'; rows: Record<string, 'running' | ServerFleetResult>} | null>(null)
+  const pickedHosts = list.filter(h => picked.includes(h.id))
+  const doAll = async (action: 'updates' | 'renew') => {
+    const targets = pickedHosts
+    if (targets.length === 0 || (job && Object.values(job.rows).includes('running'))) return
+    if (action === 'renew' && !(await confirm(t('Renew the certificates on {n} servers? certbot renews only the ones near their end, then each web server is reloaded.', {n: targets.length}), {confirmLabel: t('Renew')}))) return
+    setJob({action, rows: Object.fromEntries(targets.map(h => [h.id, 'running' as const]))})
+    let next = 0
+    const worker = async () => {
+      while (alive.current && next < targets.length) {
+        const h = targets[next++]
+        let r: ServerFleetResult
+        try { r = await be.server.fleetAction(h.id, action) } catch (e) { r = {host_id: h.id, error: errMsg(e), output: '', manager: '', count: 0, security: 0, reboot_required: false} }
+        if (alive.current) setJob(j => (j && j.action === action ? {...j, rows: {...j.rows, [h.id]: r}} : j))
+      }
+    }
+    await Promise.all(Array.from({length: Math.min(3, targets.length)}, worker))
+  }
+  const working = !!job && Object.values(job.rows).includes('running')
   // a limit is taken when the box is left, not on every key: typing 80 must not pass through 8
   const [resetN, setResetN] = useState(0)
   const setNum = (key: 'disk' | 'mem' | 'certDays', min: number, max: number) => (e: {target: {value: string}}) => {
@@ -131,6 +154,36 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
         </div>
         <div className="sp-note">{t('A server counts as down after two failed checks in a row. With desktop notifications on, the servers are checked every minute while another page or another app is in front.')}</div>
       </Card>
+      <Card title={t('Do on several servers')} right={job ? <button disabled={working} onClick={() => setJob(null)}>{t('Clear')}</button> : undefined}>
+        <div className="sp-bar">
+          <label className="sp-opt"><input type="checkbox" checked={list.length > 0 && picked.length === list.length} onChange={e => setPicked(e.target.checked ? list.map(h => h.id) : [])} /> {t('Select all')}</label>
+          <span className="sp-os">{t('{n} selected', {n: picked.length})}</span>
+          <button disabled={picked.length === 0 || working} onClick={() => void doAll('updates')}>{t('Look at the updates')}</button>
+          <button disabled={picked.length === 0 || working} onClick={() => void doAll('renew')}>{t('Renew certificates')}</button>
+        </div>
+        {job && (
+          <div className="sp-table"><table>
+            <tbody>
+              {list.filter(h => h.id in job.rows).map(h => {
+                const r = job.rows[h.id]
+                return (
+                  <tr key={h.id}>
+                    <td><b>{h.label}</b></td>
+                    <td>{r === 'running' ? <span className="sp-pill">{t('Working…')}</span>
+                      : r.error ? <span className="sp-pill bad" title={r.error}>{t('Failed')}</span>
+                      : job.action === 'updates' ? (r.manager ? <span className={'sp-pill ' + (r.security > 0 ? 'bad' : r.count > 0 ? 'warn' : 'ok')}>{r.count === 0 ? t('Up to date') : t('{n} updates, {s} security', {n: r.count, s: r.security})}</span> : <span className="sp-pill">{t('No package manager')}</span>)
+                      : <span className="sp-pill ok">{t('Done')}</span>}
+                      {r !== 'running' && r.reboot_required && <> <span className="sp-pill warn">{t('Needs a reboot')}</span></>}
+                    </td>
+                    <td className="sp-note">{r !== 'running' && (r.error || (job.action === 'renew' ? r.output.split('\n').slice(-1)[0] : ''))}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table></div>
+        )}
+        <div className="sp-note">{t('Tick servers in the list below. Updates are only looked at; installing them is done in each panel. Each server gets a short connection of its own.')}</div>
+      </Card>
       <h3 className="sec-title">{t('Fleet')}</h3>
       <div className="sp-table"><table>
         <thead><tr><th>{t('Server')}</th><th>{t('Status')}</th><th className="n">{t('CPU')}</th><th className="n">{t('Memory')}</th><th className="n">{t('Disk /')}</th><th className="n">{t('Load average')}</th><th>{t('Services')}</th><th>{t('Uptime')}</th><th /></tr></thead>
@@ -140,7 +193,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
             const o = r && !r.error ? r.overview : null
             return (
               <tr key={h.id}>
-                <td><b>{h.label}</b><div className="sp-note m">{h.hostname}</div></td>
+                <td><label className="sp-opt"><input type="checkbox" aria-label={t('Select {name}', {name: h.label})} checked={picked.includes(h.id)} onChange={e => setPicked(p => (e.target.checked ? [...p, h.id] : p.filter(x => x !== h.id)))} /><b>{h.label}</b></label><div className="sp-note m">{h.hostname}</div></td>
                 <td>
                   {row.state !== 'done' ? <span className="sp-pill">{row.state === 'checking' ? t('Checking…') : t('Waiting')}</span>
                     : r?.error ? <span className="sp-pill bad" title={r.error}>{t('Down')}</span>

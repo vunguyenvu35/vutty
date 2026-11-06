@@ -105,3 +105,21 @@ func TestParseUsersReadsTheAccountOfThisConnection(t *testing.T) {
 		t.Fatalf("Me = %q", got)
 	}
 }
+
+func TestParseLockedAndUserEditsRefuseBadNames(t *testing.T) {
+	m := parseLocked("root P 2026-01-01 0 99999 7 -1\nbob L 2026-01-01 0 99999 7 -1\namy LK 2026-01-01\ncat NP 2026-01-01\n")
+	if m["root"] || !m["bob"] || !m["amy"] || m["cat"] {
+		t.Fatalf("%v", m)
+	}
+	u := parseUsers("##passwd\nbob:x:1001:1001::/home/bob:/bin/bash\n##locked\nbob L 2026-01-01\n##me\nroot\n")
+	if len(u.Users) != 1 || !u.Users[0].Locked {
+		t.Fatalf("%+v", u)
+	}
+	s := &ServerService{sessions: map[string]*serverSession{}}
+	if err := s.SetUserLocked("x", "a b", true); err == nil || err.Error() != "that is not a user name" {
+		t.Fatal(err)
+	}
+	if err := s.SetUserSudo("x", "$(id)", true); err == nil || err.Error() != "that is not a user name" {
+		t.Fatal(err)
+	}
+}

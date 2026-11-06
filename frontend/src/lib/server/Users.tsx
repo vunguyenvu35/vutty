@@ -7,6 +7,7 @@ import {Select} from '../ui/Select'
 import {useToast} from '../ui/Toast'
 import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
+import {RowMenu} from './Docker'
 import type {ServerUsers, UserKey} from '../types'
 
 type Dialog = {kind: 'add'} | {kind: 'keys'; name: string; me: boolean} | {kind: 'delete'; name: string; home: string} | null
@@ -19,6 +20,16 @@ export function Users({sid}: {sid: string}) {
   const load = useCallback(() => be.server.users(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerUsers>(load, null)
   const close = () => { setDialog(null); reload() }
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [working, setWorking] = useState('')
+  const change = async (key: string, question: string, label: string, danger: boolean, fn: () => Promise<void>) => {
+    if (!(await confirm(question, {confirmLabel: label, danger}))) return
+    setWorking(key)
+    try { await fn(); toast.info(t('{name}: done', {name: key.split(':')[1]})) } catch (e) { toast.error(errMsg(e)) }
+    setWorking('')
+    reload()
+  }
   return (
     <div className="sp-view">
       <Err error={error} />
@@ -30,14 +41,22 @@ export function Users({sid}: {sid: string}) {
               const me = u.name === data?.me
               return (
                 <tr key={u.name}>
-                  <td><b>{u.name}</b>{me && <> <span className="sp-pill">{t('this connection')}</span></>}<div className="sp-note m">{u.home}</div></td>
+                  <td><b>{u.name}</b>{me && <> <span className="sp-pill">{t('this connection')}</span></>}{u.locked && <> <span className="sp-pill bad">{t('Locked')}</span></>}<div className="sp-note m">{u.home}</div></td>
                   <td>{u.sudo ? <span className="sp-pill warn">{t('Yes')}</span> : <span className="sp-note">{t('No')}</span>}</td>
                   <td className="n m" title={u.keys < 0 ? t('This login cannot read the file.') : undefined}>{u.keys < 0 ? '?' : u.keys}</td>
                   <td className="m">{u.login || '–'}</td>
                   <td className="m">{u.shell}</td>
                   <td><span className="sp-acts">
                     <button aria-label={t('SSH keys of {name}', {name: u.name})} onClick={() => setDialog({kind: 'keys', name: u.name, me})}>{t('Keys')}</button>
-                    {u.uid !== 0 && !me && <button className="danger" aria-label={t('Delete {name}', {name: u.name})} onClick={() => setDialog({kind: 'delete', name: u.name, home: u.home})}>{t('Delete')}</button>}
+                    {u.uid !== 0 && <RowMenu name={u.name} items={[
+                      {label: u.sudo ? t('Take sudo') : t('Give sudo'), danger: u.sudo, disabled: working === 'sudo:' + u.name,
+                        run: () => void change('sudo:' + u.name, u.sudo ? t('Take sudo from {name}? It can no longer run commands as root. The server refuses if {name} is the last account with sudo.', {name: u.name}) : t('Give sudo to {name}? It can then run any command as root.', {name: u.name}), u.sudo ? t('Take sudo') : t('Give sudo'), u.sudo, () => be.server.setUserSudo(sid, u.name, !u.sudo))},
+                      ...(me ? [] : [
+                        {label: u.locked ? t('Unlock') : t('Lock'), disabled: working === 'lock:' + u.name,
+                          run: () => void change('lock:' + u.name, u.locked ? t('Unlock {name}? It can log in again, with its password or its SSH keys.', {name: u.name}) : t('Lock {name}? Neither its password nor its SSH keys work until it is unlocked. Programs it runs keep running.', {name: u.name}), u.locked ? t('Unlock') : t('Lock'), !u.locked, () => be.server.setUserLocked(sid, u.name, !u.locked))},
+                        {label: t('Delete'), danger: true, run: () => setDialog({kind: 'delete', name: u.name, home: u.home})},
+                      ]),
+                    ]} />}
                   </span></td>
                 </tr>
               )

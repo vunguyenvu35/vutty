@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -652,6 +652,24 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         rec('server.addUser', name, shell, sudo, key)
         if (state.server.failAction) throw state.server.failAction
         state.server.users.users.push({name, uid: 1002, home: '/home/' + name, shell, sudo, keys: key ? 1 : 0, login: ''})
+      },
+      setUserLocked: async (sid, name, locked) => {
+        rec('server.setUserLocked', name, locked)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users.users = state.server.users.users.map(u => (u.name === name ? {...u, locked} : u))
+      },
+      setUserSudo: async (sid, name, sudo) => {
+        rec('server.setUserSudo', name, sudo)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.users.users = state.server.users.users.map(u => (u.name === name ? {...u, sudo} : u))
+      },
+      fleetAction: async (hostId, action) => {
+        rec('server.fleetAction', hostId, action)
+        const err = state.server.fleetErrors[hostId]
+        if (err) return {host_id: hostId, error: err, output: '', manager: '', count: 0, security: 0, reboot_required: false}
+        return action === 'updates'
+          ? {host_id: hostId, error: '', output: '', manager: 'apt', count: 12, security: 3, reboot_required: hostId === 'a'}
+          : {host_id: hostId, error: '', output: 'Congratulations, all renewals succeeded', manager: '', count: 0, security: 0, reboot_required: false}
       },
       deleteUser: async (sid, name, removeHome) => {
         rec('server.deleteUser', name, removeHome)
