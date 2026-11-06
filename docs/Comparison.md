@@ -15,7 +15,7 @@ If you need **mobile apps, a hosted cloud sync, or shared team vaults**, Termius
 | Systems | macOS, Windows, Linux | macOS, Windows, Linux, iOS, Android |
 | SSH, SFTP | Yes | Yes (Starter, the free plan, lists "SSH and SFTP") |
 | Telnet, serial, a shell on this computer | Yes (on Windows the shell on this computer is not available yet) | Listed on the pricing table ("SSH, SFTP, Telnet, Mosh, Local terminal", and Serial); the plan of each row is not stated |
-| Mosh | No | Listed on the pricing table |
+| Mosh | Yes, through the `mosh-client` of your computer (not on Windows) | Listed on the pricing table |
 | Jump hosts | Yes, chains of them | Listed ("Jump host / Host chain") |
 | Port forwarding | Local, remote, SOCKS5 | Listed; "Port Forwarding" is in Starter |
 | Agent forwarding | Yes, per host | Listed |
@@ -58,7 +58,7 @@ The pages of Termius that were read do not mention Docker, Kubernetes or server 
 
 - **No mobile apps** (Termius has iOS and Android).
 - **No hosted sync and no team features**: sync needs your own Git repository or cloud folder, and there are no shared vaults or single sign-on.
-- **No Mosh, no FIDO2 keys, no HTTP proxy**, and X11 forwarding is not done yet.
+- **No FIDO2 keys, no HTTP proxy**, and X11 forwarding is not done yet. Mosh needs `mosh` installed on your own computer and does not work on Windows.
 - **The Windows and Linux builds are new** and less tested than macOS, and builds are not yet signed or notarized (see [Installing on macOS](InstallMac.md)).
 - **What was and was not run for real:** the Kubernetes tab was run against a real kind cluster for its newest parts (resources, Helm, merged logs, files in a pod); the rest is covered by tests with sample answers, and none of it has been run against Rancher or a cloud-managed cluster yet. See the known issues in the [release notes](../RELEASE_NOTES.md).
 

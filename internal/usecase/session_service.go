@@ -94,6 +94,10 @@ func (s *SessionService) Open(hostID string, cols, rows int) (string, error) {
 		if _, ok := s.c.kubeShell(hostID); !ok {
 			return "", errors.New("this shell is no longer known: open it again from the pod")
 		}
+	case strings.HasPrefix(hostID, moshPrefix):
+		if _, err := s.c.Store.GetHost(strings.TrimPrefix(hostID, moshPrefix)); err != nil {
+			return "", fmt.Errorf("host: %w", err)
+		}
 	case strings.HasPrefix(hostID, telnetPrefix):
 		h, err := s.c.Store.GetHost(strings.TrimPrefix(hostID, telnetPrefix))
 		if err != nil {

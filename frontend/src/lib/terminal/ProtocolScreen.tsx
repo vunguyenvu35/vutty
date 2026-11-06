@@ -4,7 +4,7 @@ import type {Host} from '../types'
 import {useT} from '../i18n'
 
 /** 'panel' is no protocol: it opens a dashboard of the server (over SSH) in the tab instead of a terminal */
-export type Protocol = 'ssh' | 'telnet' | 'ftp' | 'rdp' | 'panel'
+export type Protocol = 'ssh' | 'mosh' | 'telnet' | 'ftp' | 'rdp' | 'panel'
 
 interface Props {
   host: Host
@@ -18,7 +18,7 @@ export function ProtocolScreen({host, onContinue, onClose}: Props) {
   const [choice, setChoice] = useState<Protocol>('ssh')
   const all: {id: Protocol | 'mosh'; name: string; cmd: string; port: number; off?: string}[] = [
     {id: 'ssh', name: 'SSH', cmd: `ssh ${host.hostname}`, port: host.port},
-    {id: 'mosh', name: 'Mosh', cmd: `mosh ${host.hostname}`, port: host.port, off: t('Not supported yet')},
+    {id: 'mosh', name: 'Mosh', cmd: `mosh ${host.hostname}`, port: host.port},
     {id: 'telnet', name: 'Telnet', cmd: `telnet ${host.hostname}`, port: host.telnet_port || 23, off: host.telnet_enabled ? undefined : t('Turn it on in the host')},
     {id: 'ftp', name: host.ftp_security ? 'FTPS' : 'FTP', cmd: t('Files of the host in the SFTP tab'), port: host.ftp_port || 21, off: host.ftp_enabled ? undefined : t('Turn it on in the host')},
     {id: 'rdp', name: 'RDP', cmd: t('Remote Desktop, in your own client'), port: host.rdp_port || 3389, off: host.rdp_enabled ? undefined : t('Turn it on in the host')},

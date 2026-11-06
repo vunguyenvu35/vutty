@@ -192,3 +192,14 @@ type RDPSpec struct {
 
 // RDPLauncher starts the Remote Desktop client of this computer on a host and returns when it has been started (not when it ends).
 type RDPLauncher func(spec RDPSpec) error
+
+// MoshTarget is where a mosh-server waits: its address (an IP, as mosh-client takes one), its UDP port and the key of the session.
+type MoshTarget struct {
+	IP   string
+	Port int
+	Key  string
+}
+
+// MoshOpener starts the Mosh client of this computer on a target, in a terminal. The key goes to the client in its environment,
+// never on a command line.
+type MoshOpener func(t MoshTarget, cols, rows int, onData func([]byte)) (Shell, error)

@@ -1444,13 +1444,12 @@ describe('App: moving a host into a group by dragging', () => {
 })
 
 describe('App: ask which protocol to use', () => {
-  it('with the setting on, a plain host asks too; Telnet and Mosh are shown but cannot be picked when unavailable', async () => {
+  it('with the setting on, a plain host asks too; Telnet is shown but cannot be picked until the host has it', async () => {
     const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}} as never)
     await unlock(be)
     await userEvent.dblClick(hostCard('web-1'))
     expect(screen.getByRole('radiogroup', {name: 'Protocol'})).toBeInTheDocument()
     expect(screen.getByRole('radio', {name: /SSH/})).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('radio', {name: /Mosh/})).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByRole('radio', {name: /Telnet/})).toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(screen.getByRole('radio', {name: /Telnet/}))
     expect(screen.getByRole('radio', {name: /SSH/})).toHaveAttribute('aria-checked', 'true') // the click did nothing
@@ -1482,6 +1481,18 @@ describe('App: ask which protocol to use', () => {
     await userEvent.click(screen.getByRole('radio', {name: /RDP/}))
     await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
     expect(await screen.findByText(/no app opened the \.rdp file/)).toBeInTheDocument()
+  })
+
+  it('Mosh opens a terminal of its own for the host (mosh:<id>) and names the tab', async () => {
+    const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}} as never)
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    const mosh = screen.getByRole('radio', {name: /Mosh/})
+    expect(mosh).toHaveAttribute('aria-disabled', 'false')
+    await userEvent.click(mosh)
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    expect(await screen.findByTestId('terminal')).toHaveAttribute('data-host', 'mosh:h1')
+    expect(screen.getByRole('tab', {name: /web-1 \(Mosh\)/})).toBeInTheDocument()
   })
 })
 

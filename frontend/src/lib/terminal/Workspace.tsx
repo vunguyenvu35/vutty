@@ -1,4 +1,5 @@
 import {draggingPane, draggingTab, isTerminalTab, leaves, SFTP_TAB_ID, PANE_DRAG, paneRects, setDraggingPane, sideOf, TAB_DRAG, type DropSide, type Rect, type Tab} from '../layout'
+import {baseHostId, protocolOf} from '../hostId'
 import {useState} from 'react'
 import {SftpBrowser} from '../sftp/SftpBrowser'
 import {ServerPanel} from '../server/ServerPanel'
@@ -70,11 +71,11 @@ export function Workspace(p: Props) {
   const termTheme = resolveTerminalTheme(p.settings.terminal_theme, p.appearance).theme
   // a host's own theme wins; a Telnet pane ("telnet:<id>") belongs to the same host
   const themeFor = (hostId: string) => {
-    const id = hostId.startsWith('telnet:') ? hostId.slice('telnet:'.length) : hostId
+    const id = baseHostId(hostId)
     const own = p.hosts?.find(h => h.id === id)?.terminal_theme
     return own ? resolveTerminalTheme(own, p.appearance).theme : termTheme
   }
-  const hostOf = (hostId: string) => p.hosts?.find(h => h.id === (hostId.startsWith('telnet:') ? hostId.slice('telnet:'.length) : hostId))
+  const hostOf = (hostId: string) => p.hosts?.find(h => h.id === baseHostId(hostId))
   /** the name and the small print of a pane, for its header */
   const describe = (hostId: string, label = ''): {label: string; detail: string; os?: string} => {
     if (hostId.startsWith('kubeexec:')) return {label: label || t('Pod shell'), detail: t('kubernetes')}
@@ -82,7 +83,7 @@ export function Workspace(p: Props) {
     if (hostId.startsWith('serial:')) return {label: hostId.slice('serial:'.length).split('@')[0].replace(/^\/dev\//, ''), detail: t('serial')}
     const h = hostOf(hostId)
     if (!h) return {label: hostId, detail: ''}
-    if (hostId.startsWith('telnet:')) return {label: h.label, detail: ['telnet', h.username].filter(Boolean).join(', '), os: h.os}
+    if (protocolOf(hostId)) return {label: h.label, detail: [protocolOf(hostId), h.username].filter(Boolean).join(', '), os: h.os}
     return {label: h.label, detail: ['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.rdp_enabled ? 'rdp' : '', h.username].filter(Boolean).join(', '), os: h.os}
   }
   /** "SSH host:port", "Telnet host:port", "this computer" */

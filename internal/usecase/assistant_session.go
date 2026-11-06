@@ -13,7 +13,7 @@ import (
 // ---- hosts and sessions ----
 
 func (a *AssistantService) lookupHost(hostID string) (domain.Host, bool) {
-	id := strings.TrimPrefix(hostID, telnetPrefix)
+	id := baseHostID(hostID)
 	if hostID == LocalHostID || strings.HasPrefix(hostID, serialPrefix) || strings.HasPrefix(hostID, kubeExecPrefix) {
 		return domain.Host{}, false
 	}

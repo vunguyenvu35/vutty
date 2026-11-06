@@ -135,7 +135,8 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 		v.SetKDF(*kdf)
 	}
 	core, err := usecase.NewCore(dir, usecase.Options{CacheDir: cacheDir(), Store: st, Vault: v, OpenRemoteFS: func(c *sshx.Client) (usecase.RemoteFS, error) { return sftpx.Open(c.Client) },
-		OpenRDP: launchRDP,
+		OpenRDP:  launchRDP,
+		OpenMosh: openMoshClient,
 		OpenFTP: func(cfg usecase.FTPConfig) (usecase.RemoteFS, error) {
 			f, err := ftpx.Open(ftpx.Config{Addr: cfg.Addr, Security: cfg.Security, User: cfg.User, Password: cfg.Password})
 			if err != nil {

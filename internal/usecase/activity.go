@@ -33,6 +33,8 @@ func (c *Core) hostLabel(hostID string) string {
 			return p
 		}
 		return hostID
+	case strings.HasPrefix(hostID, moshPrefix):
+		hostID = strings.TrimPrefix(hostID, moshPrefix)
 	case strings.HasPrefix(hostID, ftpPrefix):
 		hostID = strings.TrimPrefix(hostID, ftpPrefix)
 	case strings.HasPrefix(hostID, telnetPrefix):

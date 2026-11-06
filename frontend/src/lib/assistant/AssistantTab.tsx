@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {baseHostId} from '../hostId'
 import {useBackend} from '../backend'
 import {useToast} from '../ui/Toast'
 import {Select} from '../ui/Select'
@@ -123,7 +124,7 @@ export function AssistantTab({paneId, onOpenSettings}: {paneId: string; onOpenSe
   const policy = info?.policy ?? 'ask'
   const sharing = policy === 'on' || (policy === 'ask' && !!info?.confirmed)
   const realHost = !!info && info.host_id !== 'local' && !info.host_id.startsWith('serial:')
-  const hostId = info?.host_id.replace(/^telnet:/, '') ?? ''
+  const hostId = baseHostId(info?.host_id ?? '')
   const busy = !!runId
 
   const patchMsg = (rid: string, fn: (m: Extract<Msg, {kind: 'assistant'}>) => Partial<Extract<Msg, {kind: 'assistant'}>>) =>

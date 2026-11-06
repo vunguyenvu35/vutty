@@ -46,7 +46,7 @@ func OpenCommand(cmd *exec.Cmd, cols, rows int, onData func([]byte)) (*Shell, er
 	if cols < 1 || rows < 1 {
 		cols, rows = 80, 24
 	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	cmd.Env = append(append(os.Environ(), cmd.Env...), "TERM=xterm-256color", "COLORTERM=truecolor") // what the caller put in cmd.Env (a key, say) is kept
 	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
 		return nil, err

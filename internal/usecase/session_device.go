@@ -31,6 +31,8 @@ func (s *SessionService) runDevice(sess *session) {
 		}
 	} else if strings.HasPrefix(sess.hostID, kubeExecPrefix) {
 		sh, label, err = s.openKubeShell(sess, cols, rows, batch.Write)
+	} else if strings.HasPrefix(sess.hostID, moshPrefix) {
+		sh, label, err = s.openMosh(sess, cols, rows, batch.Write)
 	} else if strings.HasPrefix(sess.hostID, telnetPrefix) {
 		sh, label, err = s.openTelnet(sess, cols, rows, batch.Write)
 	} else {
@@ -113,6 +115,8 @@ func (s *SessionService) openedMessage(sess *session, label string) string {
 	switch {
 	case sess.hostID == LocalHostID:
 		return "Opened a terminal on this computer"
+	case strings.HasPrefix(sess.hostID, moshPrefix):
+		return "Connected with Mosh to " + label
 	case strings.HasPrefix(sess.hostID, telnetPrefix):
 		return "Connected with Telnet (unencrypted) to " + label
 	case strings.HasPrefix(sess.hostID, kubeExecPrefix):

@@ -140,7 +140,7 @@ func (a *AssistantService) gatewayParts(run *assistRun, g secretpolicy.Guard, pr
 	autoRun := cfg.AutoRun && !info.Production
 	servers := map[string]assistant.ToolServer{"": &terminalTools{a: a, run: run, autoRun: autoRun}}
 	byslug := map[string]assistant.MCPServer{}
-	hostID := strings.TrimPrefix(info.HostID, telnetPrefix)
+	hostID := baseHostID(info.HostID)
 	for _, s := range cfg.MCP {
 		if s.InScope(hostID, provider) {
 			s := s

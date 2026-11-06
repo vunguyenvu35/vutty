@@ -1,11 +1,13 @@
 package usecase
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"vutty/internal/domain"
+	"vutty/internal/testssh"
 )
 
 func TestRDPFileHasTheAddressAndUserAndNoPassword(t *testing.T) {
@@ -84,5 +86,109 @@ func TestOpenRDPRefuses(t *testing.T) {
 	}
 	if _, err := h.app.Host.SaveHost(domain.Host{Label: "e", Hostname: "e", RDPEnabled: true, RDPUsername: "a\nb"}); err == nil {
 		t.Fatal("a user name with a line break")
+	}
+}
+
+func TestParseMoshConnect(t *testing.T) {
+	port, key, err := parseMoshConnect("\r\nMOSH CONNECT 60001 4NeCCgvZFe2RnPgrcU1PQw\r\n\r\nmosh-server (mosh 1.4.0)\r\n")
+	if err != nil || port != 60001 || key != "4NeCCgvZFe2RnPgrcU1PQw" {
+		t.Fatalf("%d %q %v", port, key, err)
+	}
+	for _, bad := range []string{"", "mosh-server is not installed on this host", "MOSH CONNECT 99999 4NeCCgvZFe2RnPgrcU1PQw", "MOSH CONNECT 60001 short", "xMOSH CONNECT 60001 4NeCCgvZFe2RnPgrcU1PQw"} {
+		if _, _, err := parseMoshConnect(bad); err == nil {
+			t.Errorf("%q was accepted", bad)
+		}
+	}
+	if _, _, err := parseMoshConnect("mosh-server is not installed on this host"); err == nil || !strings.Contains(err.Error(), "not installed") {
+		t.Fatalf("the message of the host is the error: %v", err)
+	}
+	if baseHostID("mosh:h1") != "h1" || baseHostID("telnet:h2") != "h2" || baseHostID("h3") != "h3" {
+		t.Fatal("baseHostID")
+	}
+	if ip, err := moshIP("203.0.113.7"); err != nil || ip != "203.0.113.7" {
+		t.Fatalf("%q %v", ip, err)
+	}
+}
+
+func moshServer(t *testing.T, reply string) (*testssh.Server, *string) {
+	t.Helper()
+	var sent string
+	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw", ExecFunc: func(cmd string) (string, string, int) {
+		sent = cmd
+		return reply, "", 0
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Close)
+	return srv, &sent
+}
+
+func TestMoshSessionStartsTheServerOverSSHAndThenTheLocalClient(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	srv, sent := moshServer(t, "\r\nMOSH CONNECT 60007 4NeCCgvZFe2RnPgrcU1PQw\r\n")
+	var got MoshTarget
+	var fk deviceFakes
+	h.core.OpenMosh = func(tg MoshTarget, cols, rows int, onData func([]byte)) (Shell, error) {
+		got = tg
+		s := newFakeShell(onData)
+		fk.mu.Lock()
+		fk.shells = append(fk.shells, s)
+		fk.mu.Unlock()
+		return s, nil
+	}
+	host := h.sshHost(t, "box", srv, "")
+	sid, err := h.open(MoshID(host.ID), 100, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.trust(t, sid) // the same host key question as an SSH terminal
+	if r := h.rec.wait(t, "term:ready:"+sid).data.(map[string]any)["host"]; r != "box" {
+		t.Fatalf("%v", r)
+	}
+	if got != (MoshTarget{IP: "127.0.0.1", Port: 60007, Key: "4NeCCgvZFe2RnPgrcU1PQw"}) {
+		t.Fatalf("%+v", got)
+	}
+	if !strings.Contains(*sent, "mosh-server new -s -c 256 -l LANG=en_US.UTF-8") || !strings.Contains(*sent, "C.UTF-8") {
+		t.Fatalf("%q", *sent)
+	}
+	if e := h.waitLog(t, "Connected with Mosh to box"); !e.OK {
+		t.Fatalf("%+v", e)
+	}
+	for _, e := range h.logs(t, domain.ActivityFilter{}) {
+		if strings.Contains(e.Message, "4NeCCgvZFe2RnPgrcU1PQw") {
+			t.Fatal("the key of the session must never reach the log")
+		}
+	}
+	if err := h.app.Session.Write(sid, "ls\r"); err != nil {
+		t.Fatal(err)
+	}
+	h.rec.waitOutput(t, sid, "echo:ls\r")
+}
+
+func TestMoshReportsWhatWentWrong(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	h.core.OpenMosh = func(MoshTarget, int, int, func([]byte)) (Shell, error) {
+		return nil, errors.New("mosh-client was not found")
+	}
+	srv, _ := moshServer(t, "mosh-server is not installed on this host")
+	host := h.sshHost(t, "box", srv, "")
+	sid, _ := h.open(MoshID(host.ID), 80, 24)
+	h.trust(t, sid)
+	if m := h.rec.wait(t, "term:closed:"+sid).data.(map[string]any); !strings.Contains(m["reason"].(string), "not installed") {
+		t.Fatalf("%+v", m)
+	}
+	srv2, _ := moshServer(t, "MOSH CONNECT 60007 4NeCCgvZFe2RnPgrcU1PQw")
+	host2 := h.sshHost(t, "box2", srv2, "")
+	sid2, _ := h.open(MoshID(host2.ID), 80, 24)
+	h.trust(t, sid2)
+	if m := h.rec.wait(t, "term:closed:"+sid2).data.(map[string]any); !strings.Contains(m["reason"].(string), "mosh-client was not found") {
+		t.Fatalf("the error of the local client: %+v", m)
+	}
+	// a jump host is refused before anything connects
+	jumped := h.sshHost(t, "far", srv, host.ID)
+	sid3, _ := h.open(MoshID(jumped.ID), 80, 24)
+	if m := h.rec.wait(t, "term:closed:"+sid3).data.(map[string]any); !strings.Contains(m["reason"].(string), "jump host") {
+		t.Fatalf("%+v", m)
 	}
 }
