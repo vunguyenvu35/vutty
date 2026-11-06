@@ -113,6 +113,11 @@ export interface Backend {
     /** the folder session logs are written to now (the chosen one, else the default) */
     sessionLogFolder(): Promise<string>
   }
+  /** a path to the VNC server of a host, for the viewer in a tab: connect a WebSocket to the url; the VNC password is typed in the viewer */
+  vnc: {
+    open(hostId: string, promptKey: string): Promise<{sid: string; url: string; host: string}>
+    close(sid: string): Promise<void>
+  }
   sftp: {
     open(hostId: string, promptKey: string): Promise<SftpInfo>
     list(sid: string, dir: string): Promise<RemoteEntry[]>
@@ -562,6 +567,10 @@ export function wailsBackend(): Backend {
       reset: () => u('SettingsService', 'ResetSettings'),
       clearCache: () => u('SettingsService', 'ClearCache'),
       sessionLogFolder: () => u('SettingsService', 'SessionLogFolder'),
+    },
+    vnc: {
+      open: (h, k) => u('VncService', 'Open', h, k),
+      close: s => u('VncService', 'Close', s),
     },
     sftp: {
       open: (h, k) => u('SftpService', 'Open', h, k),

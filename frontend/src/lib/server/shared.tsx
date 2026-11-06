@@ -26,6 +26,8 @@ export interface ServerConnection {
   phase: 'connecting' | 'ready' | 'closed'
   /** the session to ask things of, '' until the connection is ready */
   sid: string
+  /** where the viewer connects (a VNC connection only) */
+  url: string
   /** the question or the error to show while the connection is not ready */
   notice: JSX.Element | null
 }
@@ -34,7 +36,7 @@ export interface ServerConnection {
  * One SSH connection for the Server section or a Server tab: opened when the component shows, closed when it goes away, and asked
  * again with Reconnect. The host key question and the password question of the connection are part of `notice`.
  */
-export function useServerConnection(host: Host): ServerConnection {
+export function useServerConnection(host: Host, kind: 'server' | 'vnc' = 'server'): ServerConnection {
   const be = useBackend()
   const t = useT()
   const alive = useRef(true)
@@ -44,6 +46,7 @@ export function useServerConnection(host: Host): ServerConnection {
   const [prompt, setPrompt] = useState<{key: string; p: HostKeyPrompt} | null>(null)
   const [auth, setAuth] = useState<{key: string; c: AuthChallenge} | null>(null)
   const [sid, setSid] = useState('')
+  const [url, setUrl] = useState('')
 
   useEffect(() => {
     alive.current = true
@@ -55,13 +58,15 @@ export function useServerConnection(host: Host): ServerConnection {
     setSid('')
     ;(async () => {
       try {
-        const info = await be.server.open(host.id, key)
-        if (!alive.current) { void be.server.close(info.sid).catch(() => {}); return }
+        const info: {sid: string; url?: string} = kind === 'vnc' ? await be.vnc.open(host.id, key) : await be.server.open(host.id, key)
+        const closeIt = (s: string) => (kind === 'vnc' ? be.vnc.close(s) : be.server.close(s))
+        if (!alive.current) { void closeIt(info.sid).catch(() => {}); return }
         opened = info.sid
-        offs.push(be.on(`server:closed:${info.sid}`, () => { setPhase('closed'); setReason(t('The connection was lost.')); setSid(''); opened = '' }))
+        offs.push(be.on(`${kind === 'vnc' ? 'vnc' : 'server'}:closed:${info.sid}`, (d: {reason?: string} | undefined) => { setPhase('closed'); setReason(kind === 'vnc' && d?.reason && d.reason !== 'ended' ? d.reason : t('The connection was lost.')); setSid(''); setUrl(''); opened = '' }))
         setPrompt(null)
         setAuth(null)
         setSid(info.sid)
+        setUrl(info.url ?? '')
         setPhase('ready')
       } catch (e) {
         if (alive.current) { setPrompt(null); setAuth(null); setPhase('closed'); setReason(errMsg(e)) }
@@ -70,9 +75,9 @@ export function useServerConnection(host: Host): ServerConnection {
     return () => {
       alive.current = false
       offs.forEach(o => o())
-      if (opened) void be.server.close(opened).catch(() => {})
+      if (opened) void (kind === 'vnc' ? be.vnc.close(opened) : be.server.close(opened)).catch(() => {})
     }
-  }, [be, host.id, attempt, t])
+  }, [be, host.id, attempt, t, kind])
 
   const answer = (trust: boolean) => {
     if (!prompt) return
@@ -99,7 +104,7 @@ export function useServerConnection(host: Host): ServerConnection {
       )}
     </>
   )
-  return {phase, sid, notice}
+  return {phase, sid, url, notice}
 }
 
 /**

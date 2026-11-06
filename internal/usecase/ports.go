@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"vutty/internal/domain"
@@ -203,3 +204,13 @@ type MoshTarget struct {
 // MoshOpener starts the Mosh client of this computer on a target, in a terminal. The key goes to the client in its environment,
 // never on a command line.
 type MoshOpener func(t MoshTarget, cols, rows int, onData func([]byte)) (Shell, error)
+
+// VNCBridge is a path from the page of the app to a VNC server: a WebSocket address on this computer that the viewer connects to once.
+type VNCBridge interface {
+	Address() string
+	Close()
+}
+
+// VNCBridgeStarter opens a VNCBridge. dial opens the connection to the VNC server when the viewer connects; onEnd is told once
+// when the viewer or the server hangs up (nil for an ordinary end).
+type VNCBridgeStarter func(dial func() (net.Conn, error), onEnd func(error)) (VNCBridge, error)

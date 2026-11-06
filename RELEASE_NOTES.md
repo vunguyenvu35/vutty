@@ -9,6 +9,7 @@ Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: be
 - **FTP and FTPS in the SFTP tab.** A host can have FTP (explicit TLS, implicit TLS or plain) next to SSH: it shows as "name (FTP)" in Select host and as a protocol choice. Browse, queue, resume, drag and drop and edit-and-save-back work as for SFTP; the password is in the vault; FTPS checks the certificate. Permissions and jump hosts do not work over FTP.
 - **RDP.** A host can have Remote Desktop turned on; choosing RDP on the protocol screen starts your computer's own client (mstsc on Windows, Microsoft Remote Desktop on a Mac, FreeRDP or Remmina on Linux). Vutty does not draw the desktop and keeps no RDP password. Not yet tried on Windows or Linux.
 - **Mosh.** Choose Mosh on the protocol screen: Vutty logs in over SSH, starts `mosh-server`, and runs the `mosh-client` of your computer (install `mosh` first; not on Windows, not through a jump host). The session key is passed in the environment and never logged. Needs UDP 60000–61000 open on the host.
+- **VNC in a tab.** A host can have VNC turned on, through its SSH login (the default: nothing crosses the network in the clear) or direct (not encrypted, and the app says so). Choosing VNC draws the screen of the host in a tab with noVNC, with Fit, View only and Ctrl+Alt+Del. The VNC password is asked in the tab and never kept. The viewer connects to a path that listens on 127.0.0.1 only, behind a secret address good for one connection. Not yet tried against a real VNC server.
 
 ## What's new in 1.6.6
 

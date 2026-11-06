@@ -22,7 +22,7 @@ export interface Split {
 
 export type Node = Leaf | Split
 
-export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings' | 'server' | 'cluster'
+export type TabKind = 'terminal' | 'sftp' | 'new' | 'settings' | 'server' | 'cluster' | 'vnc'
 
 export interface Tab {
   id: string
@@ -94,7 +94,7 @@ export const MAX_TAB_TITLE = 60
 
 export const isSftp = (t: Tab) => t.kind === 'sftp'
 /** a tab that runs sessions (not the file browser, not a blank new tab) */
-export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings' && t.kind !== 'server' && t.kind !== 'cluster'
+export const isTerminalTab = (t: Tab) => t.kind !== 'sftp' && t.kind !== 'new' && t.kind !== 'settings' && t.kind !== 'server' && t.kind !== 'cluster' && t.kind !== 'vnc'
 
 /** A blank tab: search hosts and tabs, recent connections. It becomes a terminal when a host is picked. */
 export function newBlankTab(title: string): Tab {

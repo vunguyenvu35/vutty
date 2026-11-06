@@ -191,7 +191,7 @@ export function HostList(p: Props) {
         : <span className={'tile env-' + (h.env || 'none')} title={h.env || t('no environment')}><IconServer size={20} /></span>}
       <div className="meta">
         <div className="label">{h.label}</div>
-        <div className="addr">{['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.rdp_enabled ? 'rdp' : '', h.username].filter(Boolean).join(', ')} · {formatAddr({hostname: h.hostname, port: h.port})}</div>
+        <div className="addr">{['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.rdp_enabled ? 'rdp' : '', h.vnc_enabled ? 'vnc' : '', h.username].filter(Boolean).join(', ')} · {formatAddr({hostname: h.hostname, port: h.port})}</div>
       </div>
       <div className="actions">
         <button className="icon ghost" aria-label={t('Connect {name}', {name: h.label})} onClick={() => p.onConnect(h)}><IconPlay size={14} /></button>

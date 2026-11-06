@@ -32,6 +32,9 @@ async function unlock(be: ReturnType<typeof makeFake>) {
 
 const hostCard = (name: string) => screen.getByText(name, {selector: '.label'})
 
+// the VNC viewer draws on a canvas, which jsdom does not have: the App tests only see that its tab opens
+vi.mock('@novnc/novnc', () => ({default: class extends EventTarget { scaleViewport = false; resizeSession = false; background = ''; viewOnly = false; disconnect() {} focus() {} }}))
+
 describe('App', () => {
   it('starts on the unlock screen and shows hosts after unlocking', async () => {
     const be = setup()
@@ -1493,6 +1496,18 @@ describe('App: ask which protocol to use', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
     expect(await screen.findByTestId('terminal')).toHaveAttribute('data-host', 'mosh:h1')
     expect(screen.getByRole('tab', {name: /web-1 \(Mosh\)/})).toBeInTheDocument()
+  })
+
+  it('VNC opens a tab of its own that draws the screen of the host', async () => {
+    const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}, hosts: [host({id: 'h1', label: 'web-1', vnc_enabled: true, vnc_port: 5900, vnc_via_ssh: true} as never)]} as never)
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('radio', {name: /VNC/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    expect(await screen.findByRole('region', {name: 'VNC of web-1'})).toBeInTheDocument()
+    expect(screen.getByRole('tab', {name: /web-1 \(VNC\)/})).toBeInTheDocument()
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'vnc.open' && c[1] === 'h1')).toBe(true))
+    expect(screen.queryByTestId('terminal')).toBeNull()
   })
 })
 

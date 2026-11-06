@@ -27,6 +27,7 @@ type Services struct {
 	Exec      *ExecService
 	Server    *ServerService
 	Cluster   *ClusterService
+	Vnc       *VncService
 }
 
 // New builds every use case service.
@@ -57,6 +58,7 @@ func New(core *Core) *Services {
 		Exec:      NewExecService(core),
 		Server:    server,
 		Cluster:   NewClusterService(core, server),
+		Vnc:       NewVncService(core),
 	}
 }
 
@@ -68,6 +70,7 @@ func (s *Services) Shutdown() {
 	s.Forward.StopAll()
 	s.Session.CloseAll()
 	s.Sftp.CloseAll()
+	s.Vnc.CloseAll()
 	s.Server.CloseAll()
 	s.Core.Vault.Lock()
 }

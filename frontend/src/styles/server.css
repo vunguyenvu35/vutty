@@ -210,3 +210,13 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
   .sp-slim { display: none; }
   .sp-shell.slim .sp-rail { width: auto; }
 }
+
+/* a VNC server in a tab */
+.vnc { height: 100%; display: flex; flex-direction: column; background: var(--bg); color: var(--text); overflow: hidden; }
+.vnc-bar { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.vnc-bar h1 { margin: 0; font-size: 14px; font-weight: 600; }
+.vnc-bar span { color: var(--muted); font-size: 12px; }
+.vnc-bar .grow { flex: 1; }
+.vnc-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
+.vnc-screen { position: absolute; inset: 0; }
+.vnc-login { display: grid; gap: 10px; width: min(320px, 90%); padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel, var(--bg)); }

@@ -73,7 +73,7 @@ func NewBridge(a *App, onChange func(service string)) *Bridge {
 			"HostService": a.Host, "VaultService": a.Vault, "SessionService": a.Session, "ForwardService": a.Forward,
 			"SyncService": a.Sync, "ImportExportService": a.ImportExp, "SettingsService": a.Settings, "SnippetService": a.Snippet,
 			"SftpService": a.Sftp, "LocalService": a.Local, "SerialService": a.Serial, "LogService": a.Log, "KnownHostsService": a.KnownHost, "AssistantService": a.Assistant,
-			"ExecService": a.Exec, "ServerService": a.Server, "ClusterService": a.Cluster,
+			"ExecService": a.Exec, "ServerService": a.Server, "ClusterService": a.Cluster, "VncService": a.Vnc,
 		},
 		wake: make(chan struct{}),
 	}

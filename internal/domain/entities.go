@@ -106,6 +106,12 @@ type Host struct {
 	RDPEnabled  bool   `json:"rdp_enabled,omitempty"`
 	RDPPort     int    `json:"rdp_port,omitempty"`
 	RDPUsername string `json:"rdp_username,omitempty"`
+	// VNC: the host can also be reached with VNC on VNCPort, drawn in a tab of the app. VNCViaSSH takes the connection through the SSH login
+	// (the usual way: a VNC server listens on the host itself and has no encryption of its own). The VNC password is asked for in the tab
+	// and never kept.
+	VNCEnabled bool `json:"vnc_enabled,omitempty"`
+	VNCPort    int  `json:"vnc_port,omitempty"`
+	VNCViaSSH  bool `json:"vnc_via_ssh,omitempty"`
 	// TerminalTheme is this host's own colour theme (an id from the UI catalogue); empty follows Settings.
 	TerminalTheme string `json:"terminal_theme,omitempty"`
 	// AIPolicy is the AI assistant switch for this host: "" (off on prod hosts, ask elsewhere), off, ask or on.

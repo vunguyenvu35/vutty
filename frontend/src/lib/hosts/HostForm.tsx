@@ -74,6 +74,10 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     rdp_on: !!host?.rdp_enabled,
     rdp_port: host?.rdp_enabled ? String(host.rdp_port || 3389) : '',
     rdp_username: host?.rdp_username ?? '',
+    // VNC: drawn in a tab; through the SSH login unless the host says otherwise (a new one starts on)
+    vnc_on: !!host?.vnc_enabled,
+    vnc_port: host?.vnc_enabled ? String(host.vnc_port || 5900) : '',
+    vnc_ssh: host?.vnc_enabled ? !!host.vnc_via_ssh : true,
     terminal_theme: host?.terminal_theme ?? '',
     ai_policy: (host?.ai_policy ?? '') as AiPolicy,
     forward_agent: !!host?.forward_agent,
@@ -88,7 +92,7 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
   useEffect(() => () => { alive.current = false }, [])
   const [showTelnetPw, setShowTelnetPw] = useState(false)
   const [showFtpPw, setShowFtpPw] = useState(false)
-  const set = (k: Exclude<keyof typeof f, 'telnet_on' | 'ftp_on' | 'rdp_on'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
+  const set = (k: Exclude<keyof typeof f, 'telnet_on' | 'ftp_on' | 'rdp_on' | 'vnc_on' | 'vnc_ssh'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
   const existing = !!host && !isNew
 
   useEffect(() => { onDraft?.(f.label.trim() || f.hostname.trim()) }, [f.label, f.hostname, onDraft])
@@ -106,6 +110,8 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     if (f.ftp_on && (!Number.isInteger(ftp) || ftp < 1 || ftp > 65535)) { setErr(t('FTP port must be between 1 and 65535')); return null }
     const rdp = !f.rdp_on ? 0 : f.rdp_port.trim() === '' ? 3389 : Number(f.rdp_port)
     if (f.rdp_on && (!Number.isInteger(rdp) || rdp < 1 || rdp > 65535)) { setErr(t('Remote Desktop port must be between 1 and 65535')); return null }
+    const vnc = !f.vnc_on ? 0 : f.vnc_port.trim() === '' ? 5900 : Number(f.vnc_port)
+    if (f.vnc_on && (!Number.isInteger(vnc) || vnc < 1 || vnc > 65535)) { setErr(t('VNC port must be between 1 and 65535')); return null }
     setErr('')
     return {
       ...(existing ? host : {}),
@@ -116,6 +122,9 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
       rdp_enabled: rdp > 0,
       rdp_port: rdp,
       rdp_username: f.rdp_on ? f.rdp_username.trim() : '',
+      vnc_enabled: vnc > 0,
+      vnc_port: vnc,
+      vnc_via_ssh: f.vnc_on && f.vnc_ssh,
       telnet_enabled: telnet > 0,
       telnet_port: telnet,
       telnet_username: f.telnet_on ? f.telnet_username.trim() : '',
@@ -272,6 +281,17 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
             <button type="button" className="link remove-rdp" onClick={() => setF(x => ({...x, rdp_on: false, rdp_port: '', rdp_username: ''}))}>{t('Remove')}</button></div>
           <div className="muted" role="note">{t("Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.")}</div>
           <input aria-label={t('Remote Desktop username')} value={f.rdp_username} onChange={set('rdp_username')} placeholder={t('Username (empty: the one above)')} autoComplete="off" />
+        </Section>
+      )}
+
+      {!f.vnc_on ? (
+        <button type="button" className="add-wide" onClick={() => setF(x => ({...x, vnc_on: true, vnc_port: x.vnc_port || '5900'}))}><IconPlus size={17} /> {t('Add VNC')}</button>
+      ) : (
+        <Section>
+          <div className="inline-field"><span>{t('VNC on')}</span><input aria-label={t('VNC port')} className="port" placeholder="5900" value={f.vnc_port} onChange={set('vnc_port')} inputMode="numeric" /><span>{t('port')}</span>
+            <button type="button" className="link remove-vnc" onClick={() => setF(x => ({...x, vnc_on: false, vnc_port: '', vnc_ssh: true}))}>{t('Remove')}</button></div>
+          <label className="check"><input type="checkbox" checked={f.vnc_ssh} onChange={e => setF(x => ({...x, vnc_ssh: e.target.checked}))} /> {t('Through the SSH login (recommended)')}</label>
+          <div className="muted" role="note">{f.vnc_ssh ? t('The VNC server is reached as 127.0.0.1 on the host, inside the encrypted SSH connection.') : t('Direct VNC is not encrypted: the screen, what you type and the password cross the network in the clear.')} {t('The VNC password is asked in the tab and not kept.')}</div>
         </Section>
       )}
 

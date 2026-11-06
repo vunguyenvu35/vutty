@@ -84,7 +84,7 @@ export function TopBar(p: Props) {
     if (tb.kind === 'sftp') return <IconFolder size={15} />
     if (tb.kind === 'new') return <IconPlus size={15} />
     if (tb.kind === 'settings') return <IconGear size={15} />
-    if (tb.kind === 'server') return <IconServer size={15} />
+    if (tb.kind === 'server' || tb.kind === 'vnc') return <IconServer size={15} />
     if (tb.kind === 'cluster') return <IconCloud size={15} />
     const hostId = leaves(tb.root)[0]?.hostId ?? ''
     const id = baseHostId(hostId)

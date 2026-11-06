@@ -111,6 +111,15 @@ func NormalizeHost(h *Host) error {
 	if len(h.RDPUsername) > 128 || strings.ContainsAny(h.RDPUsername, "\r\n\x00") {
 		return errors.New("invalid rdp user name")
 	}
+	if h.VNCEnabled && h.VNCPort == 0 {
+		h.VNCPort = 5900
+	}
+	if h.VNCPort < 0 || h.VNCPort > 65535 {
+		return errors.New("vnc port out of range")
+	}
+	if !h.VNCEnabled {
+		h.VNCPort, h.VNCViaSSH = 0, false
+	}
 	switch h.TelnetEncoding = strings.ToLower(strings.TrimSpace(h.TelnetEncoding)); h.TelnetEncoding {
 	case "", "utf-8", "iso-8859-1":
 	default:

@@ -1,6 +1,6 @@
 import {draggingPane, draggingTab, isTerminalTab, leaves, SFTP_TAB_ID, PANE_DRAG, paneRects, setDraggingPane, sideOf, TAB_DRAG, type DropSide, type Rect, type Tab} from '../layout'
 import {baseHostId, protocolOf} from '../hostId'
-import {useState} from 'react'
+import {lazy, Suspense, useState} from 'react'
 import {SftpBrowser} from '../sftp/SftpBrowser'
 import {ServerPanel} from '../server/ServerPanel'
 import {ClusterPanel} from '../server/ClusterPanel'
@@ -11,6 +11,8 @@ import {IconBroadcast, IconClose, IconGrip, IconMaximizePane, IconMinimizePane, 
 import {TerminalPane} from './TerminalPane'
 import {NewTabScreen} from '../shell/NewTabScreen'
 import {ProtocolScreen, type Protocol} from './ProtocolScreen'
+// the viewer (noVNC) is loaded when a VNC tab is first shown
+const VncViewer = lazy(() => import('../vnc/VncViewer').then(m => ({default: m.VncViewer})))
 import type {Cluster, Group, Host, Settings} from '../types'
 import {resolveTerminalTheme} from './themes'
 import type {Appearance} from '../settings/appearance'
@@ -84,7 +86,7 @@ export function Workspace(p: Props) {
     const h = hostOf(hostId)
     if (!h) return {label: hostId, detail: ''}
     if (protocolOf(hostId)) return {label: h.label, detail: [protocolOf(hostId), h.username].filter(Boolean).join(', '), os: h.os}
-    return {label: h.label, detail: ['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.rdp_enabled ? 'rdp' : '', h.username].filter(Boolean).join(', '), os: h.os}
+    return {label: h.label, detail: ['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.rdp_enabled ? 'rdp' : '', h.vnc_enabled ? 'vnc' : '', h.username].filter(Boolean).join(', '), os: h.os}
   }
   /** "SSH host:port", "Telnet host:port", "this computer" */
   const connectLine = (hostId: string) => {
@@ -193,6 +195,9 @@ export function Workspace(p: Props) {
     } else if (tb.kind === 'server') {
       const h = hostOf(leaves(tb.root)[0].hostId)
       layer(h ? <ServerPanel host={h} visible={active} onAccess={p.onAccessHost ? () => p.onAccessHost!(h) : undefined} onShell={p.onShell} /> : <div className="side-empty">{t('This host no longer exists.')}</div>)
+    } else if (tb.kind === 'vnc') {
+      const h = hostOf(leaves(tb.root)[0].hostId)
+      layer(h ? <Suspense fallback={<div className="side-empty">{t('Loading…')}</div>}><VncViewer host={h} visible={active} /></Suspense> : <div className="side-empty">{t('This host no longer exists.')}</div>)
     } else if (tb.kind === 'cluster') {
       const c = (p.clusters ?? []).find(x => 'kube:' + x.id === leaves(tb.root)[0].hostId)
       layer(c ? <ClusterPanel cluster={c} visible={active} onPodShell={p.onPodShell} /> : <div className="side-empty">{t('This cluster no longer exists.')}</div>)

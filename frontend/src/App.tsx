@@ -367,6 +367,7 @@ export default function App({initial}: {/** an app window opened for this place 
       if (t.id !== tabId || t.root.type !== 'leaf') return t
       const h = hosts.find(x => x.id === (t.root as Leaf).hostId)
       if (proto === 'panel') return {...t, choose: false, kind: 'server' as const, title: uniqueTitle(ts.filter(x => x.id !== tabId), (h?.label ?? t.title) + ' (Panel)')}
+      if (proto === 'vnc') return {...t, choose: false, kind: 'vnc' as const, title: uniqueTitle(ts.filter(x => x.id !== tabId), (h?.label ?? t.title) + ' (VNC)')}
       const title = (proto === 'telnet' || proto === 'mosh') && h ? uniqueTitle(ts.filter(x => x.id !== tabId), h.label + (proto === 'mosh' ? ' (Mosh)' : ' (Telnet)')) : t.title
       return {...t, choose: false, title, root: proto === 'telnet' || proto === 'mosh' ? {...t.root, hostId: proto + ':' + t.root.hostId} : t.root}
     }))

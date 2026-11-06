@@ -403,6 +403,10 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       clearCache: async () => { rec('settings.clearCache'); return {...state.cache} },
       sessionLogFolder: async () => state.settings.session_log_dir || '/Users/me/Library/Application Support/vutty/session-logs',
     },
+    vnc: {
+      open: async (h, k) => { rec('vnc.open', h, k); if (state.server.failAction) throw new Error(state.server.failAction); return {sid: 'vnc1', url: 'ws://127.0.0.1:1/secret', host: h} },
+      close: async s => { rec('vnc.close', s) },
+    },
     sftp: {
       open: async (h, k) => { rec('sftp.open', h, k); return {sid: id('sf'), home: '/', host: state.hosts.find(x => x.id === h)?.label ?? 'host'} },
       list: async (s, dir) => {
