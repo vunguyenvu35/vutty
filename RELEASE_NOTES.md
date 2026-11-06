@@ -11,6 +11,8 @@ Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: be
 - **Mosh.** Choose Mosh on the protocol screen: Vutty logs in over SSH, starts `mosh-server`, and runs the `mosh-client` of your computer (install `mosh` first; not on Windows, not through a jump host). The session key is passed in the environment and never logged. Needs UDP 60000–61000 open on the host.
 - **VNC in a tab.** A host can have VNC turned on, through its SSH login (the default: nothing crosses the network in the clear) or direct (not encrypted, and the app says so). Choosing VNC draws the screen of the host in a tab with noVNC, with Fit, View only and Ctrl+Alt+Del. The VNC password is asked in the tab and never kept. The viewer connects to a path that listens on 127.0.0.1 only, behind a secret address good for one connection. Not yet tried against a real VNC server.
 
+Not yet seen against a real server: FTP, Mosh, RDP on Windows and Linux, and VNC are covered by tests; try them on a throwaway host first.
+
 ## What's new in 1.6.6
 
 - **Panel: the sections are in a list on the left, in three groups (#64).** Monitor (Overview, Processes, Logs, Incident), Run (Services, Docker, Kubernetes, Web, Schedule) and Manage (Ports & firewall, Security, Users, Maintenance), instead of one row of 13 tabs. What the Overview lists under *Needs attention* is marked on the section it belongs to (a failed service on Services, a certificate on Web, updates and the disk on Maintenance) and counted on its group, so it can be seen without opening the Overview. The list can show icons only (kept on this computer). Under 760 px it becomes a row.
