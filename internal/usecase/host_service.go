@@ -38,6 +38,7 @@ func (s *HostService) DeleteGroup(id string) error {
 	if s.c.Vault != nil {
 		for _, hid := range hostIDs {
 			_ = s.c.Vault.DeleteSecret(domain.TelnetSecretRef(hid)) // nothing to delete is fine
+			_ = s.c.Vault.DeleteSecret(domain.FTPSecretRef(hid))
 		}
 	}
 	return nil
@@ -55,6 +56,7 @@ func (s *HostService) DeleteHost(id string) error {
 	}
 	if s.c.Vault != nil {
 		_ = s.c.Vault.DeleteSecret(domain.TelnetSecretRef(id)) // nothing to delete is fine
+		_ = s.c.Vault.DeleteSecret(domain.FTPSecretRef(id))
 	}
 	return nil
 }
@@ -65,6 +67,19 @@ func (s *HostService) SetTelnetPassword(hostID, password string) error {
 		return err
 	}
 	ref := domain.TelnetSecretRef(hostID)
+	if password == "" {
+		_ = s.c.Vault.DeleteSecret(ref)
+		return nil
+	}
+	return vaultErr(s.c.Vault.PutSecret(ref, domain.SecretPassword, []byte(password)))
+}
+
+// SetFTPPassword keeps the FTP password of a host in the vault; an empty password forgets it.
+func (s *HostService) SetFTPPassword(hostID, password string) error {
+	if _, err := s.c.Store.GetHost(hostID); err != nil {
+		return err
+	}
+	ref := domain.FTPSecretRef(hostID)
 	if password == "" {
 		_ = s.c.Vault.DeleteSecret(ref)
 		return nil

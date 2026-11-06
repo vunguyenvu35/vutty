@@ -94,6 +94,13 @@ type Host struct {
 	// vault (see TelnetSecretRef). TelnetEncoding is "" or "utf-8" (the default), or "iso-8859-1".
 	TelnetUsername string `json:"telnet_username,omitempty"`
 	TelnetEncoding string `json:"telnet_encoding,omitempty"`
+	// FTP: the host can also be reached with FTP (plain, or FTPS: explicit TLS or implicit TLS) on FTPPort, to browse and
+	// transfer files in the SFTP tab. Plain FTP is unencrypted: opt in per host. FTPUsername is the login (empty: the host's user name);
+	// the password is in the vault (see FTPSecretRef).
+	FTPEnabled  bool   `json:"ftp_enabled,omitempty"`
+	FTPPort     int    `json:"ftp_port,omitempty"`
+	FTPSecurity string `json:"ftp_security,omitempty"` // "" (plain), "explicit" (FTPS, AUTH TLS) or "implicit" (FTPS on its own port)
+	FTPUsername string `json:"ftp_username,omitempty"`
 	// TerminalTheme is this host's own colour theme (an id from the UI catalogue); empty follows Settings.
 	TerminalTheme string `json:"terminal_theme,omitempty"`
 	// AIPolicy is the AI assistant switch for this host: "" (off on prod hosts, ask elsewhere), off, ask or on.
@@ -227,3 +234,6 @@ type ActivityFilter struct {
 
 // TelnetSecretRef is where the vault keeps the Telnet password of a host.
 func TelnetSecretRef(hostID string) string { return "telnet:" + hostID }
+
+// FTPSecretRef is where the vault keeps the FTP password of a host.
+func FTPSecretRef(hostID string) string { return "ftp:" + hostID }

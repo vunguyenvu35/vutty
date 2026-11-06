@@ -182,7 +182,7 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
                   <div className="rtabs" role="tablist" aria-label={t('Remote hosts')}>
                     {tabs.map(x => (
                       <div key={x.key} role="tab" aria-selected={x.key === activeKey} className={'rtab' + (x.key === activeKey ? ' on' : '')} onClick={() => setActiveKey(x.key)}>
-                        {x.host.id === LOCAL_HOST_ID ? <IconFolder size={15} /> : <OsIcon os={hosts.find(h => h.id === x.host.id)?.os} size={15} />}
+                        {x.host.id === LOCAL_HOST_ID ? <IconFolder size={15} /> : <OsIcon os={hosts.find(h => h.id === x.host.id.replace(/^ftp:/, ''))?.os} size={15} />}
                         <span className="rtab-name">{displayHost(x.host)}</span>
                         <button className="icon ghost fpane-x" aria-label={tabs.length === 1 ? t('Change host') : t('Close {name}', {name: displayHost(x.host)})} title={tabs.length === 1 ? t('Disconnect and pick another host') : t('Close this host')}
                           onClick={e => { e.stopPropagation(); closeTab(x.key) }}><IconClose size={13} /></button>

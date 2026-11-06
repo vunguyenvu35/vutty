@@ -184,6 +184,15 @@
 - TestSocks5FailureCodes
 - TestSocks5RejectsWrongVersionAndAuthOnly
 
+### `internal/ftpx` (6)
+
+- TestBrowseAndChangeFiles
+- TestUploadDownloadAndResume
+- TestCancelStopsATransferAndKeepsWhatCame
+- TestLoginErrorsAndAnonymous
+- TestExplicitAndImplicitTLSCheckTheCertificate
+- TestUnknownSecurity
+
 ### `internal/importer` (22)
 
 - TestParseBasicBlocksAndWildcards
@@ -428,7 +437,7 @@
 - TestRequestsStayOnAllowedHostsAndOverHTTPS
 - TestLatestReleaseReadsTagAndAssets
 
-### `internal/usecase` (403)
+### `internal/usecase` (409)
 
 - TestLogRecordsConnectingAndClosingATab
 - TestLogRecordsAFailedConnectionAndALostOne
@@ -501,6 +510,12 @@
 - TestRunValidatesWhatItIsGiven
 - TestOnlyTheLastRunsAreKeptAndAForgottenRunIsGone
 - TestExpandHostVars
+- TestFTPHostRules
+- TestOpenFTPUsesTheLoginAndPasswordOfTheHost
+- TestOpenFTPFallsBackToTheUserNameOfTheHostAndToAnonymous
+- TestOpenFTPRefusesWhatCannotWork
+- TestFTPSessionEndsWhenThePingFails
+- TestDeletingAHostForgetsItsFTPPassword
 - TestParseShellHistoryKeepsNewestFirstWithoutRepeats
 - TestParseShellHistoryDropsMultiLineAndSecretsAndHugeLines
 - TestHostHistoryIsOffWhenSuggestionsAreOff
@@ -881,7 +896,7 @@
 - TestKeygenSignVerifyRoundTripAndNeverOverwritesAKey
 - TestSigningKeyFromTheEnvironmentAndBadInput
 
-**Go test functions: 803** (table-driven cases and sub-tests are extra).
+**Go test functions: 815** (table-driven cases and sub-tests are extra).
 
 ## Frontend (Vitest)
 

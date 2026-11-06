@@ -64,6 +64,12 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     telnet_username: host?.telnet_username ?? '',
     telnet_password: '',
     telnet_encoding: host?.telnet_encoding || 'utf-8',
+    // FTP for the files of the host, in the SFTP tab: plain, or FTPS with explicit or implicit TLS
+    ftp_on: !!host?.ftp_enabled,
+    ftp_port: host?.ftp_enabled ? String(host.ftp_port || 21) : '',
+    ftp_security: host?.ftp_enabled ? host.ftp_security || 'plain' : 'explicit', // an existing host with no mode is plain FTP
+    ftp_username: host?.ftp_username ?? '',
+    ftp_password: '',
     terminal_theme: host?.terminal_theme ?? '',
     ai_policy: (host?.ai_policy ?? '') as AiPolicy,
     forward_agent: !!host?.forward_agent,
@@ -77,7 +83,8 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
   const alive = useRef(true)
   useEffect(() => () => { alive.current = false }, [])
   const [showTelnetPw, setShowTelnetPw] = useState(false)
-  const set = (k: Exclude<keyof typeof f, 'telnet_on'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
+  const [showFtpPw, setShowFtpPw] = useState(false)
+  const set = (k: Exclude<keyof typeof f, 'telnet_on' | 'ftp_on'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
   const existing = !!host && !isNew
 
   useEffect(() => { onDraft?.(f.label.trim() || f.hostname.trim()) }, [f.label, f.hostname, onDraft])
@@ -91,9 +98,15 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     if (!Number.isInteger(port) || port < 1 || port > 65535) { setErr(t('Port must be between 1 and 65535')); return null }
     const telnet = !f.telnet_on ? 0 : f.telnet_port.trim() === '' ? 23 : Number(f.telnet_port)
     if (f.telnet_on && (!Number.isInteger(telnet) || telnet < 1 || telnet > 65535)) { setErr(t('Telnet port must be between 1 and 65535')); return null }
+    const ftp = !f.ftp_on ? 0 : f.ftp_port.trim() === '' ? (f.ftp_security === 'implicit' ? 990 : 21) : Number(f.ftp_port)
+    if (f.ftp_on && (!Number.isInteger(ftp) || ftp < 1 || ftp > 65535)) { setErr(t('FTP port must be between 1 and 65535')); return null }
     setErr('')
     return {
       ...(existing ? host : {}),
+      ftp_enabled: ftp > 0,
+      ftp_port: ftp,
+      ftp_security: f.ftp_on && f.ftp_security !== 'plain' ? f.ftp_security : '',
+      ftp_username: f.ftp_on ? f.ftp_username.trim() : '',
       telnet_enabled: telnet > 0,
       telnet_port: telnet,
       telnet_username: f.telnet_on ? f.telnet_username.trim() : '',
@@ -127,6 +140,7 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
       }
       const saved = await be.hosts.saveHost(h)
       if (f.telnet_on && f.telnet_password) await be.hosts.setTelnetPassword(saved.id, f.telnet_password)
+      if (f.ftp_on && f.ftp_password) await be.hosts.setFtpPassword(saved.id, f.ftp_password)
       return saved
     } catch (e) {
       setErr(errMsg(e))
@@ -219,6 +233,25 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
           </div>
           <Select label={t('Telnet encoding')} value={f.telnet_encoding} onChange={v => setF(x => ({...x, telnet_encoding: v}))}
             options={[{value: 'utf-8', label: 'UTF-8'}, {value: 'iso-8859-1', label: 'ISO-8859-1', hint: t('Latin-1, older devices')}]} />
+        </Section>
+      )}
+
+      {!f.ftp_on ? (
+        <button type="button" className="add-wide" onClick={() => setF(x => ({...x, ftp_on: true, ftp_port: x.ftp_port || (x.ftp_security === 'implicit' ? '990' : '21')}))}><IconPlus size={17} /> {t('Add FTP')}</button>
+      ) : (
+        <Section>
+          <div className="inline-field"><span>{t('FTP on')}</span><input aria-label={t('FTP port')} className="port" placeholder="21" value={f.ftp_port} onChange={set('ftp_port')} inputMode="numeric" /><span>{t('port')}</span>
+            <button type="button" className="link remove-ftp" onClick={() => setF(x => ({...x, ftp_on: false, ftp_port: '', ftp_username: '', ftp_password: ''}))}>{t('Remove')}</button></div>
+          <Select label={t('FTP security')} value={f.ftp_security} onChange={v => setF(x => ({...x, ftp_security: v, ftp_port: v === 'implicit' && x.ftp_port === '21' ? '990' : v !== 'implicit' && x.ftp_port === '990' ? '21' : x.ftp_port}))}
+            options={[{value: 'explicit', label: 'FTPS (explicit TLS)', hint: t('Encrypted: starts plain, then switches to TLS (port 21)')}, {value: 'implicit', label: 'FTPS (implicit TLS)', hint: t('Encrypted from the first byte (port 990)')}, {value: 'plain', label: t('Plain FTP'), hint: t('Not encrypted')}]} />
+          {f.ftp_security === 'plain' && <div className="muted telnet-warning" role="note">{t('Plain FTP is not encrypted: the password and every file cross the network in clear text. Use it only on a network you trust.')}</div>}
+          <h4 className="card-sub">{t('Credentials')}</h4>
+          <input aria-label={t('FTP username')} value={f.ftp_username} onChange={set('ftp_username')} placeholder={t('Username (empty: the one above, or anonymous)')} autoComplete="off" />
+          <div className="pw-row">
+            <input aria-label={t('FTP password')} type={showFtpPw ? 'text' : 'password'} value={f.ftp_password} onChange={set('ftp_password')} autoComplete="new-password"
+              placeholder={existing && host?.ftp_enabled ? t('Saved in the vault (type to replace)') : t('Password')} />
+            <button type="button" className="eye" aria-label={showFtpPw ? t('Hide FTP password') : t('Show FTP password')} aria-pressed={showFtpPw} onClick={() => setShowFtpPw(v => !v)}>{showFtpPw ? <IconEyeOff size={17} /> : <IconEye size={17} />}</button>
+          </div>
         </Section>
       )}
 

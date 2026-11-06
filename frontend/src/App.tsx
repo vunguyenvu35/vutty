@@ -41,7 +41,7 @@ import {TopBar} from './lib/shell/TopBar'
 import {IconPlus, IconSerial, IconTerminal} from './lib/ui/Icons'
 import {recordRecent} from './lib/hosts/recent'
 import type {Protocol} from './lib/terminal/ProtocolScreen'
-import {OPEN_IN_SFTP} from './lib/sftp/openRequest'
+import {OPEN_IN_SFTP, openInSftp} from './lib/sftp/openRequest'
 import {closePane, connectBlankTab, graftTab, moveTab, movePane, popPane, duplicateOf, hasPane, isTerminalTab, newBlankTab, leaves, MAX_TAB_TITLE, newPodShellTab, newShellTab, newTab, pinnedSftpTab, SETTINGS_TAB_ID, settingsTab, SFTP_TAB_ID, splitPane, Tab, toggleBroadcast, toggleZoom, uniqueTitle} from './lib/layout'
 import {capture, effective, formatCombo, isChord, keyOf, matches, sameStep, stepMatches, stepsOf} from './lib/shortcuts/shortcuts'
 import {errMsg} from './lib/util'
@@ -349,13 +349,21 @@ export default function App({initial}: {/** an app window opened for this place 
     setActive(t.id)
   }
   // the answer of a tab that asked which protocol to use: the same tab goes on with it
-  const chooseProtocol = (tabId: string, proto: Protocol) => setTabs(ts => ts.map(t => {
-    if (t.id !== tabId || t.root.type !== 'leaf') return t
-    const h = hosts.find(x => x.id === (t.root as Leaf).hostId)
-    if (proto === 'panel') return {...t, choose: false, kind: 'server' as const, title: uniqueTitle(ts.filter(x => x.id !== tabId), (h?.label ?? t.title) + ' (Panel)')}
-    const title = proto === 'telnet' && h ? uniqueTitle(ts.filter(x => x.id !== tabId), h.label + ' (Telnet)') : t.title
-    return {...t, choose: false, title, root: proto === 'telnet' ? {...t.root, hostId: 'telnet:' + t.root.hostId} : t.root}
-  }))
+  const chooseProtocol = (tabId: string, proto: Protocol) => {
+    if (proto === 'ftp') { // FTP is files, not a terminal: the SFTP tab opens the host and this tab goes away
+      const leaf = tabs.find(t => t.id === tabId)?.root
+      const h = leaf && leaf.type === 'leaf' ? hosts.find(x => x.id === leaf.hostId) : undefined
+      void closeTab(tabId).then(() => { if (h) openInSftp({id: 'ftp:' + h.id, label: h.label + ' (FTP)'}) })
+      return
+    }
+    setTabs(ts => ts.map(t => {
+      if (t.id !== tabId || t.root.type !== 'leaf') return t
+      const h = hosts.find(x => x.id === (t.root as Leaf).hostId)
+      if (proto === 'panel') return {...t, choose: false, kind: 'server' as const, title: uniqueTitle(ts.filter(x => x.id !== tabId), (h?.label ?? t.title) + ' (Panel)')}
+      const title = proto === 'telnet' && h ? uniqueTitle(ts.filter(x => x.id !== tabId), h.label + ' (Telnet)') : t.title
+      return {...t, choose: false, title, root: proto === 'telnet' ? {...t.root, hostId: 'telnet:' + t.root.hostId} : t.root}
+    }))
+  }
   // the + tab: a blank tab with a search box and the recent connections
   const openBlankTab = () => {
     const t = newBlankTab('')

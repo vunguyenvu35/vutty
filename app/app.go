@@ -13,6 +13,7 @@ import (
 
 	"vutty/internal/agentx"
 	"vutty/internal/domain/assistant"
+	"vutty/internal/ftpx"
 	"vutty/internal/localtty"
 	"vutty/internal/mcpgw"
 	"vutty/internal/serialx"
@@ -134,6 +135,13 @@ func Build(dir string, kc vault.Keychain, kdf *vault.KDFParams) (*App, error) {
 		v.SetKDF(*kdf)
 	}
 	core, err := usecase.NewCore(dir, usecase.Options{CacheDir: cacheDir(), Store: st, Vault: v, OpenRemoteFS: func(c *sshx.Client) (usecase.RemoteFS, error) { return sftpx.Open(c.Client) },
+		OpenFTP: func(cfg usecase.FTPConfig) (usecase.RemoteFS, error) {
+			f, err := ftpx.Open(ftpx.Config{Addr: cfg.Addr, Security: cfg.Security, User: cfg.User, Password: cfg.Password})
+			if err != nil {
+				return nil, err
+			}
+			return f, nil
+		},
 		OpenLocalShell: func(cols, rows int, onData func([]byte)) (usecase.Shell, error) {
 			return localtty.Open(cols, rows, onData)
 		},

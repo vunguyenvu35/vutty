@@ -83,7 +83,7 @@ export function Workspace(p: Props) {
     const h = hostOf(hostId)
     if (!h) return {label: hostId, detail: ''}
     if (hostId.startsWith('telnet:')) return {label: h.label, detail: ['telnet', h.username].filter(Boolean).join(', '), os: h.os}
-    return {label: h.label, detail: ['ssh', h.telnet_enabled ? 'telnet' : '', h.username].filter(Boolean).join(', '), os: h.os}
+    return {label: h.label, detail: ['ssh', h.telnet_enabled ? 'telnet' : '', h.ftp_enabled ? (h.ftp_security ? 'ftps' : 'ftp') : '', h.username].filter(Boolean).join(', '), os: h.os}
   }
   /** "SSH host:port", "Telnet host:port", "this computer" */
   const connectLine = (hostId: string) => {

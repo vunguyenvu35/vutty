@@ -353,6 +353,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       },
       deleteHost: async i => { state.hosts = state.hosts.filter(h => h.id !== i) },
       setTelnetPassword: async (i, pw) => { rec('hosts.setTelnetPassword', i, pw) },
+      setFtpPassword: async (i, pw) => { rec('hosts.setFtpPassword', i, pw) },
     },
     session: {
       open: async (h, c, r) => { rec('session.open', h, c, r); return id('s') },

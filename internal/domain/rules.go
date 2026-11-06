@@ -78,6 +78,27 @@ func NormalizeHost(h *Host) error {
 	if len(h.TelnetUsername) > 128 || strings.ContainsAny(h.TelnetUsername, "\r\n\x00") {
 		return errors.New("invalid telnet user name")
 	}
+	h.FTPSecurity = strings.ToLower(strings.TrimSpace(h.FTPSecurity))
+	switch h.FTPSecurity {
+	case "", "explicit", "implicit":
+	default:
+		return fmt.Errorf("invalid ftp security %q", h.FTPSecurity)
+	}
+	if h.FTPEnabled && h.FTPPort == 0 {
+		h.FTPPort = 21
+		if h.FTPSecurity == "implicit" {
+			h.FTPPort = 990
+		}
+	}
+	if h.FTPPort < 0 || h.FTPPort > 65535 {
+		return errors.New("ftp port out of range")
+	}
+	if !h.FTPEnabled {
+		h.FTPPort, h.FTPSecurity = 0, "" // a port or a mode without FTP means nothing
+	}
+	if len(h.FTPUsername) > 128 || strings.ContainsAny(h.FTPUsername, "\r\n\x00") {
+		return errors.New("invalid ftp user name")
+	}
 	switch h.TelnetEncoding = strings.ToLower(strings.TrimSpace(h.TelnetEncoding)); h.TelnetEncoding {
 	case "", "utf-8", "iso-8859-1":
 	default:

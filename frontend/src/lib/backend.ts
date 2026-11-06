@@ -53,6 +53,8 @@ export interface Backend {
     deleteHost(id: string): Promise<void>
     /** keeps the Telnet password of a host in the vault (empty forgets it) */
     setTelnetPassword(hostId: string, password: string): Promise<void>
+    /** keeps the FTP password of a host in the vault (empty forgets it) */
+    setFtpPassword(hostId: string, password: string): Promise<void>
   }
   session: {
     open(hostId: string, cols: number, rows: number): Promise<string>
@@ -511,6 +513,7 @@ export function wailsBackend(): Backend {
       saveHost: h => u('HostService', 'SaveHost', h),
       deleteHost: id => u('HostService', 'DeleteHost', id),
       setTelnetPassword: (id, pw) => u('HostService', 'SetTelnetPassword', id, pw),
+      setFtpPassword: (id, pw) => u('HostService', 'SetFTPPassword', id, pw),
     },
     session: {
       open: (h, c, r) => u('SessionService', 'Open', h, c, r),

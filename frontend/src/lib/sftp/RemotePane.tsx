@@ -155,6 +155,11 @@ export function RemotePane({host, startPath, hosts, onHost, onNewTab, tabsLead, 
             <OsIcon os={h.os} size={18} /><span>{h.label}</span><small className="muted">{h.username ? h.username + '@' : ''}{h.hostname}</small>
           </button>
         ))}
+        {matching.filter(h => h.ftp_enabled).map(h => (
+          <button key={'ftp:' + h.id} aria-label={t('Connect to {name}', {name: h.label + ' (FTP)'})} onClick={() => choose({id: 'ftp:' + h.id, label: h.label + ' (FTP)'})}>
+            <OsIcon os={h.os} size={18} /><span>{h.label} (FTP)</span><small className="muted">{h.ftp_security ? 'FTPS' : t('Not encrypted')} · {h.hostname}:{h.ftp_port || 21}</small>
+          </button>
+        ))}
         {matching.length === 0 && (hosts.length ? !showLocal && <div className="muted">{t('No host matches.')}</div> : <div className="muted">{t('No saved hosts yet. Add one in Hosts first.')}</div>)}
       </div>
       <button onClick={() => { setPicking(false); setFilter('') }}>{t('Cancel')}</button>
@@ -180,7 +185,7 @@ export function RemotePane({host, startPath, hosts, onHost, onNewTab, tabsLead, 
 
   return (
     <div className="rpane" style={hidden ? {display: 'none'} : undefined}>
-      <FilePane side="remote" title={hostLabel(host)} icon={isLocal ? <IconFolder size={16} /> : <OsIcon os={hosts.find(x => x.id === host.id)?.os} size={16} />} fs={fs} startDir={start} reloadKey={reloadKey} showHiddenDefault={!isLocal}
+      <FilePane side="remote" title={hostLabel(host)} icon={isLocal ? <IconFolder size={16} /> : <OsIcon os={hosts.find(x => x.id === host.id.replace(/^ftp:/, ''))?.os} size={16} />} fs={fs} startDir={start} reloadKey={reloadKey} showHiddenDefault={!isLocal}
         onState={onState} onDropEntry={onDropEntry} onCopyOut={onCopyOut} copyLabel={isLocal ? t('Copy to Local') : t('Download')} onClose={() => onHost(null)} onAdd={() => setPicking(true)} lead={tabsLead?.(() => setPicking(true))} />
       {picking && <div className="overlay" role="dialog" aria-label={t('Select host')}><div className="card">{picker}</div></div>}
       {state === 'connecting' && !prompt && !auth && <div className="banner info">{t('Connecting to {name}…', {name: hostLabel(host)})}</div>}

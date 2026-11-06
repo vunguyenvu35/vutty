@@ -4,6 +4,10 @@
 
 Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
+## Unreleased
+
+- **FTP and FTPS in the SFTP tab.** A host can have FTP (explicit TLS, implicit TLS or plain) next to SSH: it shows as "name (FTP)" in Select host and as a protocol choice. Browse, queue, resume, drag and drop and edit-and-save-back work as for SFTP; the password is in the vault; FTPS checks the certificate. Permissions and jump hosts do not work over FTP.
+
 ## What's new in 1.6.6
 
 - **Panel: the sections are in a list on the left, in three groups (#64).** Monitor (Overview, Processes, Logs, Incident), Run (Services, Docker, Kubernetes, Web, Schedule) and Manage (Ports & firewall, Security, Users, Maintenance), instead of one row of 13 tabs. What the Overview lists under *Needs attention* is marked on the section it belongs to (a failed service on Services, a certificate on Web, updates and the disk on Maintenance) and counted on its group, so it can be seen without opening the Overview. The list can show icons only (kept on this computer). Under 760 px it becomes a row.

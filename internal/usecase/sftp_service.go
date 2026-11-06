@@ -37,7 +37,9 @@ func (s *sftpSession) close() {
 		s.q.closeAll()
 		s.edits.stopAll()
 		_ = s.fs.Close()
-		_ = s.client.Close()
+		if s.client != nil {
+			_ = s.client.Close()
+		}
 	})
 }
 
@@ -57,6 +59,9 @@ func NewSftpService(c *Core) *SftpService {
 
 // Open connects and starts SFTP. It blocks while an unknown host key waits for confirmation.
 func (s *SftpService) Open(hostID, promptKey string) (SftpInfo, error) {
+	if strings.HasPrefix(hostID, ftpPrefix) {
+		return s.openFTP(hostID)
+	}
 	if s.c.OpenRemoteFS == nil {
 		return SftpInfo{}, errors.New("SFTP is not available in this build")
 	}

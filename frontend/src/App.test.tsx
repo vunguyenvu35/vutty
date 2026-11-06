@@ -1457,6 +1457,17 @@ describe('App: ask which protocol to use', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
     expect(await screen.findByTestId('terminal')).toHaveAttribute('data-host', 'h1')
   })
+
+  it('FTP is files, not a terminal: choosing it closes the question and opens the host (ftp:) in the SFTP tab', async () => {
+    const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}, hosts: [host({id: 'h1', label: 'web-1', ftp_enabled: true, ftp_port: 21, ftp_security: 'explicit'} as never)]} as never)
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('radio', {name: /FTPS/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'sftp.open' && c[1] === 'ftp:h1')).toBe(true))
+    expect(screen.queryByRole('radiogroup', {name: 'Protocol'})).toBeNull() // the question went away with its tab
+    expect(screen.queryByTestId('terminal')).toBeNull()
+  })
 })
 
 describe('App: page shortcuts', () => {

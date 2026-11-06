@@ -173,3 +173,12 @@ type ToolGateway interface {
 type MCPConnector interface {
 	Connect(s assistant.MCPServer, env, headers map[string]string) (assistant.ToolServer, error)
 }
+
+// FTPConfig is how to reach an FTP server: Security is "" (plain), "explicit" (FTPS, AUTH TLS) or "implicit" (TLS from the first byte).
+type FTPConfig struct {
+	Addr, Security, User, Password string
+}
+
+// FTPOpener connects to an FTP or FTPS server and gives its files as a RemoteFS. The result may also have a `Ping() error`,
+// which the SFTP service calls now and then to keep the connection from being closed for idleness.
+type FTPOpener func(cfg FTPConfig) (RemoteFS, error)

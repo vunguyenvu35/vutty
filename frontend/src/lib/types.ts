@@ -32,6 +32,11 @@ export interface Host {
   telnet_username?: string
   /** '' or 'utf-8' (default), or 'iso-8859-1' */
   telnet_encoding?: string
+  /** also reachable with FTP (in the SFTP tab) on this port; ftp_security is '' (plain), 'explicit' or 'implicit' (FTPS) */
+  ftp_enabled?: boolean
+  ftp_port?: number
+  ftp_security?: string
+  ftp_username?: string
   /** this host's own terminal colour theme (an id from the catalogue); empty follows Settings */
   terminal_theme?: string
   /** the AI assistant switch of this host: '' (off on prod hosts, ask elsewhere), off, ask or on */
