@@ -134,3 +134,8 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-alerts { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .sp-alerts li { display: flex; align-items: center; gap: 8px; }
 .sp-alerts li { flex-wrap: wrap; }
+
+/* a labelled box or checkbox in a bar: the words and the control on one line, centred */
+.sp-opt { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--muted); font-size: 12.5px; }
+.sp-opt input[type=checkbox] { margin: 0; flex: none; }
+.sp-opt .sp-num { margin: 0; }

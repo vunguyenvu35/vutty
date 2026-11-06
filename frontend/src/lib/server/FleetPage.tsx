@@ -123,10 +123,10 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
           </ul>
         )}
         <div className="sp-bar">
-          <label className="sp-os"><input type="checkbox" checked={cfg.notify} onChange={e => void toggleNotify(e.target.checked)} /> {t('Desktop notifications')}</label>
-          <label className="sp-os">{t('Disk over')} <input className="sp-num" aria-label={t('Disk alert limit in percent')} inputMode="numeric" defaultValue={cfg.disk} key={'d' + resetN} onBlur={setNum('disk', 1, 100)} />%</label>
-          <label className="sp-os">{t('Memory over')} <input className="sp-num" aria-label={t('Memory alert limit in percent')} inputMode="numeric" defaultValue={cfg.mem} key={'m' + resetN} onBlur={setNum('mem', 1, 100)} />%</label>
-          <label className="sp-os">{t('Certificate under')} <input className="sp-num" aria-label={t('Certificate alert limit in days')} inputMode="numeric" defaultValue={cfg.certDays} key={'c' + resetN} onBlur={setNum('certDays', 1, 90)} /> {t('days')}</label>
+          <label className="sp-opt"><input type="checkbox" checked={cfg.notify} onChange={e => void toggleNotify(e.target.checked)} /> {t('Desktop notifications')}</label>
+          <label className="sp-opt">{t('Disk over')} <input className="sp-num" aria-label={t('Disk alert limit in percent')} inputMode="numeric" defaultValue={cfg.disk} key={'d' + resetN} onBlur={setNum('disk', 1, 100)} />%</label>
+          <label className="sp-opt">{t('Memory over')} <input className="sp-num" aria-label={t('Memory alert limit in percent')} inputMode="numeric" defaultValue={cfg.mem} key={'m' + resetN} onBlur={setNum('mem', 1, 100)} />%</label>
+          <label className="sp-opt">{t('Certificate under')} <input className="sp-num" aria-label={t('Certificate alert limit in days')} inputMode="numeric" defaultValue={cfg.certDays} key={'c' + resetN} onBlur={setNum('certDays', 1, 90)} /> {t('days')}</label>
           <button onClick={() => { setFleetAlertConfig({...DEFAULT_ALERT_CONFIG, notify: cfg.notify}); setResetN(x => x + 1) }}>{t('Default limits')}</button>
         </div>
         <div className="sp-note">{t('A server counts as down after two failed checks in a row. With desktop notifications on, the servers are checked every minute while another page or another app is in front.')}</div>
