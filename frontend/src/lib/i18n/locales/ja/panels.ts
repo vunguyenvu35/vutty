@@ -411,4 +411,10 @@ export default {
   "Server time": "サーバー時刻",
   "Time range of the log": "ログの期間",
   "The end must be after the start": "終了は開始より後にしてください",
+  "Monitor": "監視",
+  "Manage": "管理",
+  "Show section names": "セクション名を表示",
+  "Show icons only": "アイコンのみ表示",
+  "{n} item needs attention": "{n} 件の要確認項目",
+  "{n} items need attention": "{n} 件の要確認項目",
 } as Record<string, string>

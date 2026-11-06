@@ -12,7 +12,7 @@ afterEach(() => vi.restoreAllMocks())
 describe('Kubernetes tab: where it is', () => {
   it('is the tab right after Docker', async () => {
     await openKubernetes()
-    const names = within(screen.getByRole('tablist', {name: 'Server sections'})).getAllByRole('tab').map(t => t.textContent)
+    const names = within(screen.getByRole('navigation', {name: 'Server sections'})).getAllByRole('tab').map(t => t.getAttribute('aria-label'))
     expect(names.indexOf('Kubernetes')).toBe(names.indexOf('Docker') + 1)
     expect(screen.getByRole('tab', {name: 'Kubernetes'})).toHaveAttribute('aria-selected', 'true')
   })

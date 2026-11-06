@@ -583,7 +583,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       overview: async () => ({...state.server.overview}),
       processes: async () => state.server.processes.map(p => ({...p})),
       kill: async (sid, pid, sig) => { rec('server.kill', pid, sig); if (state.server.failAction) throw state.server.failAction; state.server.processes = state.server.processes.filter(p => p.pid !== pid) },
-      services: async () => state.server.units.map(u => ({...u})),
+      services: async () => { rec('server.services'); return state.server.units.map(u => ({...u})) },
       reboot: async () => { rec('server.reboot'); if (state.server.failAction) throw state.server.failAction },
       serviceAction: async (sid, name, action) => {
         rec('server.serviceAction', name, action)

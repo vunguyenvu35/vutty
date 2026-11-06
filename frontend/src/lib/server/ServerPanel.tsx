@@ -21,13 +21,15 @@ import {Schedule} from './Schedule'
 import {Ports} from './Firewall'
 import {Kubernetes} from './Kubernetes'
 import {Incident} from './Incident'
+import {SECTION_GROUPS, SECTION_ICONS, type Section} from './sections'
+import {useAttention, type AttentionState} from './attention'
 import {LogRange, useServerClock, type LogWindow} from './LogRange'
 import {useLogStream} from './logStream'
 import {around, lineTime, withContext} from './logTime'
 import type {K8sLogTarget} from './KubernetesShared'
 import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
-type Section = 'overview' | 'incident' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
+
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
 /** kind 'workload': every pod of a workload or Service, the name being ns/kind/name */
 export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean; /** a time range (RFC 3339) to open the log on */ range?: LogWindow}
@@ -36,6 +38,8 @@ export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web'
 export const logSourceOf = (p: K8sLogTarget): LogSource => (p.kind ? {kind: 'workload', name: p.ns + '/' + p.kind + '/' + p.name} : {kind: 'pod', name: p.ns + '/' + p.name, container: p.container, previous: p.previous})
 
 const POLL_MS = 5000
+/** where the panel remembers that the section list shows icons only */
+const RAIL_KEY = 'vutty.panel.rail'
 const FOLLOW_MS = 2000
 /** how many samples of the overview are kept: 5 s apart, so half an hour */
 const HISTORY = 360
@@ -97,21 +101,48 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
 /** The part of the panel that needs the connection: the section tabs and the open section. */
 function Ready({sid, host, visible, onAccess, onShell, section, setSection, source, setSource, sections, showLogs}: {sid: string; host: Host; visible: boolean; onAccess?(): void; onShell?(host: Host, command: string, title: string): void; section: Section; setSection(s: Section): void; source: LogSource; setSource(s: LogSource): void; sections: [Section, string][]; showLogs(s: LogSource): void}) {
   const t = useT()
+  const tn = useTn()
   const feed = useOverviewFeed(sid, host.id, visible)
+  const attn = useAttention(sid, host, feed.data)
+  // what the Overview listed is read again when it is opened again: it was read when the panel opened
+  const seen = useRef(section)
+  useEffect(() => { if (section === 'overview' && seen.current !== 'overview') attn.reload(); seen.current = section }, [section]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [slim, setSlim] = useState(() => { try { return localStorage.getItem(RAIL_KEY) === '1' } catch { return false } }) // the list shows icons only
+  const toggleSlim = () => setSlim(v => { try { localStorage.setItem(RAIL_KEY, v ? '0' : '1') } catch { /* not kept */ } return !v })
+  const label = Object.fromEntries(sections) as Record<Section, string>
+  const groupName: Record<string, string> = {monitor: t('Monitor'), run: t('Run'), manage: t('Manage')}
   const [k8sCtx, setK8sCtx] = useState('') // the cluster the Kubernetes tab uses: the Logs tab lists its pods
   const [k8sNs, setK8sNs] = useState('') // and the namespaces it shows: a login that may not list the cluster has pods only there
   // once opened, the Kubernetes tab stays (hidden) while another section is open: its connection steps, view and filters are not done again
   const [k8sOpened, setK8sOpened] = useState(false)
   if (section === 'kubernetes' && !k8sOpened) setK8sOpened(true)
   return (
-        <>
-          <div className="sp-tabs" role="tablist" aria-label={t('Server sections')}>
-            {sections.map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={section === id} onClick={() => setSection(id)}>{label}</button>
-            ))}
-          </div>
+        <div className={'sp-shell' + (slim ? ' slim' : '')}>
+          <nav className="sp-rail" aria-label={t('Server sections')}>
+            {SECTION_GROUPS.map(g => {
+              const total = g.sections.reduce((n, id) => n + (attn.marks[id]?.n ?? 0), 0)
+              return (
+                <div key={g.id} className="sp-grp" role="tablist" aria-orientation="vertical" aria-label={groupName[g.id]}>
+                  <h3 aria-hidden="true"><span>{groupName[g.id]}</span>{total > 0 && <small>{total}</small>}</h3>
+                  {g.sections.map(id => {
+                    const m = attn.marks[id]
+                    const note = m ? tn(m.n, '{n} item needs attention', '{n} items need attention', {}) : ''
+                    return (
+                      <button key={id} role="tab" aria-selected={section === id} aria-label={label[id]} aria-describedby={m ? 'sp-note-' + id : undefined} title={slim ? label[id] + (note ? ' · ' + note : '') : note || undefined} className="sp-item" onClick={() => setSection(id)}>
+                        {SECTION_ICONS[id]}
+                        <span className="lab">{label[id]}</span>
+                        {m && <span className={'sp-badge ' + m.tone} aria-hidden="true">{m.n}</span>}
+                        {m && <span id={'sp-note-' + id} hidden>{note}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
+            <button className="sp-slim" onClick={toggleSlim} aria-pressed={slim} aria-label={slim ? t('Show section names') : t('Show icons only')} title={slim ? t('Show section names') : t('Show icons only')}>{slim ? '»' : '«'}</button>
+          </nav>
           <div className="sp-body">
-            {section === 'overview' && <Overview sid={sid} host={host} feed={feed} onGo={setSection} />}
+            {section === 'overview' && <Overview host={host} feed={feed} attn={attn} onGo={setSection} />}
             {section === 'processes' && <Processes sid={sid} visible={visible} />}
             {section === 'services' && <Services sid={sid} onLogs={name => showLogs({kind: 'service', name})} />}
             {section === 'docker' && <Docker sid={sid} host={host} onLogs={showLogs} onShell={onShell} />}
@@ -125,7 +156,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'users' && <Users sid={sid} />}
             {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
           </div>
-        </>
+        </div>
   )
 }
 
@@ -165,37 +196,18 @@ function Spark({data, max}: {data: (number | null)[]; max: number}) {
 
 const Bar2 = Toolbar
 
-function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed; onGo(s: Section): void}) {
-  const be = useBackend()
+function Overview({host, feed, attn, onGo}: {host: Host; feed: Feed; attn: AttentionState; onGo(s: Section): void}) {
   const t = useT()
-  const tn = useTn()
-  const {data: o, error, busy, reload, hist: live, saved} = feed
+  const {data: o, error, busy, reload: reloadFeed, hist: live, saved} = feed
+  const reload = () => { reloadFeed(); attn.reload() }
   const [span, setSpan] = useState<'30m' | '6h' | '24h'>('30m')
   const hist: {cpu: (number | null)[]; mem: (number | null)[]; disk: (number | null)[]; net: (number | null)[]} = useMemo<Series>(() => (span === '30m' ? live : bucketSeries(saved, (span === '6h' ? 6 : 24) * 60 * MINUTE, 120)), [span, live, saved])
-  // what else may need attention: asked once, and left out quietly when the login cannot ask
-  const loadUnits = useCallback(() => be.server.services(sid), [be, sid])
-  const {data: units} = useLoad<ServerUnit[]>(loadUnits, null)
-  const loadCerts = useCallback(() => be.server.certificates(sid), [be, sid])
-  const {data: certs} = useLoad<ServerCerts>(loadCerts, null)
-  const loadUpdates = useCallback(() => be.server.updates(sid), [be, sid])
-  const {data: updates} = useLoad<ServerUpdates>(loadUpdates, null)
-  const backupPath = host.backup_path ?? ''
-  const loadBackup = useCallback(() => (backupPath ? be.server.backup(sid, backupPath) : Promise.resolve(null)), [be, sid, backupPath])
-  const {data: backup} = useLoad<ServerBackup | null>(loadBackup, null)
+  void host
   if (!o) return <><Err error={error} /><div className="muted">{t('Loading…')}</div></>
   const ram = pct(o.mem_used, o.mem_total), disk = pct(o.disk_used, o.disk_total)
-  const failed = (units ?? []).filter(u => u.active === 'failed')
   const minutes = Math.max(1, Math.round((live.cpu.length * POLL_MS) / 60000))
-  const expiring = (certs?.certs ?? []).filter(c => certLevel(c.days_left) !== 'ok')
-  const attention: {key: string; tone: 'bad' | 'warn'; text: string; go: Section}[] = [
-    ...failed.map(u => ({key: 'u' + u.name, tone: 'bad' as const, text: t('{name} has failed', {name: u.name}), go: 'services' as const})),
-    ...(disk >= 75 ? [{key: 'disk', tone: disk >= 90 ? 'bad' as const : 'warn' as const, text: t('The disk is {n}% full', {n: disk}), go: 'maintenance' as const}] : []),
-    ...(ram >= 90 ? [{key: 'ram', tone: 'warn' as const, text: t('Memory is {n}% used', {n: ram}), go: 'processes' as const}] : []),
-    ...expiring.map(c => ({key: 'c' + c.name, tone: certLevel(c.days_left) as 'bad' | 'warn', text: c.days_left < 0 ? t('The certificate for {name} has expired', {name: c.domains[0] ?? c.name}) : tn(c.days_left, 'The certificate for {name} expires in {n} day', 'The certificate for {name} expires in {n} days', {name: c.domains[0] ?? c.name}), go: 'web' as const})),
-    ...(updates && updates.security > 0 ? [{key: 'sec', tone: 'warn' as const, text: tn(updates.security, '{n} security update is waiting', '{n} security updates are waiting', {}), go: 'maintenance' as const}] : []),
-    ...(updates?.reboot_required ? [{key: 'reboot', tone: 'warn' as const, text: t('The server needs a reboot'), go: 'maintenance' as const}] : []),
-    ...(backup && (!backup.found || backupLevel(backup.now - backup.mtime) !== 'ok') ? [{key: 'backup', tone: (!backup.found || backupLevel(backup.now - backup.mtime) === 'bad' ? 'bad' : 'warn') as 'bad' | 'warn', text: backup.found ? t('The newest backup is {time} old', {time: formatUptime(backup.now - backup.mtime)}) : t('No backup was found in {path}', {path: backupPath}), go: 'schedule' as const}] : []),
-  ]
+  const attention = attn.list
+  const units = attn.loaded
   return (
     <div className="sp-view">
       <Bar2 busy={busy} onReload={reload}><span className="sp-os">{o.os} · {t('up {time}', {time: formatUptime(o.uptime_sec)})}</span></Bar2>

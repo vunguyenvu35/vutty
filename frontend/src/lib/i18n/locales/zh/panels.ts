@@ -411,4 +411,10 @@ export default {
   "Server time": "服务器时间",
   "Time range of the log": "日志的时间范围",
   "The end must be after the start": "结束时间必须晚于开始时间",
+  "Monitor": "监控",
+  "Manage": "管理",
+  "Show section names": "显示栏目名称",
+  "Show icons only": "仅显示图标",
+  "{n} item needs attention": "{n} 项需要注意",
+  "{n} items need attention": "{n} 项需要注意",
 } as Record<string, string>

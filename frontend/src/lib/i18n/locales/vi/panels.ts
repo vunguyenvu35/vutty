@@ -411,4 +411,10 @@ export default {
   "Server time": "Giờ máy chủ",
   "Time range of the log": "Khoảng thời gian của nhật ký",
   "The end must be after the start": "Giờ kết thúc phải sau giờ bắt đầu",
+  "Monitor": "Theo dõi",
+  "Manage": "Quản trị",
+  "Show section names": "Hiện tên các mục",
+  "Show icons only": "Chỉ hiện biểu tượng",
+  "{n} item needs attention": "{n} mục cần chú ý",
+  "{n} items need attention": "{n} mục cần chú ý",
 } as Record<string, string>
