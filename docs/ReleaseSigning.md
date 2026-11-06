@@ -25,7 +25,7 @@ For releases built by GitHub Actions, add the content of the key file as a repos
 
 ## For each release
 
-Push the tag as usual; the workflow builds, signs and publishes. To sign a release that is already published (one made by hand, or before the secret was added):
+Merge the change of `VERSION` into `main` (see [Development.md](Development.md#releasing-with-github-actions-macos-windows-linux)); the workflow tags, builds, signs and publishes. To sign a release that is already published (one made by hand, or before the secret was added):
 
 ```sh
 make sign-release TAG=v1.3.0        # downloads SHA256SUMS, signs it, checks it, uploads SHA256SUMS.sig

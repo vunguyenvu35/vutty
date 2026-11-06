@@ -115,12 +115,8 @@ Nothing leaves your machine by default. `--tag` creates a local annotated tag; `
 
 `.github/workflows/release.yml` builds the three platforms in parallel and attaches the files to a GitHub release. It is the normal way to publish; `scripts/deploy.sh prod` above stays for a signed and notarized macOS build.
 
-1. Bump `VERSION` and write the `# Vutty X.Y.Z` section in `RELEASE_NOTES.md` (it becomes the release description). Commit and push to `main`.
-2. Tag the same version and push the tag:
-   ```
-   git tag vX.Y.Z
-   git push origin vX.Y.Z
-   ```
+1. Make a branch, bump `VERSION` and write the `# Vutty X.Y.Z` section in `RELEASE_NOTES.md` (it becomes the release description), and open a pull request.
+2. Merge it. When `VERSION` changes on `main`, the `prepare` job makes the tag `vX.Y.Z` itself, and the build and release jobs run in the same run. There is no tag to push. If the tag already exists the run does nothing, so a version is never released twice. (A tag pushed by hand still works.)
 3. About three minutes later the release has: `vutty-X.Y.Z-macos.dmg` and `.zip`, `vutty-X.Y.Z-windows-amd64.exe`, `vutty-X.Y.Z-linux-amd64.tar.gz` and `SHA256SUMS`.
    The workflow also attaches a copy of each file without the version in its name (`vutty-macos.dmg`, `vutty-macos.zip`, `vutty-windows-amd64.exe`, `vutty-linux-amd64.tar.gz`), which `SHA256SUMS` lists too. The download links of the README (`releases/latest/download/vutty-macos.dmg`) rely on them, so keep these names; the self-update looks its file up by the name with the version.
 
