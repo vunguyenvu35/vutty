@@ -156,3 +156,5 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-card-head.foldable button, .sp-card-head.foldable input, .sp-card-head.foldable select, .sp-card-head.foldable label { cursor: default; }
 .sp-card-head.foldable .sp-card-fold { cursor: pointer; }
 .sp-opt b { color: var(--text); }
+.hosts-page > .sp-card + .sp-card { margin-top: 12px; }
+.hosts-page > .sp-card + .sec-title { margin-top: 16px; }
