@@ -256,6 +256,10 @@ export interface Backend {
     addUserKey(sid: string, name: string, key: string): Promise<void>
     removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
     unban(sid: string, jail: string, ip: string): Promise<void>
+    /** ban an address on a fail2ban jail (the address of this connection is refused) */
+    ban(sid: string, jail: string, ip: string): Promise<void>
+    /** change PermitRootLogin ('root_login': no | prohibit-password | yes) or PasswordAuthentication ('password_auth': no | yes) of sshd; refused when it could lock the login out */
+    sshSet(sid: string, setting: 'root_login' | 'password_auth', value: string): Promise<void>
     schedule(sid: string): Promise<ServerSchedule>
     cronAdd(sid: string, owner: string, schedule: string, command: string): Promise<void>
     cronUpdate(sid: string, owner: string, oldSchedule: string, oldCommand: string, schedule: string, command: string): Promise<void>
@@ -626,6 +630,8 @@ export function wailsBackend(): Backend {
       removeUserKey: (s, n, f) => u('ServerService', 'RemoveUserKey', s, n, f),
       security: async s => { const r = await u<ServerSecurity>('ServerService', 'Security', s); return {...r, fail2ban: {...r.fail2ban, jails: (r.fail2ban.jails ?? []).map(j => ({...j, ips: j.ips ?? []}))}, failed: {...r.failed, top: r.failed.top ?? []}} },
       unban: (s, j, ip) => u('ServerService', 'Unban', s, j, ip),
+      ban: (s, j, ip) => u('ServerService', 'Ban', s, j, ip),
+      sshSet: (s, k, v) => u('ServerService', 'SSHSet', s, k, v),
       schedule: async s => { const r = await u<ServerSchedule>('ServerService', 'Schedule', s); return {timers: r.timers ?? [], cron: r.cron ?? [], me: r.me ?? ''} },
       cronAdd: (s, o, sc, c) => u('ServerService', 'CronAdd', s, o, sc, c),
       cronUpdate: (s, o, os, oc, sc, c) => u('ServerService', 'CronUpdate', s, o, os, oc, sc, c),
