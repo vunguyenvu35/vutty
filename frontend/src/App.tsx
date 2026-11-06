@@ -356,6 +356,12 @@ export default function App({initial}: {/** an app window opened for this place 
       void closeTab(tabId).then(() => { if (h) openInSftp({id: 'ftp:' + h.id, label: h.label + ' (FTP)'}) })
       return
     }
+    if (proto === 'rdp') { // Remote Desktop is another app: this tab goes away and the system's client starts
+      const leaf = tabs.find(t => t.id === tabId)?.root
+      const h = leaf && leaf.type === 'leaf' ? hosts.find(x => x.id === leaf.hostId) : undefined
+      void closeTab(tabId).then(() => { if (h) be.hosts.openRdp(h.id).catch(e => toast.error(errMsg(e))) })
+      return
+    }
     setTabs(ts => ts.map(t => {
       if (t.id !== tabId || t.root.type !== 'leaf') return t
       const h = hosts.find(x => x.id === (t.root as Leaf).hostId)

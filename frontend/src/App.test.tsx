@@ -1468,6 +1468,21 @@ describe('App: ask which protocol to use', () => {
     expect(screen.queryByRole('radiogroup', {name: 'Protocol'})).toBeNull() // the question went away with its tab
     expect(screen.queryByTestId('terminal')).toBeNull()
   })
+
+  it('RDP starts the system client for the host and closes the question; a failure is shown', async () => {
+    const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}, hosts: [host({id: 'h1', label: 'web-1', rdp_enabled: true, rdp_port: 3389} as never)]} as never)
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('radio', {name: /RDP/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    await waitFor(() => expect(be.state.calls.some(c => c[0] === 'hosts.openRdp' && c[1] === 'h1')).toBe(true))
+    expect(screen.queryByRole('radiogroup', {name: 'Protocol'})).toBeNull()
+    be.state.server.failAction = 'no app opened the .rdp file'
+    await userEvent.dblClick(hostCard('web-1'))
+    await userEvent.click(screen.getByRole('radio', {name: /RDP/}))
+    await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
+    expect(await screen.findByText(/no app opened the \.rdp file/)).toBeInTheDocument()
+  })
 })
 
 describe('App: page shortcuts', () => {

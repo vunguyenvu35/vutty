@@ -182,3 +182,13 @@ type FTPConfig struct {
 // FTPOpener connects to an FTP or FTPS server and gives its files as a RemoteFS. The result may also have a `Ping() error`,
 // which the SFTP service calls now and then to keep the connection from being closed for idleness.
 type FTPOpener func(cfg FTPConfig) (RemoteFS, error)
+
+// RDPSpec is what the system's Remote Desktop client is started with: the host, the port, the user name (may be empty) and a
+// .rdp file with the same, which some clients take instead of arguments.
+type RDPSpec struct {
+	Host, User, File string
+	Port             int
+}
+
+// RDPLauncher starts the Remote Desktop client of this computer on a host and returns when it has been started (not when it ends).
+type RDPLauncher func(spec RDPSpec) error

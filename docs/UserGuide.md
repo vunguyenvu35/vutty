@@ -469,7 +469,9 @@ Set `VUTTY_DATA_DIR` to relocate everything. Back up with **Import / Export → 
 
 ## 17. Connecting: protocol, progress and errors
 
-Opening a host first asks **which protocol** to use (SSH, Mosh, Telnet). SSH is chosen for you: press **Continue** (or double-click it). Mosh is shown but not supported yet; Telnet can be picked once the host has Telnet turned on (see [section 20](#20-this-computer-telnet-and-serial-ports)). Turn the question off in **Settings → Terminal → Ask which protocol to use**; a host that has Telnet still asks.
+Opening a host first asks **which protocol** to use (SSH, Mosh, Telnet, FTP, RDP). SSH is chosen for you: press **Continue** (or double-click it). Mosh is shown but not supported yet; Telnet can be picked once the host has Telnet turned on (see [section 20](#20-this-computer-telnet-and-serial-ports)). Turn the question off in **Settings → Terminal → Ask which protocol to use**; a host that has Telnet still asks.
+
+**RDP.** A host can have Remote Desktop turned on (**Add Remote Desktop** in the host form: a port, 3389 by default, and a user name). Choosing **RDP** on the protocol screen starts the Remote Desktop client of your own computer on that host and closes the tab: **mstsc** on Windows, **Microsoft Remote Desktop** on a Mac (free in the App Store; it opens the `.rdp` file Vutty writes), **FreeRDP** (`xfreerdp`) or **Remmina** on Linux. Vutty does not draw the desktop and keeps no RDP password: the client asks for it. The `.rdp` file has no password and is deleted after two minutes. A host behind a jump host cannot be opened this way. Not yet tried on Windows or Linux.
 
 ![Choose protocol](screenshots/12-choose-protocol.png)
 

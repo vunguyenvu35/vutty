@@ -37,6 +37,10 @@ export interface Host {
   ftp_port?: number
   ftp_security?: string
   ftp_username?: string
+  /** also reachable with Remote Desktop on this port: Vutty opens the system's own client (no password is kept) */
+  rdp_enabled?: boolean
+  rdp_port?: number
+  rdp_username?: string
   /** this host's own terminal colour theme (an id from the catalogue); empty follows Settings */
   terminal_theme?: string
   /** the AI assistant switch of this host: '' (off on prod hosts, ask elsewhere), off, ask or on */

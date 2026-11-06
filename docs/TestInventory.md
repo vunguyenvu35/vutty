@@ -6,7 +6,7 @@
 
 ## Go (unit + integration)
 
-### `app` (71)
+### `app` (72)
 
 - TestDataDirEnvOverride
 - TestBuildWiresRealAdapters
@@ -43,6 +43,7 @@
 - TestAcceleratorFromShortcutText
 - TestMenuShowsTheCurrentShortcutsOnMac
 - TestATwoStepShortcutHasNoMenuKey
+- TestRDPCommandPerSystem
 - TestBundleRootOf
 - TestCheckBundleOnlyLetsThroughThisApplicationInOneWholePiece
 - TestTheSwapScriptWaitsForTheAppToEndThenPutsTheNewCopyInPlaceAndKeepsTheOldOne
@@ -437,7 +438,7 @@
 - TestRequestsStayOnAllowedHostsAndOverHTTPS
 - TestLatestReleaseReadsTagAndAssets
 
-### `internal/usecase` (409)
+### `internal/usecase` (412)
 
 - TestLogRecordsConnectingAndClosingATab
 - TestLogRecordsAFailedConnectionAndALostOne
@@ -680,6 +681,9 @@
 - TestQueueClosingTheSessionStopsRunningJobs
 - TestEnqueueRefusesNonsense
 - TestSyncIsNotAffectedByWhatTheKeychainHolds
+- TestRDPFileHasTheAddressAndUserAndNoPassword
+- TestOpenRDPWritesTheFileAndStartsTheClient
+- TestOpenRDPRefuses
 - TestParseAudit
 - TestParseLogins
 - TestCronScheduleAndCommandChecks
@@ -896,7 +900,7 @@
 - TestKeygenSignVerifyRoundTripAndNeverOverwritesAKey
 - TestSigningKeyFromTheEnvironmentAndBadInput
 
-**Go test functions: 815** (table-driven cases and sub-tests are extra).
+**Go test functions: 819** (table-driven cases and sub-tests are extra).
 
 ## Frontend (Vitest)
 

@@ -435,4 +435,13 @@ export default {
   "Files of the host in the SFTP tab": "Tệp của máy chủ trong tab SFTP",
   "Files only": "Chỉ có tệp",
   "Plain FTP is not encrypted: the password and every file cross the network in clear text.": "FTP thường không mã hóa: mật khẩu và mọi tệp đi qua mạng dưới dạng văn bản thô.",
+  "Remote Desktop port must be between 1 and 65535": "Cổng Remote Desktop phải từ 1 đến 65535",
+  "Add Remote Desktop": "Thêm Remote Desktop",
+  "Remote Desktop on": "Remote Desktop trên",
+  "Remote Desktop port": "Cổng Remote Desktop",
+  "Remote Desktop username": "Tên đăng nhập Remote Desktop",
+  "Username (empty: the one above)": "Tên đăng nhập (để trống: dùng tên ở trên)",
+  "Remote Desktop, in your own client": "Remote Desktop, mở bằng ứng dụng của máy bạn",
+  "Opens another app": "Mở ứng dụng khác",
+  "Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.": "Vutty khởi động ứng dụng Remote Desktop có sẵn trên máy bạn. Vutty không lưu mật khẩu RDP: ứng dụng đó sẽ hỏi.",
 } as Record<string, string>

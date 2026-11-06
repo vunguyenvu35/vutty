@@ -70,6 +70,10 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     ftp_security: host?.ftp_enabled ? host.ftp_security || 'plain' : 'explicit', // an existing host with no mode is plain FTP
     ftp_username: host?.ftp_username ?? '',
     ftp_password: '',
+    // Remote Desktop: Vutty starts the system's own client; there is no password here
+    rdp_on: !!host?.rdp_enabled,
+    rdp_port: host?.rdp_enabled ? String(host.rdp_port || 3389) : '',
+    rdp_username: host?.rdp_username ?? '',
     terminal_theme: host?.terminal_theme ?? '',
     ai_policy: (host?.ai_policy ?? '') as AiPolicy,
     forward_agent: !!host?.forward_agent,
@@ -84,7 +88,7 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
   useEffect(() => () => { alive.current = false }, [])
   const [showTelnetPw, setShowTelnetPw] = useState(false)
   const [showFtpPw, setShowFtpPw] = useState(false)
-  const set = (k: Exclude<keyof typeof f, 'telnet_on' | 'ftp_on'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
+  const set = (k: Exclude<keyof typeof f, 'telnet_on' | 'ftp_on' | 'rdp_on'>) => (e: {target: {value: string}}) => setF(x => ({...x, [k]: e.target.value}))
   const existing = !!host && !isNew
 
   useEffect(() => { onDraft?.(f.label.trim() || f.hostname.trim()) }, [f.label, f.hostname, onDraft])
@@ -100,6 +104,8 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     if (f.telnet_on && (!Number.isInteger(telnet) || telnet < 1 || telnet > 65535)) { setErr(t('Telnet port must be between 1 and 65535')); return null }
     const ftp = !f.ftp_on ? 0 : f.ftp_port.trim() === '' ? (f.ftp_security === 'implicit' ? 990 : 21) : Number(f.ftp_port)
     if (f.ftp_on && (!Number.isInteger(ftp) || ftp < 1 || ftp > 65535)) { setErr(t('FTP port must be between 1 and 65535')); return null }
+    const rdp = !f.rdp_on ? 0 : f.rdp_port.trim() === '' ? 3389 : Number(f.rdp_port)
+    if (f.rdp_on && (!Number.isInteger(rdp) || rdp < 1 || rdp > 65535)) { setErr(t('Remote Desktop port must be between 1 and 65535')); return null }
     setErr('')
     return {
       ...(existing ? host : {}),
@@ -107,6 +113,9 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
       ftp_port: ftp,
       ftp_security: f.ftp_on && f.ftp_security !== 'plain' ? f.ftp_security : '',
       ftp_username: f.ftp_on ? f.ftp_username.trim() : '',
+      rdp_enabled: rdp > 0,
+      rdp_port: rdp,
+      rdp_username: f.rdp_on ? f.rdp_username.trim() : '',
       telnet_enabled: telnet > 0,
       telnet_port: telnet,
       telnet_username: f.telnet_on ? f.telnet_username.trim() : '',
@@ -252,6 +261,17 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
               placeholder={existing && host?.ftp_enabled ? t('Saved in the vault (type to replace)') : t('Password')} />
             <button type="button" className="eye" aria-label={showFtpPw ? t('Hide FTP password') : t('Show FTP password')} aria-pressed={showFtpPw} onClick={() => setShowFtpPw(v => !v)}>{showFtpPw ? <IconEyeOff size={17} /> : <IconEye size={17} />}</button>
           </div>
+        </Section>
+      )}
+
+      {!f.rdp_on ? (
+        <button type="button" className="add-wide" onClick={() => setF(x => ({...x, rdp_on: true, rdp_port: x.rdp_port || '3389'}))}><IconPlus size={17} /> {t('Add Remote Desktop')}</button>
+      ) : (
+        <Section>
+          <div className="inline-field"><span>{t('Remote Desktop on')}</span><input aria-label={t('Remote Desktop port')} className="port" placeholder="3389" value={f.rdp_port} onChange={set('rdp_port')} inputMode="numeric" /><span>{t('port')}</span>
+            <button type="button" className="link remove-rdp" onClick={() => setF(x => ({...x, rdp_on: false, rdp_port: '', rdp_username: ''}))}>{t('Remove')}</button></div>
+          <div className="muted" role="note">{t("Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.")}</div>
+          <input aria-label={t('Remote Desktop username')} value={f.rdp_username} onChange={set('rdp_username')} placeholder={t('Username (empty: the one above)')} autoComplete="off" />
         </Section>
       )}
 

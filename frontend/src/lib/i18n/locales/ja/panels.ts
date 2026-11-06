@@ -435,4 +435,13 @@ export default {
   "Files of the host in the SFTP tab": "SFTP タブでホストのファイルを開く",
   "Files only": "ファイルのみ",
   "Plain FTP is not encrypted: the password and every file cross the network in clear text.": "通常の FTP は暗号化されません。パスワードとすべてのファイルが平文でネットワークを流れます。",
+  "Remote Desktop port must be between 1 and 65535": "リモートデスクトップのポートは 1〜65535 にしてください",
+  "Add Remote Desktop": "リモートデスクトップを追加",
+  "Remote Desktop on": "リモートデスクトップのポート",
+  "Remote Desktop port": "リモートデスクトップのポート",
+  "Remote Desktop username": "リモートデスクトップのユーザー名",
+  "Username (empty: the one above)": "ユーザー名（空: 上のもの）",
+  "Remote Desktop, in your own client": "リモートデスクトップ（お使いのクライアントで開く）",
+  "Opens another app": "別のアプリが開きます",
+  "Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.": "Vutty はお使いのコンピューターのリモートデスクトップクライアントを起動します。RDP のパスワードは保存せず、クライアントが尋ねます。",
 } as Record<string, string>

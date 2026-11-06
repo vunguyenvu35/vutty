@@ -101,6 +101,11 @@ type Host struct {
 	FTPPort     int    `json:"ftp_port,omitempty"`
 	FTPSecurity string `json:"ftp_security,omitempty"` // "" (plain), "explicit" (FTPS, AUTH TLS) or "implicit" (FTPS on its own port)
 	FTPUsername string `json:"ftp_username,omitempty"`
+	// RDP: the host can also be reached with Remote Desktop on RDPPort; Vutty opens the system's own client for it (it does not draw the
+	// desktop itself). The password is never kept: the client asks for it.
+	RDPEnabled  bool   `json:"rdp_enabled,omitempty"`
+	RDPPort     int    `json:"rdp_port,omitempty"`
+	RDPUsername string `json:"rdp_username,omitempty"`
 	// TerminalTheme is this host's own colour theme (an id from the UI catalogue); empty follows Settings.
 	TerminalTheme string `json:"terminal_theme,omitempty"`
 	// AIPolicy is the AI assistant switch for this host: "" (off on prod hosts, ask elsewhere), off, ask or on.

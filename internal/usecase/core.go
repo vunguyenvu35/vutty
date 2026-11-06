@@ -100,6 +100,7 @@ type Core struct {
 	OpenSerial     SerialOpener
 	OpenTelnet     TelnetOpener
 	OpenFTP        FTPOpener
+	OpenRDP        RDPLauncher
 	ListSerial     SerialLister
 	// Activity is the log shown on the Logs page; nil keeps no history.
 	Activity ActivityLog
@@ -135,6 +136,7 @@ type Options struct {
 	OpenSerial     SerialOpener
 	OpenTelnet     TelnetOpener
 	OpenFTP        FTPOpener
+	OpenRDP        RDPLauncher
 	ListSerial     SerialLister
 	// Activity stores the activity log (optional).
 	Activity ActivityLog
@@ -154,7 +156,7 @@ func NewCore(dir string, opt Options) (*Core, error) {
 	}
 	c := &Core{CacheDir: opt.CacheDir, Dir: dir, DataDir: filepath.Join(dir, "data"), SyncDir: filepath.Join(dir, "sync"), emit: opt.Emit,
 		Store: opt.Store, Vault: opt.Vault, prompts: newPrompter(), authPrompts: newAuthPrompter(), OpenRemoteFS: opt.OpenRemoteFS,
-		OpenLocalShell: opt.OpenLocalShell, OpenSerial: opt.OpenSerial, OpenTelnet: opt.OpenTelnet, OpenFTP: opt.OpenFTP, ListSerial: opt.ListSerial, Activity: opt.Activity,
+		OpenLocalShell: opt.OpenLocalShell, OpenSerial: opt.OpenSerial, OpenTelnet: opt.OpenTelnet, OpenFTP: opt.OpenFTP, OpenRDP: opt.OpenRDP, ListSerial: opt.ListSerial, Activity: opt.Activity,
 		Agents: opt.Agents, NewCustomAgent: opt.NewCustomAgent, ToolGateway: opt.ToolGateway, MCP: opt.MCP, Kube: opt.Kube}
 	if c.emit == nil {
 		c.emit = func(string, ...any) {}

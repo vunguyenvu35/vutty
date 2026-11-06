@@ -99,6 +99,18 @@ func NormalizeHost(h *Host) error {
 	if len(h.FTPUsername) > 128 || strings.ContainsAny(h.FTPUsername, "\r\n\x00") {
 		return errors.New("invalid ftp user name")
 	}
+	if h.RDPEnabled && h.RDPPort == 0 {
+		h.RDPPort = 3389
+	}
+	if h.RDPPort < 0 || h.RDPPort > 65535 {
+		return errors.New("rdp port out of range")
+	}
+	if !h.RDPEnabled {
+		h.RDPPort = 0
+	}
+	if len(h.RDPUsername) > 128 || strings.ContainsAny(h.RDPUsername, "\r\n\x00") {
+		return errors.New("invalid rdp user name")
+	}
 	switch h.TelnetEncoding = strings.ToLower(strings.TrimSpace(h.TelnetEncoding)); h.TelnetEncoding {
 	case "", "utf-8", "iso-8859-1":
 	default:

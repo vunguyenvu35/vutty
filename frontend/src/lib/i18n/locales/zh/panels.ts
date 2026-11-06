@@ -435,4 +435,13 @@ export default {
   "Files of the host in the SFTP tab": "在 SFTP 标签页中打开主机的文件",
   "Files only": "仅文件",
   "Plain FTP is not encrypted: the password and every file cross the network in clear text.": "普通 FTP 不加密：密码和所有文件都以明文在网络上传输。",
+  "Remote Desktop port must be between 1 and 65535": "远程桌面端口必须在 1 到 65535 之间",
+  "Add Remote Desktop": "添加远程桌面",
+  "Remote Desktop on": "远程桌面于",
+  "Remote Desktop port": "远程桌面端口",
+  "Remote Desktop username": "远程桌面用户名",
+  "Username (empty: the one above)": "用户名（留空：用上面的）",
+  "Remote Desktop, in your own client": "远程桌面，用你电脑自带的客户端",
+  "Opens another app": "会打开另一个应用",
+  "Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.": "Vutty 会启动你电脑自带的远程桌面客户端。它不保存 RDP 密码：由客户端询问。",
 } as Record<string, string>
