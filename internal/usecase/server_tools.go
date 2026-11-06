@@ -148,6 +148,8 @@ var stackActions = map[string][]string{
 	"stop":    {"stop"},
 	"restart": {"restart"},
 	"update":  {"pull", "up -d"},
+	"up":      {"up -d"},
+	"down":    {"down"}, // removes the containers and the network of the project; its volumes stay
 }
 
 // StackAction starts, stops or restarts every container of a Compose project, or updates it (pulls the images, then up -d).
@@ -160,7 +162,7 @@ func (s *ServerService) StackAction(sid, project, action string) error {
 		return errors.New("unknown action")
 	}
 	limit := serverTimeout
-	if action == "update" {
+	if action == "update" || action == "up" {
 		limit = serverLongTimeout
 	}
 	_, err := s.runTimeout(sid, asRoot+composeScript(project, cmds...), limit)

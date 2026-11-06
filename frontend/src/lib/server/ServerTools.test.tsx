@@ -139,6 +139,38 @@ describe('Docker stacks', () => {
     expect(await head().findByRole('button', {name: 'Start'})).toBeInTheDocument()
   })
 
+  it('brings a stack up, and takes it down only after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Docker')
+    const stack = (await screen.findByText('Stack shop')).closest('section') as HTMLElement
+    await userEvent.click(within(stack).getByRole('button', {name: 'Down'}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Take the stack shop down?'))
+    expect(calls(be, 'server.stackAction')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(within(stack).getByRole('button', {name: 'Up'}))
+    await userEvent.click(within(stack).getByRole('button', {name: 'Down'}))
+    await waitFor(() => expect(calls(be, 'server.stackAction')).toEqual([['server.stackAction', 'shop', 'up'], ['server.stackAction', 'shop', 'down']]))
+    await waitFor(() => expect(screen.queryByText('Stack shop')).toBeNull())
+    ask.mockRestore()
+  })
+
+  it('pulls an image by name and pulls a listed one again', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const {be} = setup()
+    await open('Docker')
+    await userEvent.click(await screen.findByRole('tab', {name: 'Images'}))
+    await userEvent.click(await screen.findByRole('button', {name: 'Pull image'}))
+    const dlg = await screen.findByRole('dialog')
+    expect(within(dlg).getByRole('button', {name: 'Pull'})).toBeDisabled()
+    await userEvent.type(within(dlg).getByPlaceholderText('nginx:1.27'), 'nginx:1.27')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Pull'}))
+    await waitFor(() => expect(calls(be, 'server.dockerPull')).toEqual([['server.dockerPull', 'nginx:1.27']]))
+    await userEvent.click(await screen.findByRole('button', {name: 'Pull registry/api:1.8 again'}))
+    await waitFor(() => expect(calls(be, 'server.dockerPull')).toHaveLength(2))
+    ask.mockRestore()
+  })
+
   it('opens the log of a stack', async () => {
     const {be} = setup()
     await open('Docker')

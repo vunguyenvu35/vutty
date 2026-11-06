@@ -152,11 +152,13 @@ export function actionQuestion(t: TFn, kind: 'service' | 'container', action: Se
   return {message: t('Stop the container {name}?', p), label: t('Stop')}
 }
 
-export type StackAction = ServerAction | 'update'
+export type StackAction = ServerAction | 'update' | 'up' | 'down'
 
 /** The question asked before a Compose project is started, stopped, restarted or updated. */
 export function stackQuestion(t: TFn, action: StackAction, name: string): {message: string; label: string} {
   const p = {name}
+  if (action === 'up') return {message: t('Bring the stack {name} up? It creates the containers that are missing and recreates the ones whose configuration changed.', p), label: t('Up')}
+  if (action === 'down') return {message: t('Take the stack {name} down? Its containers and network are removed; the volumes stay. This panel cannot bring it back: run docker compose up in its folder.', p), label: t('Down')}
   if (action === 'update') return {message: t('Update the stack {name}? It pulls the new images and recreates the containers that changed.', p), label: t('Update')}
   if (action === 'start') return {message: t('Start all containers of {name}?', p), label: t('Start')}
   if (action === 'restart') return {message: t('Restart all containers of {name}? Their connections drop for a moment.', p), label: t('Restart')}

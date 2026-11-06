@@ -232,7 +232,9 @@ export interface Backend {
     /** the last lines of a log; opts is for another number of lines (100, 300, 1000, 5000) and a time (15m, 1h, 24h) */
     logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, opts?: {lines: number; since: '' | '15m' | '1h' | '24h'}): Promise<string>
     /** start, stop or restart every container of a Compose project, or 'update' it (pull the images, then up -d) */
-    stackAction(sid: string, project: string, action: 'start' | 'stop' | 'restart' | 'update'): Promise<void>
+    stackAction(sid: string, project: string, action: 'start' | 'stop' | 'restart' | 'update' | 'up' | 'down'): Promise<void>
+    /** download an image (or the newest of a tag); returns what Docker printed */
+    dockerPull(sid: string, image: string): Promise<string>
     certificates(sid: string): Promise<ServerCerts>
     web(sid: string): Promise<ServerWeb>
     /** nginx -t / caddy validate: changes nothing */
@@ -606,6 +608,7 @@ export function wailsBackend(): Backend {
       dockerStats: async s => (await u<DockerStat[]>('ServerService', 'DockerStats', s)) ?? [],
       dockerInspect: async (s, n) => { const r = await u<DockerInspect>('ServerService', 'DockerInspect', s, n); return {...r, env: r.env ?? [], mounts: r.mounts ?? [], ports: r.ports ?? [], networks: r.networks ?? [], labels: r.labels ?? {}} },
       dockerObjects: async s => { const r = await u<DockerObjects>('ServerService', 'DockerObjects', s); return {images: r.images ?? [], volumes: r.volumes ?? [], networks: r.networks ?? []} },
+      dockerPull: (s, i) => u('ServerService', 'DockerPull', s, i),
       dockerRemove: (s, k, i) => u('ServerService', 'DockerRemove', s, k, i),
       logs: (s, k, n, o) => (o ? u('ServerService', 'LogsFor', s, k, n, o.lines, o.since) : u('ServerService', 'Logs', s, k, n)),
       stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),

@@ -390,7 +390,7 @@ func TestServerToolsRefuseWhatIsNotCheckedBeforeAnyCommand(t *testing.T) {
 	cases := map[string]error{
 		"stack name":    s.StackAction("x", "Shop; rm -rf /", "start"),
 		"stack caps":    s.StackAction("x", "Shop", "start"),
-		"stack action":  s.StackAction("x", "shop", "down"),
+		"stack action":  s.StackAction("x", "shop", "destroy"),
 		"web kind":      func() error { _, e := s.WebReload("x", "apache"); return e }(),
 		"web test kind": func() error { _, e := s.WebTest("x", "nginx; id"); return e }(),
 		"cleanup id":    s.CleanupRun("x", "docker-volumes"),
@@ -462,5 +462,25 @@ func TestServerToolScriptsAreValidShell(t *testing.T) {
 		if out, err := exec.Command(sh, "-n", "-c", script).CombinedOutput(); err != nil {
 			t.Errorf("%s: %v\n%s", name, err, out)
 		}
+	}
+}
+
+func TestDockerPullAndStackUpDownChecks(t *testing.T) {
+	s := &ServerService{sessions: map[string]*serverSession{}}
+	for _, img := range []string{"", "Nginx", "nginx; reboot", "-v", "a b"} {
+		if _, err := s.DockerPull("x", img); err == nil || err.Error() == "the connection to the server is closed: reconnect" {
+			t.Fatalf("%q should be refused before the server is asked: %v", img, err)
+		}
+	}
+	for _, img := range []string{"nginx", "nginx:1.27", "ghcr.io/org/app:v1", "registry:5000/a/b@sha256:abc"} {
+		if !imageRefRe.MatchString(img) {
+			t.Fatalf("%q should pass", img)
+		}
+	}
+	if _, ok := stackActions["up"]; !ok {
+		t.Fatal("up")
+	}
+	if _, ok := stackActions["down"]; !ok {
+		t.Fatal("down")
 	}
 }

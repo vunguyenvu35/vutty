@@ -5,7 +5,7 @@ import {useBackend} from '../backend'
 import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
-import {Modal} from '../ui/Modal'
+import {Field, Modal} from '../ui/Modal'
 import {errMsg} from '../util'
 import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, type ServerAction, type StackAction} from './shared'
 import type {DockerInspect, DockerObjects, DockerStat, Host, ServerContainer, ServerContainers} from '../types'
@@ -53,7 +53,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
   }
   const stack = async (project: string, action: StackAction) => {
     const q = stackQuestion(t, action, project)
-    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action === 'stop'}))) return
+    if (!(await confirm(q.message, {confirmLabel: q.label, danger: action === 'stop' || action === 'down'}))) return
     setWorking('stack:' + project)
     try { await be.server.stackAction(sid, project, action); toast.info(t('{name}: done', {name: project})) } catch (e) { toast.error(errMsg(e)) }
     setWorking('')
@@ -111,6 +111,8 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
                 {g.items.some(c => c.state === 'running')
                   ? <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
                   : <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
+                <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'up')}>{t('Up')}</button>
+                <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'down')}>{t('Down')}</button>
                 <button onClick={() => onLogs({kind: 'stack', name: g.project})}>{t('Logs')}</button>
               </div>
             )}
@@ -208,18 +210,31 @@ function Objects({sid, view}: {sid: string; view: Exclude<View, 'containers'>}) 
     setWorking('')
     reload()
   }
+  const [pulling, setPulling] = useState(false)
+  const [out, setOut] = useState<{ok: boolean; text: string} | null>(null)
+  const pull = async (image: string) => {
+    setWorking('pull:' + image); setOut(null)
+    try { setOut({ok: true, text: await be.server.dockerPull(sid, image)}); toast.info(t('{name}: done', {name: image})) } catch (e) { setOut({ok: false, text: errMsg(e)}) }
+    setWorking(''); reload()
+  }
+  const pullAgain = async (image: string) => {
+    if (!(await confirm(t('Download the newest {name}? Containers keep running the old image until they are recreated.', {name: image}), {confirmLabel: t('Pull')}))) return
+    await pull(image)
+  }
   const inUse = <span className="sp-pill ok">{t('In use')}</span>
   return (
     <>
-      <Toolbar busy={busy} onReload={reload} />
+      <Toolbar busy={busy} onReload={reload}>{view === 'images' && <button onClick={() => setPulling(true)}>{t('Pull image')}</button>}</Toolbar>
       <Err error={error} />
+      {out && <pre className={'sp-pre ' + (out.ok ? '' : 'bad')} role="status" aria-label={t('Result')}>{out.text}</pre>}
+      {pulling && <PullForm onPull={async img => { setPulling(false); await pull(img) }} onClose={() => setPulling(false)} />}
       {data && view === 'images' && (data.images.length === 0 ? <div className="sp-empty">{t('No images.')}</div> : (
         <section className="sp-card sp-wide"><div className="sp-table"><table>
           <thead><tr><th>{t('Image')}</th><th>{t('Size')}</th><th>{t('Created')}</th><th /></tr></thead>
           <tbody>{data.images.map(i => (
             <tr key={i.id}>
               <td><b>{i.name}</b><div className="sp-note m">{i.id}</div></td><td className="m">{i.size}</td><td className="m">{i.created}</td>
-              <td><div className="sp-acts">{i.in_use ? inUse : <button className="danger" aria-busy={working === i.id} disabled={working === i.id} onClick={() => void remove('image', i.id, i.name === '<none>' ? i.id : i.name)}>{t('Delete')}</button>}</div></td>
+              <td><div className="sp-acts">{i.name !== '<none>' && <button aria-busy={working === 'pull:' + i.name} disabled={working !== ''} aria-label={t('Pull {name} again', {name: i.name})} onClick={() => void pullAgain(i.name)}>{t('Pull')}</button>}{i.in_use ? inUse : <button className="danger" aria-busy={working === i.id} disabled={working === i.id} onClick={() => void remove('image', i.id, i.name === '<none>' ? i.id : i.name)}>{t('Delete')}</button>}</div></td>
             </tr>
           ))}</tbody>
         </table></div></section>
@@ -242,5 +257,18 @@ function Objects({sid, view}: {sid: string; view: Exclude<View, 'containers'>}) 
         </table></div></section>
       ))}
     </>
+  )
+}
+
+/** Ask for the name of an image to download. */
+function PullForm({onPull, onClose}: {onPull(image: string): Promise<void>; onClose(): void}) {
+  const t = useT()
+  const [image, setImage] = useState('')
+  const ok = /^[a-z0-9][a-z0-9._/:@-]{0,254}$/.test(image.trim())
+  return (
+    <Modal title={t('Pull image')} onClose={onClose} footer={<><button onClick={onClose}>{t('Cancel')}</button><button className="primary" disabled={!ok} onClick={() => void onPull(image.trim())}>{t('Pull')}</button></>}>
+      <Field label={t('Image')}><input value={image} spellCheck={false} onChange={e => setImage(e.target.value)} placeholder="nginx:1.27" /></Field>
+      <div className="sp-note">{t('A name in lower case, with a tag if you want one: nginx, nginx:1.27, ghcr.io/org/app:v1.')}</div>
+    </Modal>
   )
 }
