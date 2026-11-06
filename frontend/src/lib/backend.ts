@@ -5,11 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-<<<<<<< HEAD
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
-=======
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
->>>>>>> origin/feat/panel-system-settings
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -288,6 +284,8 @@ export interface Backend {
     cronDelete(sid: string, owner: string, schedule: string, command: string): Promise<void>
     /** the newest file under path on the server */
     backup(sid: string, path: string): Promise<ServerBackup>
+    /** a desktop notification of the operating system */
+    notify(title: string, body: string): Promise<void>
     /** one saved host: connects on its own, answers or says why not (never asks a question) */
     fleetHost(hostId: string): Promise<ServerFleetHost>
     /** the TCP ports something listens on, with what the ufw firewall says about each, and its rules */
@@ -670,6 +668,7 @@ export function wailsBackend(): Backend {
       cronUpdate: (s, o, os, oc, sc, c) => u('ServerService', 'CronUpdate', s, o, os, oc, sc, c),
       cronDelete: (s, o, sc, c) => u('ServerService', 'CronDelete', s, o, sc, c),
       backup: (s, p) => u('ServerService', 'Backup', s, p),
+      notify: (ti, b) => u('ServerService', 'Notify', ti, b),
       fleetHost: h => u('ServerService', 'FleetHost', h),
       ports: async s => { const r = await u<ServerPorts>('ServerService', 'Ports', s); return {...r, ports: r.ports ?? [], rules: r.rules ?? []} },
       firewallAdd: (s, a, p, pr, f, force) => u('ServerService', 'FirewallAdd', s, a, p, pr, f, force),

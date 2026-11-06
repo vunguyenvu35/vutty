@@ -7,12 +7,8 @@ import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {formatUptime, level, pct, validPath} from './format'
-<<<<<<< HEAD
-import type {ServerCleanup, ServerFolder, ServerReclaim, ServerSystem, ServerUpdates} from '../types'
-=======
 import {openInSftp} from '../sftp/openRequest'
-import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerUpdates} from '../types'
->>>>>>> origin/feat/panel-open-sftp
+import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerSystem, ServerUpdates} from '../types'
 
 /** The Maintenance tab: what is waiting to be updated, where the disk went, and what can be cleaned without losing data. */
 export function Maintenance({sid, host}: {sid: string; host: Host}) {

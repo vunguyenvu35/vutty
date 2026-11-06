@@ -234,6 +234,8 @@ More tabs for a server you run by hand:
 
 **Fleet** (in the left menu) shows every saved host on one page: up or down, CPU, memory, disk, load and failed services, the hosts with trouble first. Each host gets a short connection of its own that never asks a question, so a host whose key is not trusted yet shows as down: open it once in a terminal. *Open panel* opens its dashboard in a tab.
 
+The **Alerts** box at the top of Fleet lists what needs a look: a server that does not answer (after two failed checks in a row), a disk or memory over its limit (90% and 95% by default), a failed service, a Let's Encrypt certificate that ends in under 14 days (or has ended). The limits are boxes you can change; each is taken when you leave the box. Turn on **Desktop notifications** to get a system notification for every new alert (once each, until it clears). While it is on, the hosts are also checked once a minute when another page or another app is in front, which is the only time Vutty connects to your hosts by itself. The notification uses `osascript` on macOS, `notify-send` on Linux and a balloon on Windows.
+
 ![Fleet: every saved host on one page](screenshots/panel/fleet.png)
 
 _The screenshots use sample data, not a real server._

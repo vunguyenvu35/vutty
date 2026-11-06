@@ -947,6 +947,29 @@ type ServerFleetHost struct {
 	Overview    ServerOverview `json:"overview"`
 	FailedUnits int            `json:"failed_units"`
 	LatencyMs   int64          `json:"latency_ms"`
+	// CertDays is the days left of the Let's Encrypt certificate that ends first (negative: it has ended); null when there is none or the login cannot read them
+	CertDays *int `json:"cert_days"`
+}
+
+// parseFleetCertDays reads the notAfter= lines and the clock of the server printed by fleetScript.
+func parseFleetCertDays(out string) *int {
+	now := time.Now().Unix()
+	if n, err := strconv.ParseInt(strings.TrimSpace(section(out, "now")), 10, 64); err == nil && n > 0 {
+		now = n
+	}
+	var soonest int64
+	for _, ln := range strings.Split(section(out, "certs"), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(ln), "notAfter="); ok {
+			if t, err := time.Parse("Jan _2 15:04:05 2006 GMT", strings.TrimSpace(v)); err == nil && (soonest == 0 || t.Unix() < soonest) {
+				soonest = t.Unix()
+			}
+		}
+	}
+	if soonest == 0 {
+		return nil
+	}
+	d := int(math.Floor(float64(soonest-now) / 86400))
+	return &d
 }
 
 // parseFleet reads fleetScript: the overview, then the number of failed services.

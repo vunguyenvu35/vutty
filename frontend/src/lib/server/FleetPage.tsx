@@ -4,7 +4,9 @@ import {useT} from '../i18n'
 import {IconRefresh} from '../ui/Icons'
 import {useMinBusy} from '../ui/useMinBusy'
 import {errMsg} from '../util'
-import {FilterInput} from './shared'
+import {Card, FilterInput} from './shared'
+import {type FleetAlert, fleetAlertConfig, alertText, DEFAULT_ALERT_CONFIG, reportFleet, setFleetAlertConfig, useFleetAlertConfig, useFleetAlerts} from './fleetAlerts'
+import {useToast} from '../ui/Toast'
 import {formatUptime, level, pct} from './format'
 import type {Host, ServerFleetHost} from '../types'
 
@@ -30,6 +32,9 @@ const FLEET_POLL_MS = 30000
 export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): void}) {
   const be = useBackend()
   const t = useT()
+  const toast = useToast()
+  const alerts = useFleetAlerts()
+  const cfg = useFleetAlertConfig()
   const [rows, setRows] = useState<Record<string, Row>>({})
   const [q, setQ] = useState('')
   const [running, setRunning] = useState(false)
@@ -51,7 +56,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
         if (!quiet) setRows(p => ({...p, [h.id]: {state: 'checking'}}))
         let r: ServerFleetHost
         try { r = await be.server.fleetHost(h.id) } catch (e) { r = {host_id: h.id, error: errMsg(e), overview: {} as ServerFleetHost['overview'], failed_units: 0, latency_ms: 0} }
-        if (alive.current && mine === round.current) setRows(p => ({...p, [h.id]: {state: 'done', r}}))
+        if (alive.current && mine === round.current) { setRows(p => ({...p, [h.id]: {state: 'done', r}})); reportFleet(h, r) }
       }
     }
     await Promise.all(Array.from({length: Math.min(WORKERS, targets.length)}, worker))
@@ -66,7 +71,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
     alive.current = true
     void check(listRef.current)
     // asked again by itself: only while the page is in sight, and never on top of a round that is still going
-    const timer = window.setInterval(() => { if (!document.hidden && !busyNow.current) void check(listRef.current, true) }, FLEET_POLL_MS)
+    const timer = window.setInterval(() => { if ((!document.hidden || fleetAlertConfig().notify) && !busyNow.current) void check(listRef.current, true) }, FLEET_POLL_MS)
     return () => { alive.current = false; window.clearInterval(timer) }
   }, [check, ids])
 
@@ -81,6 +86,23 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   const done = Object.values(rows).filter(r => r.state === 'done') as Array<{state: 'done'; r: ServerFleetHost}>
   const down = done.filter(r => r.r.error).length
 
+  const alertHosts = useMemo(() => {
+    const by = new Map<string, FleetAlert[]>()
+    for (const a of alerts) by.set(a.hostId, [...(by.get(a.hostId) ?? []), a])
+    return [...by.entries()].sort((x, y) => x[1][0].label.localeCompare(y[1][0].label))
+  }, [alerts])
+  // a limit is taken when the box is left, not on every key: typing 80 must not pass through 8
+  const [resetN, setResetN] = useState(0)
+  const setNum = (key: 'disk' | 'mem' | 'certDays', min: number, max: number) => (e: {target: {value: string}}) => {
+    const n = Number(e.target.value)
+    if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) setFleetAlertConfig({...cfg, [key]: Math.round(n)})
+    else setResetN(x => x + 1) // not a good number: the box shows the limit that is in force
+  }
+  const toggleNotify = async (on: boolean) => {
+    setFleetAlertConfig({...cfg, notify: on})
+    if (!on) return
+    try { await be.server.notify('Vutty', t('Notifications are on: you are told when a server needs a look.')) } catch (e) { toast.error(t('This system could not show a notification: {error}', {error: errMsg(e)})) }
+  }
   const cell = (p: number) => <span className={'sp-pill ' + level(p)}>{p}%</span>
   return (
     <div className="hosts-page" aria-label={t('Fleet')}>
@@ -89,6 +111,26 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
         <span className="sp-os">{list.length === 0 ? '' : t('{up} of {n} servers answered', {up: done.length - down, n: list.length})}</span>
         <button className="ghost-btn" aria-label={t('Check all servers again')} aria-busy={spinning} disabled={running} onClick={() => void check(list)}><IconRefresh size={14} /> {t('Check again')}</button>
       </div>
+      <Card title={t('Alerts')} right={alerts.length > 0 ? <span className="sp-pill bad">{alerts.length}</span> : <span className="sp-pill ok">{t('None')}</span>}>
+        {alerts.length > 0 && (
+          <ul className="sp-alerts">
+            {alertHosts.map(([id, items]) => (
+              <li key={id}>
+                {items.map(a => <span key={a.key} className={'sp-pill ' + (a.kind === 'down' ? 'bad' : 'warn')}>{a.label + ' · ' + alertText(t, a)}</span>)}
+                <button aria-label={t('Open the panel of {name}', {name: items[0].label})} onClick={() => { const h = list.find(x => x.id === id); if (h) onPanel(h) }}>{t('Open panel')}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="sp-bar">
+          <label className="sp-os"><input type="checkbox" checked={cfg.notify} onChange={e => void toggleNotify(e.target.checked)} /> {t('Desktop notifications')}</label>
+          <label className="sp-os">{t('Disk over')} <input className="sp-num" aria-label={t('Disk alert limit in percent')} inputMode="numeric" defaultValue={cfg.disk} key={'d' + resetN} onBlur={setNum('disk', 1, 100)} />%</label>
+          <label className="sp-os">{t('Memory over')} <input className="sp-num" aria-label={t('Memory alert limit in percent')} inputMode="numeric" defaultValue={cfg.mem} key={'m' + resetN} onBlur={setNum('mem', 1, 100)} />%</label>
+          <label className="sp-os">{t('Certificate under')} <input className="sp-num" aria-label={t('Certificate alert limit in days')} inputMode="numeric" defaultValue={cfg.certDays} key={'c' + resetN} onBlur={setNum('certDays', 1, 90)} /> {t('days')}</label>
+          <button onClick={() => { setFleetAlertConfig({...DEFAULT_ALERT_CONFIG, notify: cfg.notify}); setResetN(x => x + 1) }}>{t('Default limits')}</button>
+        </div>
+        <div className="sp-note">{t('A server counts as down after two failed checks in a row. With desktop notifications on, the servers are checked every minute while another page or another app is in front.')}</div>
+      </Card>
       <h3 className="sec-title">{t('Fleet')}</h3>
       <div className="sp-table"><table>
         <thead><tr><th>{t('Server')}</th><th>{t('Status')}</th><th className="n">{t('CPU')}</th><th className="n">{t('Memory')}</th><th className="n">{t('Disk /')}</th><th className="n">{t('Load average')}</th><th>{t('Services')}</th><th>{t('Uptime')}</th><th /></tr></thead>

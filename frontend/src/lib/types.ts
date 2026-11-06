@@ -726,6 +726,8 @@ export interface ServerFleetHost {
   failed_units: number
   /** how long the SSH connection took, in milliseconds */
   latency_ms: number
+  /** days left of the Let's Encrypt certificate that ends first (negative: it has ended); null or absent when there is none or it cannot be read */
+  cert_days?: number | null
 }
 
 /** The Kubernetes tab of the Panel: kubectl run on the host over SSH (see usecase.ServerService, K8s*). */
