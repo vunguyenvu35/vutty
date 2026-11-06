@@ -139,3 +139,6 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-opt { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--muted); font-size: 12.5px; }
 .sp-opt input[type=checkbox] { margin: 0; flex: none; }
 .sp-opt .sp-num { margin: 0; }
+
+/* room between the filter bar of Fleet and the box under it */
+.hosts-page > .sp-bar + .sp-card { margin-top: 12px; }
