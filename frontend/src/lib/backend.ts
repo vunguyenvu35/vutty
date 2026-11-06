@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -260,6 +260,9 @@ export interface Backend {
     swapRemove(sid: string): Promise<void>
     /** refreshes the package lists (apt-get update, dnf makecache) */
     updatesRefresh(sid: string): Promise<void>
+    /** start installing every waiting update (apt, dnf, yum) in the background on the server */
+    updatesInstall(sid: string): Promise<void>
+    updatesInstallStatus(sid: string): Promise<ServerUpgrade>
     cleanup(sid: string): Promise<ServerCleanup>
     /** runs one cleanup by id (see ServerReclaim); docker-volumes is refused */
     cleanupRun(sid: string, id: string): Promise<void>
@@ -275,7 +278,7 @@ export interface Backend {
     /** add an account to the sudo group, or take it out of all of them (never from the last one that has it) */
     setUserSudo(sid: string, name: string, sudo: boolean): Promise<void>
     /** one action on one saved host, for the Fleet page to do on many: 'updates' (looks only) or 'renew' (certbot renew) */
-    fleetAction(hostId: string, action: 'updates' | 'renew'): Promise<ServerFleetResult>
+    fleetAction(hostId: string, action: 'updates' | 'renew' | 'install'): Promise<ServerFleetResult>
     userKeys(sid: string, name: string): Promise<UserKey[]>
     addUserKey(sid: string, name: string, key: string): Promise<void>
     removeUserKey(sid: string, name: string, fingerprint: string): Promise<void>
@@ -658,6 +661,8 @@ export function wailsBackend(): Backend {
       swapRemove: s => u('ServerService', 'SwapRemove', s),
       updates: async s => { const r = await u<ServerUpdates>('ServerService', 'Updates', s); return {...r, packages: r.packages ?? []} },
       updatesRefresh: s => u('ServerService', 'UpdatesRefresh', s),
+      updatesInstall: s => u('ServerService', 'UpdatesInstall', s),
+      updatesInstallStatus: s => u<ServerUpgrade>('ServerService', 'UpdatesInstallStatus', s),
       cleanup: async s => { const r = await u<ServerCleanup>('ServerService', 'Cleanup', s); return {disks: r.disks ?? [], items: r.items ?? []} },
       cleanupRun: (s, id) => u('ServerService', 'CleanupRun', s, id),
       diskUsage: async (s, p) => (await u<ServerFolder[]>('ServerService', 'DiskUsage', s, p)) ?? [],

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {useBackend} from '../backend'
 import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
@@ -8,7 +8,8 @@ import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {formatUptime, level, pct, validPath} from './format'
 import {openInSftp} from '../sftp/openRequest'
-import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerSystem, ServerUpdates} from '../types'
+import {Modal} from '../ui/Modal'
+import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerSystem, ServerUpdates, ServerUpgrade} from '../types'
 
 /** The Maintenance tab: what is waiting to be updated, where the disk went, and what can be cleaned without losing data. */
 export function Maintenance({sid, host}: {sid: string; host: Host}) {
@@ -29,8 +30,15 @@ function Updates({sid}: {sid: string}) {
   const toast = useToast()
   const confirm = useConfirm()
   const [working, setWorking] = useState(false)
+  const [installing, setInstalling] = useState(false)
   const load = useCallback(() => be.server.updates(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerUpdates>(load, null)
+  // an upgrade that was started before (and runs on) is picked up again when the tab is opened
+  useEffect(() => { void be.server.updatesInstallStatus(sid).then(s => { if (s.running) setInstalling(true) }).catch(() => {}) }, [be, sid])
+  const install = async () => {
+    if (!(await confirm(t('Install {n} updates? It runs on the server in the background, takes a few minutes, and goes on if you close this panel. Services may restart; connections to them can drop for a moment. A reboot may be needed afterwards.', {n: data?.count ?? 0}), {confirmLabel: t('Install updates'), danger: true}))) return
+    try { await be.server.updatesInstall(sid); setInstalling(true) } catch (e) { toast.error(errMsg(e)) }
+  }
   const refresh = async () => {
     if (!(await confirm(t('Refresh the package lists? This downloads the lists of packages and installs nothing.'), {confirmLabel: t('Refresh lists')}))) return
     setWorking(true)
@@ -41,6 +49,7 @@ function Updates({sid}: {sid: string}) {
   return (
     <Card title={t('Updates')} right={<Toolbar busy={busy} onReload={reload} />}>
       <Err error={error} />
+      {installing && <UpgradeProgress sid={sid} onClose={() => { setInstalling(false); reload() }} />}
       {data && !data.manager && <div className="sp-empty">{t('No package manager that the panel knows (apt, dnf, yum) was found.')}</div>}
       {data && data.manager && (
         <>
@@ -50,6 +59,7 @@ function Updates({sid}: {sid: string}) {
             {data.reboot_required && <span className="sp-pill warn">{t('Needs a reboot')}</span>}
             <span className="sp-os">{data.lists_age_sec >= 0 ? t('Package lists refreshed {time} ago.', {time: formatUptime(data.lists_age_sec)}) : t('Age of the package lists unknown.')}</span>
             <button aria-busy={working} disabled={working} onClick={() => void refresh()}>{t('Refresh lists')}</button>
+            {data.count > 0 && <button className="primary" onClick={() => void install()}>{t('Install updates')}</button>}
           </div>
           {data.packages.length > 0 && (
             <div className="sp-table"><table>
@@ -248,5 +258,48 @@ function System({sid}: {sid: string}) {
       )}
       <div className="sp-note">{t('The swap file is /swapfile: 256 MB to 32 GB, and 1 GB of disk must stay free.')}</div>
     </Card>
+  )
+}
+
+/** How far the upgrade is: the log of the server read every 2 seconds, until it has ended. It runs on the server, so closing this does not stop it. */
+function UpgradeProgress({sid, onClose}: {sid: string; onClose(): void}) {
+  const be = useBackend()
+  const t = useT()
+  const [s, setS] = useState<ServerUpgrade | null>(null)
+  const [error, setError] = useState('')
+  const pre = useRef<HTMLPreElement>(null)
+  useEffect(() => {
+    let alive = true
+    let timer = 0
+    const tick = async () => {
+      try {
+        const r = await be.server.updatesInstallStatus(sid)
+        if (!alive) return
+        setS(r); setError('')
+        if (r.running || !r.done) timer = window.setTimeout(() => void tick(), 2000)
+      } catch (e) {
+        if (!alive) return
+        setError(errMsg(e)) // the connection dropped: the upgrade itself goes on, so keep asking
+        timer = window.setTimeout(() => void tick(), 4000)
+      }
+    }
+    void tick()
+    return () => { alive = false; window.clearTimeout(timer) }
+  }, [be, sid])
+  useEffect(() => { if (pre.current) pre.current.scrollTop = pre.current.scrollHeight }, [s?.log])
+  const done = !!s?.done
+  return (
+    <Modal wide title={t('Installing updates')} onClose={onClose} footer={<button className={done ? 'primary' : ''} onClick={onClose}>{done ? t('Close') : t('Hide: it goes on')}</button>}>
+      <div className="sp-bar">
+        {!s && <span className="sp-pill">{t('Starting…')}</span>}
+        {s?.running && <span className="sp-pill warn">{t('Running')}</span>}
+        {done && (s!.ok ? <span className="sp-pill ok">{t('Finished')}</span> : <span className="sp-pill bad">{t('Failed (exit code {code})', {code: s!.code})}</span>)}
+      </div>
+      <Err error={error} />
+      <pre ref={pre} className={'sp-pre' + (done && !s!.ok ? ' bad' : '')} role="log" aria-label={t('Upgrade log')} style={{maxHeight: 340, overflow: 'auto'}}>{s?.log || t('Waiting for the first line…')}</pre>
+      {done && s!.ok && <div className="sp-note">{t('Done. If the Updates box says a reboot is needed, use Reboot at the top of the panel when it suits you.')}</div>}
+      {done && !s!.ok && <div className="sp-note">{t('The package manager stopped. Read the end of the log above; it can be started again from the Updates box.')}</div>}
+      {!done && <div className="sp-note">{t('It runs on the server: you can hide this, close the panel, and come back to see how far it is.')}</div>}
+    </Modal>
   )
 }

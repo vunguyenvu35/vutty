@@ -694,6 +694,19 @@ export interface ServerSecurity {
   /** failed SSH logins in the last 24 hours, by address, most first; known is false when there is no log to read */
   failed: {known: boolean; total: number; top: Array<{ip: string; count: number}>}
 }
+/** How far an upgrade started from the panel is (it runs on the server, in the background). */
+export interface ServerUpgrade {
+  running: boolean
+  /** it has ended */
+  done: boolean
+  /** it ended with exit code 0 */
+  ok: boolean
+  code: number
+  /** the end of what it printed */
+  log: string
+  /** there is a log of an upgrade at all */
+  started: boolean
+}
 /** What the Security check reads besides ServerSecurity. */
 export interface ServerAudit {
   /** ufw, firewalld, nft (on); ufw-off, firewalld-off, none */

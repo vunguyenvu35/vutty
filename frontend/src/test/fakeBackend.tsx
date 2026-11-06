@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -62,6 +62,8 @@ export interface Fake extends Backend {
       certs: ServerCerts
       system: ServerSystem
       audit: ServerAudit
+      upgrade: ServerUpgrade
+      upgradePolls: number
       logins: ServerLogin[]
       web: ServerWeb
       webSites: WebSiteFile[]
@@ -200,6 +202,8 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       webSites: [{name: 'shop.conf', enabled: true}, {name: 'staging.conf', enabled: false}],
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
+      upgrade: {started: false, running: false, done: false, ok: false, code: 0, log: ''},
+      upgradePolls: 0,
       audit: {firewall: 'ufw-off', auto_updates: 'none', uid0: [], empty_passwords: [], passwords_known: true, nopasswd: 1, reboot_required: false},
       logins: [{user: 'root', tty: 'pts/0', from: '203.0.113.7', when: 'Fri Nov 6 09:00:12 2026', status: 'still logged in'}, {user: 'ubuntu', tty: 'pts/1', from: '198.51.100.4', when: 'Thu Nov 5 22:10:01 2026', status: '- Thu Nov 5 22:40:00 2026  (00:29)'}],
       system: {hostname: 'web-1', timezone: 'UTC', systemd: true, swap_total: 0, swap_file: 0, swap_other: false, ram: 2 * 1024 ** 3, disk_free: 20 * 1024 ** 3},
@@ -639,6 +643,20 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       swapCreate: async (sid, mb) => { rec('server.swapCreate', mb); if (state.server.failAction) throw state.server.failAction; state.server.system.swap_file = mb * 1024 ** 2; state.server.system.swap_total = mb * 1024 ** 2 },
       swapRemove: async () => { rec('server.swapRemove'); if (state.server.failAction) throw state.server.failAction; state.server.system.swap_file = 0; state.server.system.swap_total = 0 },
       updates: async () => ({...state.server.updates, packages: state.server.updates.packages.map(p => ({...p}))}),
+      updatesInstall: async () => {
+        rec('server.updatesInstall')
+        if (state.server.failAction) throw state.server.failAction
+        state.server.upgradePolls = 0
+        state.server.upgrade = {started: true, running: true, done: false, ok: false, code: 0, log: 'Reading package lists...'}
+      },
+      updatesInstallStatus: async () => {
+        rec('server.updatesInstallStatus')
+        if (state.server.upgrade.running && ++state.server.upgradePolls >= 2) {
+          state.server.upgrade = {started: true, running: false, done: true, ok: true, code: 0, log: 'Reading package lists...\n12 upgraded, 0 newly installed.'}
+          state.server.updates = {...state.server.updates, count: 0, security: 0, packages: [], reboot_required: true}
+        }
+        return {...state.server.upgrade}
+      },
       updatesRefresh: async () => { rec('server.updatesRefresh'); if (state.server.failAction) throw state.server.failAction },
       cleanup: async () => ({disks: state.server.cleanup.disks.map(d => ({...d})), items: state.server.cleanup.items.map(i => ({...i}))}),
       cleanupRun: async (sid, id) => {
@@ -667,6 +685,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         rec('server.fleetAction', hostId, action)
         const err = state.server.fleetErrors[hostId]
         if (err) return {host_id: hostId, error: err, output: '', manager: '', count: 0, security: 0, reboot_required: false}
+        if (action === 'install') return {host_id: hostId, error: '', output: 'started', manager: '', count: 0, security: 0, reboot_required: false}
         return action === 'updates'
           ? {host_id: hostId, error: '', output: '', manager: 'apt', count: 12, security: 3, reboot_required: hostId === 'a'}
           : {host_id: hostId, error: '', output: 'Congratulations, all renewals succeeded', manager: '', count: 0, security: 0, reboot_required: false}

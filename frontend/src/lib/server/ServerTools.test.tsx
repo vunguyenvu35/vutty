@@ -391,6 +391,37 @@ describe('System box of Maintenance', () => {
   })
 })
 
+describe('Installing updates', () => {
+  it('asks, starts the upgrade, follows its log and reloads the updates when it ends', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Maintenance')
+    await userEvent.click(await screen.findByRole('button', {name: 'Install updates'}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Install 12 updates?'))
+    expect(calls(be, 'server.updatesInstall')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Install updates'}))
+    await waitFor(() => expect(calls(be, 'server.updatesInstall')).toHaveLength(1))
+    const dlg = await screen.findByRole('dialog', {name: 'Installing updates'})
+    expect(await within(dlg).findByText('Running')).toBeInTheDocument()
+    expect(within(dlg).getByRole('log')).toHaveTextContent('Reading package lists...')
+    expect(await within(dlg).findByText('Finished', {}, {timeout: 6000})).toBeInTheDocument()
+    expect(within(dlg).getByRole('log')).toHaveTextContent('12 upgraded')
+    await userEvent.click(within(dlg).getAllByRole('button', {name: 'Close'}).find(b => b.textContent === 'Close')!) // the footer one, not the × of the title
+    expect(await screen.findByText('Up to date')).toBeInTheDocument()
+    ask.mockRestore()
+  }, 15000)
+
+  it('picks an upgrade that is already running up again when the tab is opened', async () => {
+    const be = makeFake({hosts: [web]})
+    be.state.server.upgrade = {started: true, running: true, done: false, ok: false, code: 0, log: 'Unpacking openssl'}
+    render(<Providers be={be}><ServerPanel host={web} visible /></Providers>)
+    await screen.findByText(/up 41d 0h/)
+    await userEvent.click(screen.getByRole('tab', {name: 'Maintenance'}))
+    expect(await screen.findByRole('dialog', {name: 'Installing updates'})).toBeInTheDocument()
+  })
+})
+
 describe('Maintenance tab', () => {
   it('shows pending updates with the security ones marked, and refreshes the lists only after a yes', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)

@@ -95,12 +95,13 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
   }, [alerts])
   // one action on the hosts that are ticked: each answers in its own row of the result box
   const [picked, setPicked] = useState<string[]>([])
-  const [job, setJob] = useState<{action: 'updates' | 'renew'; rows: Record<string, 'running' | ServerFleetResult>} | null>(null)
+  const [job, setJob] = useState<{action: 'updates' | 'renew' | 'install'; rows: Record<string, 'running' | ServerFleetResult>} | null>(null)
   const pickedHosts = list.filter(h => picked.includes(h.id))
-  const doAll = async (action: 'updates' | 'renew') => {
+  const doAll = async (action: 'updates' | 'renew' | 'install') => {
     const targets = pickedHosts
     if (targets.length === 0 || (job && Object.values(job.rows).includes('running'))) return
     if (action === 'renew' && !(await confirm(t('Renew the certificates on {n} servers? certbot renews only the ones near their end, then each web server is reloaded.', {n: targets.length}), {confirmLabel: t('Renew')}))) return
+    if (action === 'install' && !(await confirm(t('Install the updates on {n} servers? Each one starts installing every waiting update in the background: services may restart and a reboot may be needed. Follow each one in its panel.', {n: targets.length}), {confirmLabel: t('Install updates'), danger: true}))) return
     setJob({action, rows: Object.fromEntries(targets.map(h => [h.id, 'running' as const]))})
     let next = 0
     const worker = async () => {
@@ -160,6 +161,7 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
           <span className="sp-os">{t('{n} selected', {n: picked.length})}</span>
           <button disabled={picked.length === 0 || working} onClick={() => void doAll('updates')}>{t('Look at the updates')}</button>
           <button disabled={picked.length === 0 || working} onClick={() => void doAll('renew')}>{t('Renew certificates')}</button>
+          <button className="danger" disabled={picked.length === 0 || working} onClick={() => void doAll('install')}>{t('Install updates')}</button>
         </div>
         {job && (
           <div className="sp-table"><table>
@@ -172,17 +174,18 @@ export function FleetPage({hosts, onPanel}: {hosts: Host[]; onPanel(h: Host): vo
                     <td>{r === 'running' ? <span className="sp-pill">{t('Working…')}</span>
                       : r.error ? <span className="sp-pill bad" title={r.error}>{t('Failed')}</span>
                       : job.action === 'updates' ? (r.manager ? <span className={'sp-pill ' + (r.security > 0 ? 'bad' : r.count > 0 ? 'warn' : 'ok')}>{r.count === 0 ? t('Up to date') : t('{n} updates, {s} security', {n: r.count, s: r.security})}</span> : <span className="sp-pill">{t('No package manager')}</span>)
+                      : job.action === 'install' ? <span className="sp-pill warn">{t('Started')}</span>
                       : <span className="sp-pill ok">{t('Done')}</span>}
                       {r !== 'running' && r.reboot_required && <> <span className="sp-pill warn">{t('Needs a reboot')}</span></>}
                     </td>
-                    <td className="sp-note">{r !== 'running' && (r.error || (job.action === 'renew' ? r.output.split('\n').slice(-1)[0] : ''))}</td>
+                    <td className="sp-note">{r !== 'running' && (r.error || (job.action === 'renew' ? r.output.split('\n').slice(-1)[0] : job.action === 'install' ? t('Follow it in the Maintenance tab of its panel.') : ''))}</td>
                   </tr>
                 )
               })}
             </tbody>
           </table></div>
         )}
-        <div className="sp-note">{t('Tick servers in the list below. Updates are only looked at; installing them is done in each panel. Each server gets a short connection of its own.')}</div>
+        <div className="sp-note">{t('Tick servers in the list below. Looking at the updates changes nothing; installing them starts in the background and is followed in each panel. Each server gets a short connection of its own.')}</div>
       </Card>
       <h3 className="sec-title">{t('Fleet')}</h3>
       <div className="sp-table"><table>

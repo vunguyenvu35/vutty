@@ -116,6 +116,21 @@ describe('Fleet: one action on several servers', () => {
     expect(screen.getByText('Needs a reboot')).toBeInTheDocument()
   })
 
+  it('starts the installation of updates on the ticked servers only after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const be = makeFake({hosts: [a, b]})
+    render(<Providers be={be}><FleetPage hosts={[a, b]} onPanel={vi.fn()} /></Providers>)
+    await userEvent.click(await screen.findByRole('checkbox', {name: 'Select alpha'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Install updates'}))
+    expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Install the updates on 1 servers?'))
+    expect(calls(be, 'server.fleetAction')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Install updates'}))
+    await waitFor(() => expect(calls(be, 'server.fleetAction')).toEqual([['server.fleetAction', 'a', 'install']]))
+    expect(await screen.findByText('Started')).toBeInTheDocument()
+    ask.mockRestore()
+  })
+
   it('renews certificates on all servers after asking, and shows the one that failed', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
     const be = makeFake({hosts: [a, b]})

@@ -7,7 +7,7 @@ import (
 )
 
 // One thing done on one saved host without opening its panel, for the Fleet page to do on many hosts: look at the waiting updates
-// (changes nothing) or renew the certificates (certbot renews only the ones near their end, then the web server is reloaded). Each host
+// (changes nothing), start installing them, or renew the certificates (certbot renews only the ones near their end, then the web server is reloaded). Each host
 // gets a short connection of its own that never asks a question, as in FleetHost.
 
 // ServerFleetResult is what one host answered.
@@ -21,7 +21,7 @@ type ServerFleetResult struct {
 	Reboot   bool   `json:"reboot_required"`
 }
 
-var fleetActions = map[string]bool{"updates": true, "renew": true}
+var fleetActions = map[string]bool{"updates": true, "renew": true, "install": true}
 
 const fleetRenewScript = `command -v certbot >/dev/null 2>&1 || { echo "certbot is not installed on this server" >&2; exit 1; }
 $SUDO certbot renew --non-interactive 2>&1
@@ -55,6 +55,15 @@ func (s *ServerService) FleetAction(hostID, action string) (ServerFleetResult, e
 		}
 		u := parseUpdates(out)
 		res.Manager, res.Count, res.Security, res.Reboot = u.Manager, u.Count, u.Security, u.RebootRequired
+	case "install":
+		// started in the background on that server; its panel shows how far it is
+		_, err := runScript(cl, upgradeStartScript(), serverTimeout)
+		if err != nil {
+			res.Error = lastLine(err.Error())
+		} else {
+			res.Output = "started"
+		}
+		s.c.record(domain.ActConnect, hostID, h.Label, "install the package updates (fleet)", err == nil)
 	case "renew":
 		out, err := runScript(cl, asRoot+fleetRenewScript, certbotTimeout)
 		res.Output = dockerTail(out, err)
