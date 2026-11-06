@@ -111,6 +111,32 @@ describe('Web tab', () => {
   })
 })
 
+describe('Every box of the panel can be put away', () => {
+  it('folds and opens a box of a tab', async () => {
+    setup()
+    await open('Security')
+    expect(await screen.findByText('SSH settings')).toBeInTheDocument()
+    expect(screen.getByText('Recent logins')).toBeInTheDocument()
+    const fold = screen.getByRole('button', {name: 'Recent logins'})
+    expect(screen.getByText('Logged in now')).toBeInTheDocument()
+    await userEvent.click(fold)
+    expect(fold).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Logged in now')).toBeNull()
+    await userEvent.click(fold)
+    expect(screen.getByText('Logged in now')).toBeInTheDocument()
+  })
+
+  it('folds a Docker stack and keeps the others open', async () => {
+    setup()
+    await open('Docker')
+    const stack = (await screen.findByText('Stack shop')).closest('section') as HTMLElement
+    expect(within(stack).getByText('api')).toBeInTheDocument()
+    await userEvent.click(within(stack).getByRole('button', {name: 'Stack shop'}))
+    expect(within(stack).queryByText('api')).toBeNull()
+    expect(within(screen.getByRole('region', {name: 'Other containers'})).getByText('old-batch')).toBeInTheDocument()
+  })
+})
+
 describe('Web and Services changes', () => {
   it('switches a site off after asking, and renews a certificate', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(true)

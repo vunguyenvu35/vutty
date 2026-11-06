@@ -8,7 +8,7 @@ import {openInSftp} from '../sftp/openRequest'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
+import {actionQuestion, Card, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker, RowMenu} from './Docker'
@@ -208,8 +208,7 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
         <div className="sp-note">{span === '30m' ? t('The charts show the last {n} min while this tab is open.', {n: minutes}) : t('Read while this tab is open; a gap is a time it was closed.')}</div>
       </div>
       <div className="sp-grid sp-grid-2">
-        <div className="sp-card">
-          <h3>{t('Needs attention')}</h3>
+        <Card title={t('Needs attention')}>
           {attention.length === 0 && <div className="sp-note">{units ? t('Nothing needs attention.') : t('Loading…')}</div>}
           {attention.map(a => (
             <div key={a.key} className="sp-attn">
@@ -217,9 +216,8 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
               {a.go !== 'overview' && <button onClick={() => onGo(a.go)}>{t('Open')}</button>}
             </div>
           ))}
-        </div>
-        <div className="sp-card">
-          <h3>{t('Details')}</h3>
+        </Card>
+        <Card title={t('Details')}>
           <table className="sp-kv"><tbody>
             <tr><td>{t('System')}</td><td>{o.os}</td></tr>
             <tr><td>{t('Kernel')}</td><td>{o.kernel}</td></tr>
@@ -227,7 +225,7 @@ function Overview({sid, host, feed, onGo}: {sid: string; host: Host; feed: Feed;
             <tr><td>{t('Uptime')}</td><td>{formatUptime(o.uptime_sec)}</td></tr>
           </tbody></table>
           {!o.root && <div className="sp-note">{t('Changes use sudo without a password. If the login cannot, they fail with the server\'s message.')}</div>}
-        </div>
+        </Card>
       </div>
     </div>
   )

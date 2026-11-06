@@ -204,9 +204,9 @@ export function Loading({kind = 'table', what}: {kind?: 'table' | 'overview' | '
 export const Err = ({error}: {error: string}) => (error ? <div className="error" role="alert">{error}</div> : null)
 
 /** A box of the page with a title: the unit of every section that has more than one thing to show. */
-export function Card({title, children, right, collapsible = false, closed: closedProp, onToggle, count, filter}: {
+export function Card({title, children, right, collapsible = true, closed: closedProp, onToggle, count, filter}: {
   title: string; children: ReactNode; right?: ReactNode
-  /** the title closes and opens the box (a long list can be put away) */
+  /** the title closes and opens the box (a long list can be put away); every box does, unless it is told not to */
   collapsible?: boolean
   /** the screen keeps whether the box is closed (so it stays closed when the screen is built again); without it the box keeps it itself */
   closed?: boolean
