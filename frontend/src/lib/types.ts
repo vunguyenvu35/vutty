@@ -559,6 +559,20 @@ export interface DockerObjects {
   volumes: {name: string; driver: string; in_use: boolean}[]
   networks: {id: string; name: string; driver: string; scope: string}[]
 }
+/** The System box of Maintenance: hostname, time zone and swap. Sizes are bytes. */
+export interface ServerSystem {
+  hostname: string
+  timezone: string
+  /** hostnamectl and timedatectl are there */
+  systemd: boolean
+  swap_total: number
+  /** the size of /swapfile when it is in use, else 0 */
+  swap_file: number
+  /** some swap that is not /swapfile (a partition): shown, never touched */
+  swap_other: boolean
+  ram: number
+  disk_free: number
+}
 export interface ServerPort {
   port: number
   process: string

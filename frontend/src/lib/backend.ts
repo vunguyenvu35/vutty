@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult,
 } from './types'
 
 /**
@@ -240,6 +240,12 @@ export interface Backend {
     /** tests the configuration and reloads only when it passed */
     webReload(sid: string, kind: 'nginx' | 'caddy'): Promise<ServerWebResult>
     updates(sid: string): Promise<ServerUpdates>
+    system(sid: string): Promise<ServerSystem>
+    setHostname(sid: string, name: string): Promise<void>
+    setTimezone(sid: string, zone: string): Promise<void>
+    /** create /swapfile of this many MB, turn it on and keep it for the next boot */
+    swapCreate(sid: string, mb: number): Promise<void>
+    swapRemove(sid: string): Promise<void>
     /** refreshes the package lists (apt-get update, dnf makecache) */
     updatesRefresh(sid: string): Promise<void>
     cleanup(sid: string): Promise<ServerCleanup>
@@ -613,6 +619,11 @@ export function wailsBackend(): Backend {
       web: async s => { const r = await u<ServerWeb>('ServerService', 'Web', s); return {...r, sites: (r.sites ?? []).map(x => ({...x, names: x.names ?? [], listen: x.listen ?? [], targets: x.targets ?? []}))} },
       webTest: (s, k) => u('ServerService', 'WebTest', s, k),
       webReload: (s, k) => u('ServerService', 'WebReload', s, k),
+      system: s => u<ServerSystem>('ServerService', 'System', s),
+      setHostname: (s, n) => u('ServerService', 'SetHostname', s, n),
+      setTimezone: (s, z) => u('ServerService', 'SetTimezone', s, z),
+      swapCreate: (s, mb) => u('ServerService', 'SwapCreate', s, mb),
+      swapRemove: s => u('ServerService', 'SwapRemove', s),
       updates: async s => { const r = await u<ServerUpdates>('ServerService', 'Updates', s); return {...r, packages: r.packages ?? []} },
       updatesRefresh: s => u('ServerService', 'UpdatesRefresh', s),
       cleanup: async s => { const r = await u<ServerCleanup>('ServerService', 'Cleanup', s); return {disks: r.disks ?? [], items: r.items ?? []} },

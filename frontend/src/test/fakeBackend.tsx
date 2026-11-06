@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -60,6 +60,7 @@ export interface Fake extends Backend {
       logs: string
       ports: ServerPorts
       certs: ServerCerts
+      system: ServerSystem
       web: ServerWeb
       webResult: ServerWebResult
       updates: ServerUpdates
@@ -195,6 +196,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
       web: {kind: 'nginx', version: 'nginx/1.24.0', running: true, sites: [{names: ['example.com', 'www.example.com'], listen: ['443 ssl'], targets: ['proxy_pass http://127.0.0.1:3000']}]},
       webResult: {ok: true, output: 'nginx: configuration file /etc/nginx/nginx.conf test is successful'},
+      system: {hostname: 'web-1', timezone: 'UTC', systemd: true, swap_total: 0, swap_file: 0, swap_other: false, ram: 2 * 1024 ** 3, disk_free: 20 * 1024 ** 3},
       updates: {manager: 'apt', count: 12, security: 3, reboot_required: true, lists_age_sec: 3 * 86400, packages: [{name: 'openssl', version: '3.0.13-0ubuntu3.5', security: true}, {name: 'curl', version: '8.5.0-2ubuntu10.6', security: false}]},
       cleanup: {disks: [{mount: '/', device: '/dev/sda1', total: 50 * GB, used: 39 * GB}], items: [{id: 'docker-dangling', size: GB, note: 'Dangling images and build cache'}, {id: 'journal', size: GB / 2, note: 'Journal'}, {id: 'docker-volumes', size: 3 * GB, note: 'Volumes'}]},
       folders: {'/var': [{path: '/var/lib', size: 12 * GB}, {path: '/var/log', size: 2 * GB}], '/var/lib': [{path: '/var/lib/docker', size: 10 * GB}]},
@@ -612,6 +614,11 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       web: async () => ({...state.server.web, sites: state.server.web.sites.map(x => ({...x}))}),
       webTest: async (sid, kind) => { rec('server.webTest', kind); return {...state.server.webResult} },
       webReload: async (sid, kind) => { rec('server.webReload', kind); if (state.server.failAction) throw state.server.failAction; return {...state.server.webResult} },
+      system: async () => ({...state.server.system}),
+      setHostname: async (sid, name) => { rec('server.setHostname', name); if (state.server.failAction) throw state.server.failAction; state.server.system.hostname = name },
+      setTimezone: async (sid, zone) => { rec('server.setTimezone', zone); if (state.server.failAction) throw state.server.failAction; state.server.system.timezone = zone },
+      swapCreate: async (sid, mb) => { rec('server.swapCreate', mb); if (state.server.failAction) throw state.server.failAction; state.server.system.swap_file = mb * 1024 ** 2; state.server.system.swap_total = mb * 1024 ** 2 },
+      swapRemove: async () => { rec('server.swapRemove'); if (state.server.failAction) throw state.server.failAction; state.server.system.swap_file = 0; state.server.system.swap_total = 0 },
       updates: async () => ({...state.server.updates, packages: state.server.updates.packages.map(p => ({...p}))}),
       updatesRefresh: async () => { rec('server.updatesRefresh'); if (state.server.failAction) throw state.server.failAction },
       cleanup: async () => ({disks: state.server.cleanup.disks.map(d => ({...d})), items: state.server.cleanup.items.map(i => ({...i}))}),

@@ -221,6 +221,34 @@ describe('Logs follow', () => {
   })
 })
 
+describe('System box of Maintenance', () => {
+  it('renames, sets the time zone and creates then removes a swap file, each after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Maintenance')
+    const host = await screen.findByLabelText('Hostname')
+    await userEvent.clear(host)
+    await userEvent.type(host, 'web-2')
+    await userEvent.click(screen.getByRole('button', {name: 'Rename'}))
+    expect(calls(be, 'server.setHostname')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(screen.getByRole('button', {name: 'Rename'}))
+    await waitFor(() => expect(calls(be, 'server.setHostname')).toEqual([['server.setHostname', 'web-2']]))
+    const zone = screen.getByLabelText('Time zone')
+    await userEvent.clear(zone)
+    await userEvent.type(zone, 'Asia/Ho_Chi_Minh')
+    await userEvent.click(screen.getByRole('button', {name: 'Change'}))
+    await waitFor(() => expect(calls(be, 'server.setTimezone')).toEqual([['server.setTimezone', 'Asia/Ho_Chi_Minh']]))
+    expect(screen.getByRole('button', {name: 'Create swap file'})).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('Swap file size in MB'), '2048')
+    await userEvent.click(screen.getByRole('button', {name: 'Create swap file'}))
+    await waitFor(() => expect(calls(be, 'server.swapCreate')).toEqual([['server.swapCreate', 2048]]))
+    await userEvent.click(await screen.findByRole('button', {name: 'Remove swap file'}))
+    await waitFor(() => expect(calls(be, 'server.swapRemove')).toHaveLength(1))
+    ask.mockRestore()
+  })
+})
+
 describe('Maintenance tab', () => {
   it('shows pending updates with the security ones marked, and refreshes the lists only after a yes', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
