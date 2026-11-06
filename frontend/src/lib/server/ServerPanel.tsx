@@ -11,7 +11,7 @@ import {errMsg} from '../util'
 import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
-import {Docker} from './Docker'
+import {Docker, RowMenu} from './Docker'
 import {addSample, bucketSeries, loadHistory, MINUTE, saveHistory, type HistPoint, type Series} from './history'
 import {Web} from './Web'
 import {Maintenance} from './Maintenance'
@@ -332,14 +332,14 @@ function Services({sid, onLogs}: {sid: string; onLogs(name: string): void}) {
                 <td>{u.active === 'failed' ? <span className="sp-pill bad">{t('Failed')}</span> : running ? <span className="sp-pill ok">{t('Running')}</span> : <span className="sp-pill">{t('Stopped')}</span>}</td>
                 <td className="sp-note">{u.enabled === 'enabled' ? t('Starts on boot') : t('Does not start on boot')}</td>
                 <td><div className="sp-acts">
-                  {running ? (
-                    <>
-                      <button aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'restart')}>{t('Restart')}</button>
-                      <button className="danger" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'stop')}>{t('Stop')}</button>
-                    </>
-                  ) : <button className="primary" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'start')}>{t('Start')}</button>}
-                  {(u.enabled === 'enabled' || u.enabled === 'disabled') && <button aria-busy={working === u.name} disabled={working === u.name} aria-label={u.enabled === 'enabled' ? t('Do not start {name} on boot', {name: u.name}) : t('Start {name} on boot', {name: u.name})} onClick={() => void act(u, u.enabled === 'enabled' ? 'disable' : 'enable')}>{u.enabled === 'enabled' ? t('Disable on boot') : t('Enable on boot')}</button>}
-                  <button onClick={() => onLogs(u.name)}>{t('Logs')}</button>
+                  {running
+                    ? <button aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'restart')}>{t('Restart')}</button>
+                    : <button className="primary" aria-busy={working === u.name} disabled={working === u.name} onClick={() => void act(u, 'start')}>{t('Start')}</button>}
+                  <RowMenu name={u.name} items={[
+                    ...(running ? [{label: t('Stop'), danger: true, disabled: working === u.name, run: () => void act(u, 'stop')}] : []),
+                    ...(u.enabled === 'enabled' || u.enabled === 'disabled' ? [{label: u.enabled === 'enabled' ? t('Disable on boot') : t('Enable on boot'), disabled: working === u.name, run: () => void act(u, u.enabled === 'enabled' ? 'disable' : 'enable')}] : []),
+                    {label: t('Logs'), run: () => onLogs(u.name)},
+                  ]} />
                 </div></td>
               </tr>
             )

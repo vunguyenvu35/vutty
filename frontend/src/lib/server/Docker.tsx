@@ -129,7 +129,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
 }
 
 /** the ⋮ of a row: the actions that are not the main one, in a small menu */
-function RowMenu({name, items}: {name: string; items: {label: string; danger?: boolean; disabled?: boolean; run(): void}[]}) {
+export function RowMenu({name, items}: {name: string; items: {label: string; danger?: boolean; disabled?: boolean; run(): void}[]}) {
   const t = useT()
   const {btn, menu, at, setAt, toggle, style} = useMenuAnchor(180)
   useEffect(() => {
