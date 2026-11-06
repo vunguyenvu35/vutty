@@ -347,6 +347,31 @@ describe('Security tab', () => {
     await waitFor(() => expect(screen.queryByText('203.0.113.5')).toBeNull())
   })
 
+  it('turns password login off only after asking', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const {be} = setup()
+    await open('Security')
+    const row = (await screen.findByText('Password login')).closest('tr') as HTMLElement
+    await userEvent.click(within(row).getByRole('button', {name: 'Turn off'}))
+    expect(calls(be, 'server.sshSet')).toHaveLength(0)
+    ask.mockReturnValue(true)
+    await userEvent.click(within(row).getByRole('button', {name: 'Turn off'}))
+    await waitFor(() => expect(calls(be, 'server.sshSet')).toEqual([['server.sshSet', 'password_auth', 'no']]))
+    await waitFor(() => expect(within(row).queryByRole('button', {name: 'Turn off'})).toBeNull())
+    ask.mockRestore()
+  })
+
+  it('bans an address from the form', async () => {
+    const {be} = setup()
+    await open('Security')
+    await userEvent.click(await screen.findByRole('button', {name: 'Ban address'}))
+    const dlg = await screen.findByRole('dialog')
+    await userEvent.type(within(dlg).getByPlaceholderText('203.0.113.7'), '192.0.2.44')
+    await userEvent.click(within(dlg).getByRole('button', {name: 'Ban'}))
+    await waitFor(() => expect(calls(be, 'server.ban')).toEqual([['server.ban', 'sshd', '192.0.2.44']]))
+    expect(await screen.findByText('192.0.2.44')).toBeInTheDocument()
+  })
+
   it('says when fail2ban or the SSH log is not there', async () => {
     const be = makeFake({hosts: [web]})
     be.state.server.security = {fail2ban: {installed: false, running: false, jails: []}, ssh: {known: false, port: 0, root_login: '', password_auth: ''}, failed: {known: false, total: 0, top: []}}

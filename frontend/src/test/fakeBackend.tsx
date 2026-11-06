@@ -655,6 +655,16 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         state.server.userKeys[name] = (state.server.userKeys[name] ?? []).filter(k => k.fingerprint !== fp)
       },
       security: async () => JSON.parse(JSON.stringify(state.server.security)),
+      ban: async (sid, jail, ip) => {
+        rec('server.ban', jail, ip)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.security.fail2ban.jails = state.server.security.fail2ban.jails.map(j => (j.name === jail ? {...j, banned: j.banned + 1, ips: [...j.ips, ip]} : j))
+      },
+      sshSet: async (sid, setting, value) => {
+        rec('server.sshSet', setting, value)
+        if (state.server.failAction) throw state.server.failAction
+        state.server.security.ssh = {...state.server.security.ssh, [setting]: value}
+      },
       unban: async (sid, jail, ip) => {
         rec('server.unban', jail, ip)
         if (state.server.failAction) throw state.server.failAction
