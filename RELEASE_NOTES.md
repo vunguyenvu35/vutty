@@ -1,10 +1,10 @@
 <p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.6
+# Vutty 1.6.7
 
 Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
-## Unreleased
+## What's new in 1.6.7
 
 - **FTP and FTPS in the SFTP tab.** A host can have FTP (explicit TLS, implicit TLS or plain) next to SSH: it shows as "name (FTP)" in Select host and as a protocol choice. Browse, queue, resume, drag and drop and edit-and-save-back work as for SFTP; the password is in the vault; FTPS checks the certificate. Permissions and jump hosts do not work over FTP.
 - **RDP.** A host can have Remote Desktop turned on; choosing RDP on the protocol screen starts your computer's own client (mstsc on Windows, Microsoft Remote Desktop on a Mac, FreeRDP or Remmina on Linux). Vutty does not draw the desktop and keeps no RDP password. Not yet tried on Windows or Linux.
