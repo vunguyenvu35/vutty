@@ -8,7 +8,7 @@ import {useToast} from '../ui/Toast'
 import {Field, Modal} from '../ui/Modal'
 import {IconChevron} from '../ui/Icons'
 import {errMsg} from '../util'
-import {actionQuestion, Err, RefreshButton, stackQuestion, useLoad, type ServerAction, type StackAction} from './shared'
+import {actionQuestion, Err, RefreshButton, stackQuestion, useFolded, useLoad, type ServerAction, type StackAction} from './shared'
 import type {DockerInspect, DockerObjects, DockerStat, Host, ServerContainer, ServerContainers} from '../types'
 import type {LogSource} from './ServerPanel'
 
@@ -51,7 +51,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
   const confirm = useConfirm()
   const [working, setWorking] = useState('')
   const [look, setLook] = useState('')
-  const [folded, setFolded] = useState<string[]>([]) // the groups that are put away
+  const [isFolded, fold] = useFolded() // the groups that are put away
   const load = useCallback(() => be.server.containers(sid), [be, sid])
   const {data, error, busy, reload} = useLoad<ServerContainers>(load, null)
   // the load of the running containers, read again every few seconds; a server that cannot answer just shows no figures
@@ -117,8 +117,8 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
       {data?.installed && groups.map(g => (
         <section key={g.project || '-'} className="sp-card sp-wide" aria-label={g.project || t('Other containers')}>
           <div className="sp-card-head">
-            <button className="sp-card-fold" aria-expanded={!folded.includes(g.project)} aria-label={g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')} onClick={() => setFolded(f => (f.includes(g.project) ? f.filter(x => x !== g.project) : [...f, g.project]))}>
-              <span className={'k8s-chev' + (folded.includes(g.project) ? '' : ' open')}><IconChevron size={12} /></span><h3>{g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')}</h3>
+            <button className="sp-card-fold" aria-expanded={!isFolded('docker:' + g.project)} aria-label={g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')} onClick={() => fold('docker:' + g.project)}>
+              <span className={'k8s-chev' + (isFolded('docker:' + g.project) ? '' : ' open')}><IconChevron size={12} /></span><h3>{g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')}</h3>
             </button>
             {g.project && (
               <div className="sp-acts">
@@ -136,7 +136,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
               </div>
             )}
           </div>
-          {!folded.includes(g.project) && <div className="sp-table"><table>
+          {!isFolded('docker:' + g.project) && <div className="sp-table"><table>
             <thead><tr><th>{t('Container')}</th><th>{t('Image')}</th><th>{t('Status')}</th><th className="n">{t('CPU')}</th><th className="n">{t('Memory')}</th><th>{t('Ports')}</th><th /></tr></thead>
             <tbody>{g.items.map(row)}</tbody>
           </table></div>}

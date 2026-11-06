@@ -1,4 +1,4 @@
-import {act, render, screen, waitFor, within} from '@testing-library/react'
+import {act, cleanup, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {ServerPanel} from './ServerPanel'
 import {FleetPage} from './FleetPage'
@@ -7,6 +7,8 @@ import {host, makeFake, Providers} from '../../test/fakeBackend'
 
 type Fake = ReturnType<typeof makeFake>
 const web = host({id: 'h1', label: 'web-1', hostname: 'w1.example.com', username: 'ubuntu', port: 22})
+// what a box put away is remembered in localStorage: one test must not leave it to the next
+beforeEach(() => localStorage.clear())
 const calls = (be: Fake, n: string) => be.state.calls.filter(c => c[0] === n)
 
 function setup(h = web) {
@@ -112,6 +114,20 @@ describe('Web tab', () => {
 })
 
 describe('Every box of the panel can be put away', () => {
+
+  it('remembers what was put away for the next time the panel is opened', async () => {
+    setup()
+    await open('Security')
+    await userEvent.click(await screen.findByRole('button', {name: 'Recent logins'}))
+    expect(JSON.parse(localStorage.getItem('vutty.panel.folded')!)).toEqual(['Recent logins'])
+    cleanup()
+    setup()
+    await open('Security')
+    expect(await screen.findByRole('button', {name: 'Recent logins'})).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Logged in now')).toBeNull()
+    expect(screen.getByRole('button', {name: 'SSH settings'})).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('folds and opens a box of a tab', async () => {
     setup()
     await open('Security')

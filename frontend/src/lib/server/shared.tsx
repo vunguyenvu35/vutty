@@ -204,6 +204,22 @@ export function Loading({kind = 'table', what}: {kind?: 'table' | 'overview' | '
 export const Err = ({error}: {error: string}) => (error ? <div className="error" role="alert">{error}</div> : null)
 
 /** A box of the page with a title: the unit of every section that has more than one thing to show. */
+const FOLD_KEY = 'vutty.panel.folded'
+const readFolded = (): string[] => { try { const v = JSON.parse(localStorage.getItem(FOLD_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [] } catch { return [] } }
+
+/** Which boxes of the panel are put away, remembered for next time (a convenience: if storage fails they just start open). */
+export function useFolded(): [(key: string) => boolean, (key: string) => void] {
+  const [set, setSet] = useState<string[]>(readFolded)
+  const toggle = (key: string) => {
+    // read again before writing: another box may have changed it since this one was built
+    const cur = readFolded()
+    const next = cur.includes(key) ? cur.filter(x => x !== key) : [...cur, key]
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(next)) } catch { /* not remembered */ }
+    setSet(next)
+  }
+  return [key => set.includes(key), toggle]
+}
+
 export function Card({title, children, right, collapsible = true, closed: closedProp, onToggle, count, filter}: {
   title: string; children: ReactNode; right?: ReactNode
   /** the title closes and opens the box (a long list can be put away); every box does, unless it is told not to */
@@ -217,9 +233,9 @@ export function Card({title, children, right, collapsible = true, closed: closed
   filter?: {value: string; onChange(v: string): void; label: string}
 }) {
   const t = useT()
-  const [own, setClosed] = useState(false)
-  const closed = closedProp ?? own
-  const toggle = onToggle ?? (() => setClosed(c => !c))
+  const [isFolded, fold] = useFolded()
+  const closed = closedProp ?? isFolded(title)
+  const toggle = onToggle ?? (() => fold(title))
   return (
     <section className="sp-card sp-wide">
       <div className="sp-card-head">
