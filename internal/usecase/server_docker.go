@@ -259,6 +259,20 @@ echo '##networks'; $D network ls --format '{{json .}}'`, serverLongTimeout)
 	return parseDockerObjects(out), nil
 }
 
+// imageRefRe is the shape of an image reference (repository, tag, digest): lower-case letters, digits and . _ / : @ - only.
+var imageRefRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._/:@-]{0,254}$`)
+
+// DockerPull downloads an image (or the newest of a tag) and returns what Docker printed.
+func (s *ServerService) DockerPull(sid, image string) (string, error) {
+	image = strings.TrimSpace(image)
+	if !imageRefRe.MatchString(image) {
+		return "", errors.New("that is not an image name: use name or name:tag, in lower case")
+	}
+	out, err := s.runTimeout(sid, dockerCmd("pull "+image), serverLongTimeout)
+	s.audit(sid, "pull the image "+image, err)
+	return dockerTail(out, err), err
+}
+
 var imageIDRe = regexp.MustCompile(`^[a-f0-9]{6,64}$`)
 
 // DockerRemove deletes an image (kind "image", by its id) or a volume (kind "volume", by its name). Docker refuses one in use.
@@ -281,4 +295,16 @@ func (s *ServerService) DockerRemove(sid, kind, id string) error {
 	_, err := s.run(sid, dockerCmd(cmd))
 	s.audit(sid, fmt.Sprintf("remove %s %s", kind, id), err)
 	return err
+}
+
+// dockerTail is the end of what a docker command printed (its progress lines are many), or why it failed.
+func dockerTail(out string, err error) string {
+	if out == "" && err != nil {
+		return err.Error()
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) > 30 {
+		lines = lines[len(lines)-30:]
+	}
+	return strings.Join(lines, "\n")
 }

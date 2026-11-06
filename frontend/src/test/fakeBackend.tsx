@@ -583,6 +583,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       dockerStats: async () => state.server.docker.containers.filter(c => c.state === 'running').map((c, i) => ({name: c.name, cpu: 12 - i * 5, mem_pct: 4 + i, mem_usage: (60 + i * 40) + 'MiB'})),
       dockerInspect: async (sid, name) => ({name, image: 'registry/' + name, created: '2026-01-01T00:00:00Z', state: 'running', restart: 'always', command: 'node app.js', env: [{key: 'NODE_ENV', value: 'production'}, {key: 'DB_PASSWORD', value: 'hunter2'}], mounts: [{type: 'volume', source: '/var/lib/docker/volumes/data', dest: '/data', rw: true}], ports: ['0.0.0.0:3000 → 3000/tcp'], networks: ['bridge'], labels: {}}),
       dockerObjects: async () => ({images: state.server.dockerObjects.images.map(i => ({...i})), volumes: state.server.dockerObjects.volumes.map(v => ({...v})), networks: state.server.dockerObjects.networks.map(n => ({...n}))}),
+      dockerPull: async (sid, image) => { rec('server.dockerPull', image); if (state.server.failAction) throw state.server.failAction; return 'Status: Downloaded newer image for ' + image },
       dockerRemove: async (sid, kind, id) => {
         rec('server.dockerRemove', kind, id)
         if (state.server.failAction) throw state.server.failAction
@@ -608,6 +609,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       stackAction: async (sid, project, action) => {
         rec('server.stackAction', project, action)
         if (state.server.failAction) throw state.server.failAction
+        if (action === 'down') state.server.docker.containers = state.server.docker.containers.filter(c => c.project !== project)
         if (action === 'stop' || action === 'start') state.server.docker.containers = state.server.docker.containers.map(c => (c.project === project ? {...c, state: action === 'stop' ? 'exited' : 'running'} : c))
       },
       certificates: async () => ({found: state.server.certs.found, certs: state.server.certs.certs.map(c => ({...c}))}),
