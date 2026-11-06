@@ -115,7 +115,7 @@ So the team is **signed**:
 - `team.json` is a manifest. It lists the admins' public keys, the members, the recipients of each space, the **SHA-256 of every file** and a `version` that goes up on every change. An admin signs it (Ed25519, with their SSH key).
 - **A member's client checks before it decrypts anything:** the signature is by a pinned admin key, each file matches its recorded hash, and `version` is not lower than the highest one this machine has seen. Otherwise it keeps what it had, shows a red warning and opens nothing new.
 - **Pinning.** When a person joins, the app shows the fingerprints of the team's admin keys and asks them to compare with an admin (by voice or chat), as for an SSH host key. After that the client trusts only those keys.
-- **Changing the admins.** A new admin is added by a manifest signed by an existing admin, and an admin is removed the same way. A client follows the chain from the keys it pinned.
+- **Changing the admins.** A new admin is added by a manifest signed by an existing admin, and an admin is removed the same way. A client follows the chain from the keys it pinned. The full procedure is in §6.
 - **Rollback.** An old signed manifest has a lower `version`, so putting an older commit back is refused.
 - The signature covers the whole repository state, so a change to a file and the matching manifest are one commit.
 
@@ -214,7 +214,61 @@ A password has a rotate-by date in the login file. Panel can **rotate** a person
 - **SSH certificates** are a later option: an admin signs a short-lived certificate for each member, servers trust the team's certificate authority once, and removal is the end of the lifetime. A certificate's **key ID** is written in the server's login log. For about 20 developers direct accounts are enough; certificates become the main path beyond roughly 50 people, and then **who signs them** needs an answer (an admin signing in batches, or a signer that is always on).
 - **Host keys.** The admin verifies each server's host key once and stores it in the space. A member's client uses those and refuses a mismatch, so a new member never has to trust a host on first use.
 
-## 6. If the repository leaks
+## 6. Admins: add, remove, recover
+
+A team needs **two or three admins**: one is a single point of failure, and many mean many people who can read every login. This section says how a team gets them and loses them.
+
+### What an admin is
+
+- Someone with **write access** to the repository on the Git host.
+- Listed in `admins` in `team.json`, and an **admin signature** on the manifest means a pinned admin signed it (§3).
+- A **recipient of every file**: every space and every member's login file. So an admin can read every login that was issued.
+- Has **their own admin account** on the servers, so Panel can work from their machine (§5).
+
+### The first admin
+
+Whoever creates the team (*New team profile*) is the first admin. Vutty writes their public key into `admins` and signs the first manifest with it.
+
+### Adding an admin
+
+![Adding and removing an admin](diagrams/07-admins.svg)
+
+*Figure 7. Adding and removing an admin. Removing one is the heavier job, because an admin can read every login that was issued.*
+
+An existing admin does it:
+
+1. **On the Git host:** give the person **write access** to the repository. Ask for 2FA or SSO on their account, since write access is the most sensitive permission.
+2. **In Vutty:** the person makes a repository key and sends the public key. The admin chooses *Add admin*, compares the fingerprint with the person and approves. The key goes into `admins`.
+3. **The app re-encrypts every file** so the new admin is a recipient, raises `version`, signs and pushes.
+4. **On the servers:** Panel makes the new admin an **account of their own with admin rights**. Panel itself needs a privileged login to start with: who provides it is open question 8.
+
+**Members do nothing.** Their clients pinned the team's admin keys when they joined, and the new manifest is signed by an admin they already pinned, so it is accepted. The app shows a notice (*"X was added as an admin by Y"*) and the change is in `git log`.
+
+Two admins pushing at once are handled by the merge and the Conflicts list (§3); the signature and `version` keep the state consistent.
+
+### Removing an admin
+
+It is heavier than removing a member, because the admin could read **every login issued**:
+
+1. **On the Git host:** revoke their write and read access.
+2. **In Vutty:** another admin chooses *Remove admin*. The key leaves `admins` and the recipients, every file is re-encrypted without it, `version` goes up, the manifest is signed and pushed.
+3. **In Panel:** delete the person's accounts on every server, with sessions ended first, as for any removal (§5). Servers that cannot be reached go on the pending list.
+4. **Rotate what they could read.** Every password or key the admins issued must be changed (Panel rotates them in one action, §5). Members who use **their own key** have nothing secret to change, since the admin only ever held a public key.
+
+### Lost key, lost admin
+
+- **Another admin is left:** they remove the lost key and add the new one, as above. If the key may have been **stolen**, not just lost, treat it as a removal, with the rotation.
+- **Every admin key is lost:** nobody can write, so nothing can change and nobody can be added or removed. Proposed: a **recovery recipient**, an extra key kept offline and always a recipient of every file, so a new admin can be made. It is open question 3.
+
+### Rules
+
+- **At least two admins.** The app warns when there is one and **refuses to remove the last admin**.
+- **Three** is comfortable for about 20 developers: one can be away or leave and two remain.
+- Every change to the admins is a signed commit, shows in `git log`, and gives members a notice.
+- Keep the admins few. **Each one more is another person who can read every login** and another key that can be stolen. Preferring members' own keys reduces what an admin knows.
+- An admin's repository key can be protected by a passphrase. It cannot be a hardware (`-sk`) key, because `age` needs the private key (open question 4).
+
+## 7. If the repository leaks
 
 Everything in the repository is encrypted. What a reader sees:
 
@@ -313,7 +367,7 @@ Written after the design was reviewed. It is an opinion, not a measurement: noth
 | **M0** | Spike (done): process per profile, see §1 | this document |
 | **M1** | `profiles.json`, *Open profile…*, create, rename, delete, per-profile lock, `--profile`, `show` action, Team processes skip self-update and `ssh://`, *Copy to another profile…* | two profiles run side by side; Personal behaves as before; the existing tests pass. Useful alone: Work and Personal apart |
 | **M2** | Team core: signed `team.json`, `age` with SSH recipients, space files and member files, **pinned admin keys, file hashes and `version` check**, **member pull-only sync**, admin merge with `Rev`, `base_rev`, clock guard, Conflicts list, `format` and `min_client` | a member opens only their files; a forged, replaced or older state is refused; two admins converge with no silent loss; a member's client never writes |
-| **M3** | Members: repository key (generate or import), join, add to spaces, optional add by Git username | a member joins and opens their spaces |
+| **M3** | Members and admins: repository key (generate or import), join, add to spaces, optional add by Git username, **add and remove admins (§6), the two-admin minimum** | a member joins and opens their spaces; a second admin is added and signs; the last admin cannot be removed |
 | **M4** | Panel: **add a member** (account per server, credential: password, generated key or their own key, login file) and **remove a member at once** (sessions, cron, sudo, account, verify, Git, pending list), rotation, the check of what is left | a member connects with their own account; removal clears every recorded server and lists any it could not reach |
 | **Pilot** | One or two real teams use it for a few weeks | what hurts is known before more is built |
 | **M5** | SSH certificates (short-lived, one trusted authority per server) | removal by expiry, no per-server work |
@@ -330,6 +384,7 @@ M1 helps people with one profile too. The Panel part of M4 can ship **without** 
 - **Signature:** a manifest signed by an unpinned key, a file that does not match its hash, a replaced file, a manifest with a lower `version` and an unsigned change of members or recipients are each refused, and the client keeps its last good copy.
 - `syncgit`: real-`git` scenarios (bare repositories) with two admins: simultaneous edits, delete against edit, rejected push, a long-offline admin, a fresh clone taking the remote as base.
 - A property test for the admin merge: the result converges whatever the order of syncs.
+- **Admins:** a manifest that adds an admin is accepted only when an existing, pinned admin signed it; an admin removed from the recipients cannot open the re-encrypted files; the last admin cannot be removed; removing an admin lists the logins that must be rotated; members get a notice for each change.
 - **Panel add and remove, against real servers** (containers): the account is created with the credential, the person can log in; after removal the account and sessions are gone, cron and sudo entries are removed, and an unreachable server stays on the pending list and is retried. Both actions are safe to run twice.
 - After removal, the old password or key from the Git history **no longer logs in**.
 - Versions: an older client opens a newer repository read-only.
@@ -342,7 +397,9 @@ M1 helps people with one profile too. The Panel part of M4 can ship **without** 
 | Risk | Handling |
 | --- | --- |
 | Someone with write access forges or rolls back the team | Admin signature, pinned admin keys, file hashes and a `version` check (M2) |
-| An admin's key is stolen | The admin is removed by another admin; at least two admins; keep the key with a passphrase or on hardware |
+| An admin's key is stolen | The admin is removed by another admin, with every login they could read rotated (§6); at least two admins; the key has a passphrase |
+| An admin can read every login that was issued | Few admins; members' own keys give an admin nothing secret; 2FA or SSO on the admins' Git accounts |
+| Every admin key is lost | Two or three admins; a recovery recipient kept offline (open question 3) |
 | A member's repository key is stolen | Remove the person (their logins die with the account) and re-add them with a new key |
 | Panel deletes the wrong account or too much | It only touches accounts it recorded; a confirmation lists what will be removed; the option to lock and keep files |
 | Removal is incomplete (an unreachable server, something made outside Panel) | A pending list that is kept and retried, and a check of what is left |
