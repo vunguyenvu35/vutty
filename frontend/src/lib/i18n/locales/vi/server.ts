@@ -174,4 +174,8 @@ export default {
   "Continue": "Tiếp tục",
   "Cancel": "Huỷ",
   "Delete": "Xoá",
+  "Files": "Tệp",
+  "Browse the files of this host in the SFTP tab": "Duyệt tệp của máy này trong tab SFTP",
+  "Open in SFTP": "Mở trong SFTP",
+  "{path} cannot be opened here: showing the home folder.": "Không mở được {path}: hiển thị thư mục home.",
 } as Record<string, string>

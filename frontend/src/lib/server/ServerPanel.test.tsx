@@ -27,6 +27,17 @@ describe('Server panel (tab)', () => {
     expect(await screen.findByRole('columnheader', {name: 'Startup'})).toBeInTheDocument() // went to Services
   })
 
+  it('asks the SFTP tab to open this host from the Files button', async () => {
+    const seen: string[] = []
+    const on = (e: Event) => seen.push(JSON.stringify((e as CustomEvent).detail))
+    window.addEventListener('vutty:sftp-open', on)
+    setup()
+    await screen.findByText(/up 41d 0h/)
+    await userEvent.click(screen.getByRole('button', {name: 'Files'}))
+    window.removeEventListener('vutty:sftp-open', on)
+    expect(seen).toEqual(['{"host":{"id":"h1","label":"web-1"},"path":""}'])
+  })
+
   it('asks in the row before ending a process', async () => {
     const {be} = setup()
     await screen.findByText(/up 41d 0h/)

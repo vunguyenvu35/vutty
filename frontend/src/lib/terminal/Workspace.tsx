@@ -1,4 +1,4 @@
-import {draggingPane, draggingTab, isTerminalTab, leaves, PANE_DRAG, paneRects, setDraggingPane, sideOf, TAB_DRAG, type DropSide, type Rect, type Tab} from '../layout'
+import {draggingPane, draggingTab, isTerminalTab, leaves, SFTP_TAB_ID, PANE_DRAG, paneRects, setDraggingPane, sideOf, TAB_DRAG, type DropSide, type Rect, type Tab} from '../layout'
 import {useState} from 'react'
 import {SftpBrowser} from '../sftp/SftpBrowser'
 import {ServerPanel} from '../server/ServerPanel'
@@ -196,7 +196,7 @@ export function Workspace(p: Props) {
       const c = (p.clusters ?? []).find(x => 'kube:' + x.id === leaves(tb.root)[0].hostId)
       layer(c ? <ClusterPanel cluster={c} visible={active} onPodShell={p.onPodShell} /> : <div className="side-empty">{t('This cluster no longer exists.')}</div>)
     } else if (tb.kind === 'sftp') {
-      layer(<SftpBrowser hostId={leaves(tb.root)[0].hostId} hostLabel={tb.sftpLabel ?? ''} nonce={tb.sftpNonce ?? 0} hosts={p.hosts} visible={active} />)
+      layer(<SftpBrowser main={tb.id === SFTP_TAB_ID} hostId={leaves(tb.root)[0].hostId} hostLabel={tb.sftpLabel ?? ''} nonce={tb.sftpNonce ?? 0} hosts={p.hosts} visible={active} />)
     } else {
       const {panes, dividers} = paneRects(tb.root)
       for (const l of leaves(tb.root)) items.push(pane(tb, l, panes.get(l.id)!, active))

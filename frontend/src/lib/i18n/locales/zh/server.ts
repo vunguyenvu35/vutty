@@ -174,4 +174,8 @@ export default {
   "Continue": "继续",
   "Cancel": "取消",
   "Delete": "删除",
+  "Files": "文件",
+  "Browse the files of this host in the SFTP tab": "在 SFTP 标签页中浏览此主机的文件",
+  "Open in SFTP": "在 SFTP 中打开",
+  "{path} cannot be opened here: showing the home folder.": "无法打开 {path}：显示主目录。",
 } as Record<string, string>

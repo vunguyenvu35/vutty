@@ -7,15 +7,16 @@ import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
 import {Card, Err, Toolbar, useLoad} from './shared'
 import {formatUptime, level, pct, validPath} from './format'
-import type {ServerCleanup, ServerFolder, ServerReclaim, ServerUpdates} from '../types'
+import {openInSftp} from '../sftp/openRequest'
+import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerUpdates} from '../types'
 
 /** The Maintenance tab: what is waiting to be updated, where the disk went, and what can be cleaned without losing data. */
-export function Maintenance({sid}: {sid: string}) {
+export function Maintenance({sid, host}: {sid: string; host: Host}) {
   return (
     <div className="sp-view">
       <Updates sid={sid} />
       <Cleanup sid={sid} />
-      <Folders sid={sid} />
+      <Folders sid={sid} host={host} />
     </div>
   )
 }
@@ -130,7 +131,7 @@ function Cleanup({sid}: {sid: string}) {
   )
 }
 
-function Folders({sid}: {sid: string}) {
+function Folders({sid, host}: {sid: string; host: Host}) {
   const be = useBackend()
   const t = useT()
   const [path, setPath] = useState('/var')
@@ -154,6 +155,7 @@ function Folders({sid}: {sid: string}) {
         <input className="sp-filter" aria-label={t('Folder to look into')} value={path} onChange={e => setPath(e.target.value)} spellCheck={false} />
         <button type="submit" className="primary" disabled={busy}>{busy ? t('Scanning…') : t('Scan')}</button>
         {rows && shown !== '/' && <button type="button" disabled={busy} onClick={() => void scan(parent)}>{t('Up')}</button>}
+        {validPath(path) && <button type="button" onClick={() => openInSftp(host, path)}>{t('Open in SFTP')}</button>}
       </form>
       <Err error={error} />
       {rows && (

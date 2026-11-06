@@ -24,6 +24,8 @@ export function authenticity(text: string, host: string): ReactNode {
 
 interface Props {
   host: RemoteHost | null
+  /** the folder to open first (the home folder when absent) */
+  startPath?: string
   hosts: Host[]
   onHost(h: RemoteHost | null): void
   /** a host was picked while one is open: it becomes one more tab of this pane */
@@ -45,7 +47,7 @@ interface Props {
  * The Remote side: shows "Connect to host" until a saved host is chosen, then owns that host's SFTP
  * connection (through its jump chain, with the host key prompt) and browses it in a FilePane.
  */
-export function RemotePane({host, hosts, onHost, onNewTab, tabsLead, hidden, reloadKey, onState, onDropEntry, onSession, onCopyOut}: Props) {
+export function RemotePane({host, startPath, hosts, onHost, onNewTab, tabsLead, hidden, reloadKey, onState, onDropEntry, onSession, onCopyOut}: Props) {
   const be = useBackend()
   const t = useT()
   const confirm = useConfirm()
@@ -62,6 +64,16 @@ export function RemotePane({host, hosts, onHost, onNewTab, tabsLead, hidden, rel
   const [picking, setPicking] = useState(false)
   const [filter, setFilter] = useState('')
   const [fs, setFs] = useState<PaneFs | null>(null)
+  // the folder to open first: the one asked for when it can be listed, else the home folder
+  const [start, setStart] = useState('')
+  useEffect(() => {
+    if (!fs || !home) { setStart(''); return }
+    if (!startPath) { setStart(home); return }
+    let on = true
+    fs.list(startPath).then(() => { if (on) setStart(startPath) }, () => { if (on) { toast.error(t('{path} cannot be opened here: showing the home folder.', {path: startPath})); setStart(home) } })
+    return () => { on = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fs, home, startPath])
 
   const hostId = host?.id ?? ''
   const isLocal = hostId === LOCAL_HOST_ID
@@ -168,7 +180,7 @@ export function RemotePane({host, hosts, onHost, onNewTab, tabsLead, hidden, rel
 
   return (
     <div className="rpane" style={hidden ? {display: 'none'} : undefined}>
-      <FilePane side="remote" title={hostLabel(host)} icon={isLocal ? <IconFolder size={16} /> : <OsIcon os={hosts.find(x => x.id === host.id)?.os} size={16} />} fs={fs} startDir={home} reloadKey={reloadKey} showHiddenDefault={!isLocal}
+      <FilePane side="remote" title={hostLabel(host)} icon={isLocal ? <IconFolder size={16} /> : <OsIcon os={hosts.find(x => x.id === host.id)?.os} size={16} />} fs={fs} startDir={start} reloadKey={reloadKey} showHiddenDefault={!isLocal}
         onState={onState} onDropEntry={onDropEntry} onCopyOut={onCopyOut} copyLabel={isLocal ? t('Copy to Local') : t('Download')} onClose={() => onHost(null)} onAdd={() => setPicking(true)} lead={tabsLead?.(() => setPicking(true))} />
       {picking && <div className="overlay" role="dialog" aria-label={t('Select host')}><div className="card">{picker}</div></div>}
       {state === 'connecting' && !prompt && !auth && <div className="banner info">{t('Connecting to {name}…', {name: hostLabel(host)})}</div>}

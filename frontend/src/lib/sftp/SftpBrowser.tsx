@@ -8,6 +8,7 @@ import {IconClose, IconDownload, IconFolder, IconPlus} from '../ui/Icons'
 import {OsIcon} from '../ui/OsIcon'
 import {DragPayload, FilePane, Item, PaneFs, PaneState} from './FilePane'
 import {RemoteHost, RemotePane} from './RemotePane'
+import {OPEN_IN_SFTP, type OpenInSftp} from './openRequest'
 import {hostLabel as displayHost, LOCAL_HOST_ID, localPaneFs} from './localFs'
 import {QueuePanel} from './QueuePanel'
 import {SyncDialog} from './SyncDialog'
@@ -17,7 +18,7 @@ import type {Host, QueueJob} from '../types'
 export {replaceQuestion, summarize}
 
 const NONE: PaneState = {cwd: '', selected: []}
-interface RemoteTab {key: string; host: RemoteHost}
+interface RemoteTab {key: string; host: RemoteHost; /** open at this folder instead of the home folder */ path?: string}
 let tabSeq = 0
 const nextTabKey = () => 'rt' + tabSeq++
 /**
@@ -30,7 +31,7 @@ const nextTabKey = () => 'rt' + tabSeq++
 /** sent by the app when the Close tab shortcut is used on an SFTP screen: close the host tab that is showing */
 export const CLOSE_HOST_TAB = 'vutty:sftp-close-host'
 
-export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: given, visible = true}: {hostId?: string; hostLabel?: string; nonce?: number; /** this screen is the one showing (only that one answers the Close tab shortcut) */ visible?: boolean; /** the app's current hosts (kept up to date by the app); without it they are loaded once */ hosts?: Host[]}) {
+export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: given, visible = true, main = false}: {main?: boolean; hostId?: string; hostLabel?: string; nonce?: number; /** this screen is the one showing (only that one answers the Close tab shortcut) */ visible?: boolean; /** the app's current hosts (kept up to date by the app); without it they are loaded once */ hosts?: Host[]}) {
   const be = useBackend()
   const t = useT()
   const toast = useToast()
@@ -64,11 +65,20 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
     }
     return c
   }
-  const addTab = (h: RemoteHost) => {
+  const addTab = (h: RemoteHost, path?: string) => {
     const key = nextTabKey()
-    setTabs(ts => [...ts, {key, host: h}])
+    setTabs(ts => [...ts, {key, host: h, path}])
     setActiveKey(key)
   }
+  // a Server panel asked for a host at a folder: only the main SFTP tab answers, in a tab of its own
+  const addRef = useRef(addTab)
+  addRef.current = addTab
+  useEffect(() => {
+    if (!main) return
+    const open = (e: Event) => { const r = (e as CustomEvent<OpenInSftp>).detail; if (r?.host?.id) addRef.current(r.host, r.path || undefined) }
+    window.addEventListener(OPEN_IN_SFTP, open)
+    return () => window.removeEventListener(OPEN_IN_SFTP, open)
+  }, [main])
   const closeTab = (key: string) => {
     const at = tabs.findIndex(tab => tab.key === key)
     const rest = tabs.filter(tab => tab.key !== key)
@@ -166,7 +176,7 @@ export function SftpBrowser({hostId = '', hostLabel = '', nonce = 0, hosts: give
           {tabs.map(tab => {
             const cb = cbFor(tab.key)
             return (
-              <RemotePane key={tab.key} host={tab.host} hosts={hosts} hidden={tab.key !== activeKey} onNewTab={addTab} onHost={() => closeTab(tab.key)} reloadKey={remoteKey}
+              <RemotePane key={tab.key} host={tab.host} startPath={tab.path} hosts={hosts} hidden={tab.key !== activeKey} onNewTab={addTab} onHost={() => closeTab(tab.key)} reloadKey={remoteKey}
                 onState={cb.onState} onDropEntry={onDropToRemote} onSession={cb.onSession} onCopyOut={items => void move('download', items)}
                 tabsLead={add => (
                   <div className="rtabs" role="tablist" aria-label={t('Remote hosts')}>

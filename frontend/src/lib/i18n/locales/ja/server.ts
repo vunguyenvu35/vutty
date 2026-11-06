@@ -174,4 +174,8 @@ export default {
   "Continue": "続ける",
   "Cancel": "キャンセル",
   "Delete": "削除",
+  "Files": "ファイル",
+  "Browse the files of this host in the SFTP tab": "このホストのファイルを SFTP タブで開く",
+  "Open in SFTP": "SFTP で開く",
+  "{path} cannot be opened here: showing the home folder.": "{path} を開けません。ホームフォルダを表示します。",
 } as Record<string, string>
