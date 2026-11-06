@@ -142,6 +142,20 @@ describe('Every box of the panel can be put away', () => {
     expect(screen.getByText('Logged in now')).toBeInTheDocument()
   })
 
+  it('folds when the empty part of the head is clicked, but not when a control in it is', async () => {
+    setup()
+    await open('Security')
+    const head = (await screen.findByRole('button', {name: 'Recent logins'})).closest('.sp-card-head') as HTMLElement
+    await userEvent.click(head)
+    expect(screen.queryByText('Logged in now')).toBeNull()
+    await userEvent.click(head)
+    expect(screen.getByText('Logged in now')).toBeInTheDocument()
+    // the refresh button of another box is its own: it does not fold that box
+    const check = (screen.getByRole('button', {name: 'Security check'})).closest('.sp-card-head') as HTMLElement
+    await userEvent.click(within(check).getByRole('button', {name: 'Refresh'}))
+    expect(screen.getByRole('button', {name: 'Security check'})).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('folds a Docker stack and keeps the others open', async () => {
     setup()
     await open('Docker')

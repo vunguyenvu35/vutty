@@ -150,3 +150,8 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 .sp-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .sp-checks li { display: flex; align-items: flex-start; gap: 10px; }
 .sp-checks li .sp-pill { flex: none; min-width: 44px; text-align: center; }
+
+/* the head of a box that can be folded: the empty part of it folds the box too */
+.sp-card-head.foldable { cursor: pointer; }
+.sp-card-head.foldable button, .sp-card-head.foldable input, .sp-card-head.foldable select, .sp-card-head.foldable label { cursor: default; }
+.sp-card-head.foldable .sp-card-fold { cursor: pointer; }

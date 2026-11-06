@@ -220,6 +220,11 @@ export function useFolded(): [(key: string) => boolean, (key: string) => void] {
   return [key => set.includes(key), toggle]
 }
 
+/** A click on the empty part of a box's head folds it too; a click on a control in the head (a button, a box to type in) is that control's own. */
+export const onHeadClick = (fold: () => void) => (e: {target: EventTarget}) => {
+  if (!(e.target as Element).closest?.('button, input, select, textarea, a, label, [role=menuitem]')) fold()
+}
+
 export function Card({title, children, right, collapsible = true, closed: closedProp, onToggle, count, filter}: {
   title: string; children: ReactNode; right?: ReactNode
   /** the title closes and opens the box (a long list can be put away); every box does, unless it is told not to */
@@ -238,7 +243,7 @@ export function Card({title, children, right, collapsible = true, closed: closed
   const toggle = onToggle ?? (() => fold(title))
   return (
     <section className="sp-card sp-wide">
-      <div className="sp-card-head">
+      <div className={'sp-card-head' + (collapsible ? ' foldable' : '')} onClick={collapsible ? onHeadClick(toggle) : undefined}>
         {collapsible
           ? <button className="sp-card-fold" aria-expanded={!closed} aria-label={title} onClick={toggle}>
               <span className={'k8s-chev' + (closed ? '' : ' open')}><IconChevron size={12} /></span><h3>{title}</h3>{count !== undefined && <small className="sp-count">{count}</small>}

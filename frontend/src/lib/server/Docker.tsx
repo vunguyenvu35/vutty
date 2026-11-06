@@ -8,7 +8,7 @@ import {useToast} from '../ui/Toast'
 import {Field, Modal} from '../ui/Modal'
 import {IconChevron} from '../ui/Icons'
 import {errMsg} from '../util'
-import {actionQuestion, Err, RefreshButton, stackQuestion, useFolded, useLoad, type ServerAction, type StackAction} from './shared'
+import {actionQuestion, Err, RefreshButton, onHeadClick, stackQuestion, useFolded, useLoad, type ServerAction, type StackAction} from './shared'
 import type {DockerInspect, DockerObjects, DockerStat, Host, ServerContainer, ServerContainers} from '../types'
 import type {LogSource} from './ServerPanel'
 
@@ -116,7 +116,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
       {data?.installed && data.containers.length === 0 && <div className="sp-empty">{t('No containers.')}</div>}
       {data?.installed && groups.map(g => (
         <section key={g.project || '-'} className="sp-card sp-wide" aria-label={g.project || t('Other containers')}>
-          <div className="sp-card-head">
+          <div className="sp-card-head foldable" onClick={onHeadClick(() => fold('docker:' + g.project))}>
             <button className="sp-card-fold" aria-expanded={!isFolded('docker:' + g.project)} aria-label={g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')} onClick={() => fold('docker:' + g.project)}>
               <span className={'k8s-chev' + (isFolded('docker:' + g.project) ? '' : ' open')}><IconChevron size={12} /></span><h3>{g.project ? t('Stack {name}', {name: g.project}) : t('Other containers')}</h3>
             </button>
