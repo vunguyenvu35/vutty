@@ -56,12 +56,22 @@ func (s *ServerService) Web(sid string) (ServerWeb, error) {
 }
 
 // webLogCommand is the fixed command that shows the log of a web server ("" for any other name).
-func webLogCommand(name string, lines int, jSince string) string {
+func webLogCommand(name string, q logQuery) string {
 	switch name {
 	case "nginx":
-		return fmt.Sprintf("$SUDO tail -n %d /var/log/nginx/error.log 2>&1", lines)
+		if q.follow {
+			return fmt.Sprintf("$SUDO tail -n %d -F /var/log/nginx/error.log 2>&1", q.lines)
+		}
+		return fmt.Sprintf("$SUDO tail -n %d /var/log/nginx/error.log 2>&1", q.lines)
 	case "caddy":
-		return fmt.Sprintf("journalctl -u caddy.service -n %d%s --no-pager -o short-iso 2>&1", lines, jSince)
+		f, b := "", ""
+		if q.follow {
+			f = " -f"
+		}
+		if q.boot {
+			b = " -b -1"
+		}
+		return fmt.Sprintf("journalctl -u caddy.service%s -n %d%s%s --no-pager -o short-iso 2>&1", f, q.lines, b, q.jSince)
 	}
 	return ""
 }

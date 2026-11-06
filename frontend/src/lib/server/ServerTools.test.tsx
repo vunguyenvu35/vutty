@@ -339,30 +339,6 @@ describe('Logs download', () => {
   })
 })
 
-describe('Logs follow', () => {
-  it('reads again every two seconds only while Follow is on', async () => {
-    const {be} = setup()
-    await open('Logs')
-    await screen.findByText(/ECONNREFUSED/)
-    vi.useFakeTimers({shouldAdvanceTime: true})
-    try {
-      const n = () => calls(be, 'server.logs').length
-      const start = n()
-      await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
-      expect(n()).toBe(start) // not following
-      await userEvent.click(screen.getByRole('button', {name: 'Follow'}))
-      expect(screen.getByRole('button', {name: 'Follow'})).toHaveAttribute('aria-pressed', 'true')
-      const afterOn = n()
-      await act(async () => { await vi.advanceTimersByTimeAsync(4100) })
-      expect(n()).toBeGreaterThanOrEqual(afterOn + 2)
-      await userEvent.click(screen.getByRole('button', {name: 'Follow'}))
-      const afterOff = n()
-      await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
-      expect(n()).toBe(afterOff)
-    } finally { vi.useRealTimers() }
-  })
-})
-
 describe('System box of Maintenance', () => {
   it('renames, sets the time zone and creates then removes a swap file, each after asking', async () => {
     const ask = vi.spyOn(window, 'confirm').mockReturnValue(false)

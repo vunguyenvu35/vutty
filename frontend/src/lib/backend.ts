@@ -5,7 +5,7 @@ import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, Exe
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
   ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
-  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
+  McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerClock, ServerIncident, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
 
 /**
@@ -231,6 +231,16 @@ export interface Backend {
     /** the last lines of the journal: kind is '' (the whole system), 'service', 'container', 'stack' (a Compose project) or 'web' (name: nginx or caddy) */
     /** the last lines of a log; opts is for another number of lines (100, 300, 1000, 5000) and a time (15m, 1h, 24h) */
     logs(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, opts?: {lines: number; since: '' | '15m' | '1h' | '24h'}): Promise<string>
+    /** the last lines of a log within a time range of your own (RFC 3339 times, either may be empty) or of the boot before this one */
+    logsAt(sid: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, lines: number, from: string, until: string, previousBoot: boolean): Promise<string>
+    /** read a log as it grows: lines come as server:log:<key> events and the end as server:logend:<key>; listen before asking */
+    logsFollowStart(sid: string, key: string, kind: '' | 'service' | 'container' | 'stack' | 'web', name: string, lines: number, since: '' | '15m' | '1h' | '24h'): Promise<void>
+    logsFollowStop(sid: string, key: string): Promise<void>
+    clock(sid: string): Promise<ServerClock>
+    /** what the server wrote down in a time range of up to three days (RFC 3339 times) */
+    incident(sid: string, from: string, until: string): Promise<ServerIncident>
+    /** keep the journal on disk, so a reboot does not take it away */
+    journalKeep(sid: string): Promise<void>
     /** start, stop or restart every container of a Compose project, or 'update' it (pull the images, then up -d) */
     stackAction(sid: string, project: string, action: 'start' | 'stop' | 'restart' | 'update' | 'up' | 'down'): Promise<void>
     /** download an image (or the newest of a tag); returns what Docker printed */
@@ -644,6 +654,12 @@ export function wailsBackend(): Backend {
       dockerPull: (s, i) => u('ServerService', 'DockerPull', s, i),
       dockerRemove: (s, k, i) => u('ServerService', 'DockerRemove', s, k, i),
       logs: (s, k, n, o) => (o ? u('ServerService', 'LogsFor', s, k, n, o.lines, o.since) : u('ServerService', 'Logs', s, k, n)),
+      logsAt: (s, k, n, l, f, to, b) => u('ServerService', 'LogsAt', s, k, n, l, f, to, b),
+      logsFollowStart: (s, key, k, n, l, since) => u('ServerService', 'LogsFollowStart', s, key, k, n, l, since),
+      logsFollowStop: (s, key) => u('ServerService', 'LogsFollowStop', s, key),
+      clock: s => u('ServerService', 'Clock', s),
+      incident: async (s, f, to) => { const r = await u<ServerIncident>('ServerService', 'Incident', s, f, to); return {...r, events: r.events ?? [], errors: r.errors ?? [], containers: r.containers ?? []} },
+      journalKeep: s => u('ServerService', 'JournalKeep', s),
       stackAction: (s, p, a) => u('ServerService', 'StackAction', s, p, a),
       certificates: async s => { const r = await u<ServerCerts>('ServerService', 'Certificates', s); return {...r, certs: r.certs ?? []} },
       web: async s => { const r = await u<ServerWeb>('ServerService', 'Web', s); return {...r, sites: (r.sites ?? []).map(x => ({...x, names: x.names ?? [], listen: x.listen ?? [], targets: x.targets ?? []}))} },

@@ -40,6 +40,9 @@ type serverSession struct {
 	rx, tx  uint64
 	hasPrev bool
 
+	fmu     sync.Mutex // the logs followed on this connection
+	follows map[string]*logFollow
+
 	k8s k8sState // what the Kubernetes tab learned about this host, and its port-forwards
 	// kube is set when the session is on a cluster reached with a kubeconfig: there is no SSH client then.
 	kube *kubeDirect
@@ -48,6 +51,7 @@ type serverSession struct {
 func (s *serverSession) close() {
 	s.once.Do(func() {
 		close(s.stop)
+		s.stopFollows()
 		s.k8s.stopAll() // the remote kubectl of a port-forward goes with the connection
 		if s.client != nil {
 			_ = s.client.Close()
@@ -316,51 +320,34 @@ func (s *ServerService) Logs(sid, kind, name string) (string, error) {
 	return s.LogsFor(sid, kind, name, serverLogLines, "")
 }
 
-// serverLogSince maps the time ranges the screen offers to what each tool takes: journalctl, and docker (also compose).
-var serverLogSince = map[string][2]string{
-	"15m": {"15 min ago", "15m"},
-	"1h":  {"1 hour ago", "1h"},
-	"24h": {"24 hours ago", "24h"},
-}
-
 // LogsFor is Logs for the last `lines` lines (100, 300, 1000 or 5000) and, when since is 15m, 1h or 24h, only of that time.
 // Nothing else is accepted, so nothing but a number and a fixed word reaches the command. The nginx error file has no
 // time to ask for: it is cut by lines only.
 func (s *ServerService) LogsFor(sid, kind, name string, lines int, since string) (string, error) {
-	switch lines {
-	case 100, 300, 1000, 5000:
-	default:
-		return "", errors.New("that is not a number of lines the log can show")
+	q, err := logQueryOf(lines, since, "", "", false)
+	if err != nil {
+		return "", err
 	}
-	var jSince, dSince string
-	if since != "" {
-		w, ok := serverLogSince[since]
-		if !ok {
-			return "", errors.New("that is not a time the log can show")
-		}
-		jSince, dSince = fmt.Sprintf(" --since %q", w[0]), " --since "+w[1]
+	return s.readLog(sid, kind, name, q)
+}
+
+// LogsAt is LogsFor for a time range of your own: from and until are RFC 3339 times (either may be empty, not both), or
+// previousBoot asks for the boot before the present one. The last `lines` lines of that range are returned.
+func (s *ServerService) LogsAt(sid, kind, name string, lines int, from, until string, previousBoot bool) (string, error) {
+	if from == "" && until == "" && !previousBoot {
+		return "", errors.New("choose a time range or the previous boot")
 	}
-	var cmd string
-	switch {
-	case name == "" && kind == "":
-		cmd = fmt.Sprintf("journalctl -n %d%s --no-pager -o short-iso 2>&1", lines, jSince)
-	case !nameRe.MatchString(name):
-		return "", errors.New("that is not a valid name")
-	case kind == "service":
-		cmd = fmt.Sprintf("journalctl -u %s.service -n %d%s --no-pager -o short-iso 2>&1", name, lines, jSince)
-	case kind == "stack":
-		if !composeNameRe.MatchString(name) {
-			return "", errors.New("that is not a Compose project name")
-		}
-		cmd = composeScript(name, fmt.Sprintf("logs --tail %d%s --timestamps --no-color", lines, dSince))
-	case kind == "web":
-		if cmd = webLogCommand(name, lines, jSince); cmd == "" {
-			return "", errors.New("that is not a web server")
-		}
-	case kind == "container":
-		cmd = fmt.Sprintf("(docker logs --tail %[1]d%[3]s --timestamps %[2]s 2>&1 || $SUDO docker logs --tail %[1]d%[3]s --timestamps %[2]s 2>&1)", lines, name, dSince)
-	default:
-		return "", errors.New("unknown kind of log")
+	q, err := logQueryOf(lines, "", from, until, previousBoot)
+	if err != nil {
+		return "", err
+	}
+	return s.readLog(sid, kind, name, q)
+}
+
+func (s *ServerService) readLog(sid, kind, name string, q logQuery) (string, error) {
+	cmd, err := logCommand(kind, name, q)
+	if err != nil {
+		return "", err
 	}
 	out, err := s.run(sid, asRoot+cmd)
 	if err != nil && out == "" {

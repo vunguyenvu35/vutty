@@ -3,7 +3,7 @@ import {BackendContext, Backend} from '../lib/backend'
 import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
-import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
+import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerClock, ServerIncident, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
   CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
@@ -58,6 +58,10 @@ export interface Fake extends Backend {
       docker: ServerContainers
       dockerObjects: DockerObjects
       logs: string
+      /** what Incident answers, and how the follow of a log ends: a test emits server:log:<key> itself */
+      incident: ServerIncident
+      clock: ServerClock
+      followFails: string
       ports: ServerPorts
       certs: ServerCerts
       system: ServerSystem
@@ -197,6 +201,9 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       docker: {installed: true, containers: [{id: 'a1', name: 'api', image: 'registry/api:1.8', state: 'running', status: 'Up 2 hours', ports: '0.0.0.0:3000->3000/tcp', project: 'shop'}, {id: 'c3', name: 'db', image: 'postgres:16', state: 'running', status: 'Up 2 hours', ports: '', project: 'shop'}, {id: 'b2', name: 'old-batch', image: 'registry/batch', state: 'exited', status: 'Exited (0) 3 days ago', ports: '', project: ''}]},
       dockerObjects: {images: [{id: 'aa11bb22', name: 'registry/api:1.8', size: '210MB', created: '2 days ago', in_use: true}, {id: 'cc33dd44', name: '<none>', size: '95MB', created: '1 month ago', in_use: false}], volumes: [{name: 'pgdata', driver: 'local', in_use: true}, {name: 'old-cache', driver: 'local', in_use: false}], networks: [{id: 'n1', name: 'bridge', driver: 'bridge', scope: 'local'}, {id: 'n2', name: 'shop_default', driver: 'bridge', scope: 'local'}]},
       logs: '2026-11-04T09:41:07+0700 host app-worker[2210]: Error: ECONNREFUSED 127.0.0.1:6380\n2026-11-04T09:41:12+0700 host sshd[88]: Accepted publickey for ubuntu',
+      incident: {events: [], errors: [], containers: [], persistent: true, oldest: '', limited: false, has_docker: false, truncated: false},
+      clock: {now: '2026-11-04T10:00:00+07:00', zone: '+07', offset: 25200},
+      followFails: '',
       ports: {firewall: 'active', ports: [{port: 22, process: 'sshd', local: false, open: true}, {port: 5432, process: 'postgres', local: true, open: false}, {port: 9000, process: 'minio', local: false, open: false}], rules: [{num: 1, to: '22/tcp', action: 'ALLOW', from: 'Anywhere'}]},
       certs: {found: true, certs: [{name: 'example.com', domains: ['example.com', 'www.example.com'], not_after: 1788000000, days_left: 9}, {name: 'api.example.com', domains: ['api.example.com'], not_after: 1795000000, days_left: 88}]},
       webSites: [{name: 'shop.conf', enabled: true}, {name: 'staging.conf', enabled: false}],
@@ -601,6 +608,12 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         else state.server.dockerObjects.volumes = state.server.dockerObjects.volumes.filter(v => v.name !== id)
       },
       logs: async (sid, kind, name, opts) => { rec('server.logs', kind, name, ...(opts ? [opts] : [])); return state.server.logs },
+      logsAt: async (sid, kind, name, lines, from, until, boot) => { rec('server.logsAt', kind, name, lines, from, until, boot); return state.server.logs },
+      logsFollowStart: async (sid, key, kind, name, lines, since) => { rec('server.logsFollowStart', kind, name, lines, since, key); if (state.server.followFails) throw new Error(state.server.followFails) },
+      logsFollowStop: async (sid, key) => { rec('server.logsFollowStop', key) },
+      clock: async () => ({...state.server.clock}),
+      incident: async (sid, from, until) => { rec('server.incident', from, until); return {...state.server.incident} },
+      journalKeep: async () => { rec('server.journalKeep'); state.server.incident = {...state.server.incident, persistent: true} },
       ports: async () => ({firewall: state.server.ports.firewall, ports: state.server.ports.ports.map(p => ({...p})), rules: state.server.ports.rules.map(r => ({...r}))}),
       firewallAdd: async (sid, action, port, proto, from, force) => {
         rec('server.firewallAdd', action, port, proto, from, force)

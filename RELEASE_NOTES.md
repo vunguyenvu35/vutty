@@ -4,6 +4,14 @@
 
 Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
 
+## Unreleased
+
+- **Panel: Logs for an on-call.** *Choose a range…* reads a log between two times you type (in the time of the server, whose zone is shown), **Previous boot** reads the boot before this one, a click on a line offers the 1, 5 or 30 minutes around it, **Context** keeps 3 lines around each match, and the range stays when you change the source. **Follow** is now a real stream (`journalctl -f`, `docker logs -f`, `tail -F`) with the lines sent in batches, not a re-read every 2 seconds; if it cannot start, it falls back to the re-read and says so.
+- **Panel: an Incident tab.** What the server wrote down about the last hour to 3 days or a range of your own: failed and restarted services, processes the kernel killed for memory, boots and shutdowns, error lines by minute (a bar opens the log of that time) and containers that started, stopped or restarted. It warns when the journal is kept in memory only (a reboot erases it) and offers, after asking, to keep it on disk.
+- Not done on purpose: CPU and memory history while the app is closed. It needs either `sar` on the host or something installed there, and is left as the open question in [docs/PanelRoadmap.md](docs/PanelRoadmap.md).
+
+Not yet seen against a real server: the time ranges, the previous boot, the Incident reads and the stream are covered by tests with sample output and by a shell check that the host command stops when the input ends; try them on a throwaway VPS first.
+
 ## What's new in 1.6.5
 
 - **Panel: Users.** Add and delete users, manage their SSH keys, and a Reboot button that asks first (#48). The add-key form has room and a divider above it (#49).

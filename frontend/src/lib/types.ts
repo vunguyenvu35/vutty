@@ -875,3 +875,46 @@ export interface KubeContext {name: string; cluster: string; server: string; use
 /** what a kubeconfig holds: the contexts that can be used, and why the others cannot (by context name) */
 export interface ClusterPreview {contexts: KubeContext[]; problems: Record<string, string>}
 export interface ClusterInput {label: string; group_id: string; env: Env; path: string; kubeconfig: string; context: string}
+
+/** the time on a server and how far it is from UTC, in seconds east */
+export interface ServerClock {
+  now: string
+  zone: string
+  offset: number
+}
+/** one thing the journal says happened (times are RFC 3339, UTC) */
+export interface IncidentEvent {
+  time: string
+  kind: 'failed' | 'restart' | 'oom' | 'boot' | 'shutdown'
+  text: string
+}
+/** how many error lines the journal has in one minute */
+export interface IncidentBucket {
+  minute: string
+  count: number
+}
+/** a container that started, stopped or restarted in the time range */
+export interface IncidentBox {
+  name: string
+  restarts: number
+  oom: boolean
+  exit_code: number
+  running: boolean
+  started: string
+  finished: string
+}
+/** what a server wrote down about a time range */
+export interface ServerIncident {
+  events: IncidentEvent[]
+  errors: IncidentBucket[]
+  containers: IncidentBox[]
+  /** the journal is kept on disk, so it survives a reboot */
+  persistent: boolean
+  /** the first moment the journal still has (RFC 3339, UTC); empty when unknown */
+  oldest: string
+  /** this login sees only its own messages */
+  limited: boolean
+  has_docker: boolean
+  /** there were more events than are shown */
+  truncated: boolean
+}

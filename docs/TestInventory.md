@@ -6,7 +6,7 @@
 
 ## Go (unit + integration)
 
-### `app` (82)
+### `app` (71)
 
 - TestDataDirEnvOverride
 - TestBuildWiresRealAdapters
@@ -69,6 +69,7 @@
 - TestALinkWaitsUntilTheScreenTakesItOnce
 - TestTheSystemSleepNotificationReachesTheProgram
 - TestTheSleepLockIsTiedToTheSystemNotification
+- TestTheHandlerOfASystemNotificationDoesNotRunOnTheThreadThatPostedIt
 - TestWindowLauncherStartsEveryTimeAndClosesAll
 - TestOpenWindowFallsBackWithoutNativeWindows
 - TestBridgeRelaysTheSessionsAWindowOpenedAndEveryOtherEvent
@@ -117,7 +118,7 @@
 - TestAgentRequestHoldsOnlySanitizedText
 - TestUseCaseDoesNotImportAgentAdaptersOrGateway
 
-### `internal/domain` (9)
+### `internal/domain` (11)
 
 - TestParseOS
 - TestNormalizeHostRejectsUnknownOS
@@ -128,6 +129,8 @@
 - TestIsLoopback
 - TestCheckJumpChain
 - TestNormalizeSnippet
+- TestNormalizeCluster
+- TestMergeKeepsTheNewerClusterAndTheOneOnlyOneSideHas
 
 ### `internal/domain/assistant` (12)
 
@@ -206,13 +209,51 @@
 - TestInventoryRefusesWhatIsNotAListing
 - TestInventoryBecomesGroupsAndHostsThroughBuild
 
-### `internal/localtty` (5)
+### `internal/kubeapi` (34)
+
+- TestTokenIsSentAndTheCertificateAuthorityIsTrusted
+- TestAServerThatTheFileDoesNotTrustIsRefused
+- TestInsecureSkipVerifyIsHonoured
+- TestAPIErrorUsesTheServersSentence
+- TestPathsThatCouldSmuggleAHeaderAreRefused
+- TestAnswerIsCappedAndTruncationIsReported
+- TestARedirectIsNotFollowed
+- TestPathPrefixOfTheServerIsKept
+- TestImpersonationHeaders
+- TestBasicAuth
+- TestClientCertificateIsPresented
+- TestCheckRefusesWhatCouldSendALocalFile
+- TestCheckRefusesAServerThatIsNotAnAddress
+- TestParseRefusesWhatIsNotAKubeconfig
+- TestListCarriesNoSecretButShowsTheLoginCommand
+- TestWellKnownLoginHelpersRunWithoutAsking
+- TestAnUnknownLoginProgramNeedsApprovalAndNeverRunsWithoutIt
+- TestLoginPluginTokenIsUsedCachedAndRenewedAfter401
+- TestLoginPluginFailureShowsItsOwnMessage
+- TestLoginPluginThatAnswersWithoutATokenIsAnError
+- TestMissingLoginProgramSaysWhat
+- TestAWellKnownNameInAFolderAnybodyCanWriteAsksFirst
+- TestAHelperWithAVariableThatChangesWhatRunsAsksFirstAndTheVariableIsPartOfTheApproval
+- TestALoginProgramGivenAsARelativePathIsRefusedEvenWhenApproved
+- TestPortForwardMovesBytesBothWaysAndDropsThePortFrames
+- TestPortForwardSaysWhatThePodSaysWhenThePortIsClosed
+- TestPortForwardRefusals
+- TestClosingAPortForwardEndsTheReaderAndTheServerSide
+- TestExecOpensAShellInAPodAndMovesBytesBothWays
+- TestExecEndsWhenTheCommandEndsAndAFailureCarriesTheServersWords
+- TestExecRefusedAtTheUpgradeSaysWhy
+- TestExecNeedsTheProtocolEveryServerSpeaks
+- TestExecRefusesWhatIsMissing
+- TestExecWorksWithAServerThatOffersHTTP2
+
+### `internal/localtty` (6)
 
 - TestShellOutputAndNormalExit
 - TestInteractiveShellEchoesResizesAndCloses
 - TestTerminalEnvironmentIsSet
 - TestUserShellFallsBack
 - TestOpenFailsForAMissingProgram
+- TestCwdFollowsTheShell
 
 ### `internal/mcpgw` (7)
 
@@ -230,8 +271,12 @@
 - TestPortsReturnsASortedList
 - TestReadsAndWritesThroughADevice
 
-### `internal/sftpx` (15)
+### `internal/sftpx` (19)
 
+- TestUploadKeepsTheTimeOfTheSource
+- TestDownloadKeepsTheTimeOfTheSource
+- TestUploadSweepsOnlyAbandonedPartialCopies
+- TestDownloadSweepsTheTargetFolderOncePerSession
 - TestUploadContinuesAnInterruptedCopy
 - TestUploadDoesNotContinueACopyOfAnotherVersion
 - TestCancelForGoodDeletesThePartialUpload
@@ -248,7 +293,7 @@
 - TestDownloadOfDirectoryIsRefused
 - TestUploadedFileContentOnServer
 
-### `internal/sqlitedb` (19)
+### `internal/sqlitedb` (20)
 
 - TestActivityListsNewestFirstAndRoundTrips
 - TestActivityFilters
@@ -265,6 +310,7 @@
 - TestUpgradeFromSchemaV2AddsServerTypeAndForwardLabel
 - TestHostTelnetAndThemeRoundTrip
 - TestHostForwardAgentRoundTrips
+- TestHostBackupPathRoundTrips
 - TestIdentityCertificateRoundTrips
 - TestADatabaseThatStoppedHalfWayIsCompletedOnOpen
 - TestEveryAdditionIsPresentOnAFreshDatabaseAndTheStepCanRunTwice
@@ -305,7 +351,7 @@
 - TestBatcherCoalescesAndPreservesOrder
 - TestBatcherFlushesAtMaxBytes
 
-### `internal/store` (18)
+### `internal/store` (19)
 
 - TestSaveHostDefaultsAndPersistence
 - TestSaveHostValidation
@@ -325,6 +371,7 @@
 - TestHostnameWithControlCharsRejected
 - TestSnippetsCRUDSortingAndTombstones
 - TestSetHostOSKeepsTheRestAndSurvivesAnEditWithoutIt
+- TestClustersCRUDSortingAndTombstones
 
 ### `internal/syncfolder` (5)
 
@@ -381,7 +428,7 @@
 - TestRequestsStayOnAllowedHostsAndOverHTTPS
 - TestLatestReleaseReadsTagAndAssets
 
-### `internal/usecase` (216)
+### `internal/usecase` (403)
 
 - TestLogRecordsConnectingAndClosingATab
 - TestLogRecordsAFailedConnectionAndALostOne
@@ -464,6 +511,120 @@
 - TestImportInventoryAgainFollowsTheConflictChoice
 - TestImportInventoryRefusesWhatItCannotRead
 - TestImportInventoryWorksWithTheVaultLocked
+- TestClusterReadsThroughTheAPIServer
+- TestClusterNeverListsSecretValues
+- TestClusterAccessUsesSelfSubjectAccessReview
+- TestClusterReportsWhyItCannotConnect
+- TestClusterChangesAreRequestsAndAreAudited
+- TestClusterRestartWaitsForTheRollout
+- TestClusterRollbackReplacesTheTemplateOfThatRevision
+- TestClusterDrainRefusesBeforeEvictingAnything
+- TestClusterDrainEvictsAndWaitsForThePodsToGo
+- TestClusterRunsCronJobNowFromItsTemplate
+- TestClusterHasNoKubectlShellLineAndNoHostOnlyTab
+- TestClusterPortForwardGoesThroughTheAPIServerToAReadyPod
+- TestClusterPortForwardPortsAndRefusals
+- TestClusterDebugContainerIsAddedAndWaitedFor
+- TestClusterDebugContainerGivesUpWhenItNeverRuns
+- TestHostDebugContainerIsTheLineKubectlDebugTypesInATab
+- TestClusterKubeconfigStaysInTheVault
+- TestClusterRefusesKubeconfigsThatCouldLeakAFile
+- TestClusterLoginProgramMustBeApprovedAndTheScreenCannotApproveAnother
+- TestClusterRevokingALoginProgramAsksAgainAtTheNextConnection
+- TestClusterReplaceKubeconfigDropsApprovals
+- TestClustersAreTickedApartFromKeysAndTheirKubeconfigsGoWithThem
+- TestAClusterSyncsToAnotherMachineWithItsKubeconfigAndCanBeLeftOut
+- TestOverviewInANamespaceWithoutRightToListNodes
+- TestClusterShellInAPodIsATerminalTab
+- TestClusterShellRefusesWhatIsNotAPodOfACluster
+- TestClusterShellNeedsTheClusterTabToStayOpenToReconnect
+- TestNamespaceListsAreOnlyForLists
+- TestClusterListsPutTheNamespacesTogetherAndLeaveOutOneThatIsRefused
+- TestClusterShellRightIsTheOneAWebSocketNeeds
+- TestClusterPodOfSeveralContainersUsesTheDefaultOneLikeKubectl
+- TestHelmReleasesOnAHostReadLabelsFirstAndTheReleaseWhenOpened
+- TestHelmReleasesOfAClusterOpenedWithAKubeconfig
+- TestHelmRefusesBadInputBeforeAnyCommand
+- TestRedactManifestKeepsWhatIsNotASecretAsItWas
+- TestLiveCluster
+- TestLivePodFiles
+- TestLiveSecurityAndPortForward
+- TestLiveDebugContainer
+- TestK8sSelectorOfWorkloadsAndServices
+- TestK8sLogsMultiMergesThePodsByTime
+- TestK8sLogsMultiRefusesBadInputAndLimitsPods
+- TestParsePodsStatusToneAndWhy
+- TestParsePodDetail
+- TestParseNodes
+- TestParseWorkloads
+- TestParseDeploymentDetail
+- TestCertDaysLeft
+- TestParseNetwork
+- TestParseConfigKeysNeverHoldValues
+- TestParseEventsSortsNewestFirst
+- TestOverviewCountsAndAttention
+- TestPlanDrain
+- TestClassifyErrors
+- TestQuantities
+- TestParsersSurviveOddInput
+- TestPodFilesListFolderAndHome
+- TestPodFilesFetchCopiesOneFileAndNeverOverwrites
+- TestPodFilesFetchRemovesAHalfFile
+- TestPodFilesRefuseWhatIsNotAPodShellOrAPath
+- TestPodFilesSayWhenTheContainerHasNoShell
+- TestStatListParsing
+- TestLocalFileNameCannotLeaveTheFolderOrNameADevice
+- TestJSONPathValueReadsWhatPrinterColumnsUse
+- TestClusterListsAnyKindAndItsObjects
+- TestClusterNeverOpensASecretThroughTheGenericScreen
+- TestK8sResourcesRefuseWhatTheClusterDoesNotServe
+- TestK8sResourcesOnAHostAskTheAPIServerThroughKubectl
+- TestBuiltinColumnsReadWhatKubectlPrints
+- TestK8sCountsAskForOneItemAndAddWhatIsLeft
+- TestSecurityPodsFindsWhatIsExposedAndNamesTheWorkloadOnce
+- TestSecurityNetworkFindsWhatIsReachableFromOutside
+- TestK8sSecurityOnAHostSortsHighFirstAndRefusesBadInput
+- TestK8sRefusesBadInputBeforeAnyCommand
+- TestK8sQuotingAndWords
+- TestK8sReadsAskKubectlForJSONWithContextAndNamespace
+- TestK8sReadErrorsComeBackAsTheKubectlText
+- TestK8sLogsCommand
+- TestK8sAccessAsksWhatTheLoginMayDo
+- TestK8sCheckClassifiesWhyAClusterDoesNotAnswer
+- TestK8sChangesSendFixedCommandsAndAreAudited
+- TestK8sFailedChangeReturnsKubectlTextAndIsAuditedAsFailed
+- TestK8sShellCommandUsesTheRememberedWayIn
+- TestK8sSecretsNeverLoadAValueExceptTheOneAskedFor
+- TestK8sYAMLDropsManagedFields
+- TestK8sDetectFindsKubectlK3sMicroK8sAndTheFixedFolders
+- TestK8sDetectRemembersTheWayInPerSession
+- TestK8sContextsSearchRunsAgainstTheFixedPlaces
+- TestK8sContextsWithRootOnlyKubeconfigs
+- TestK8sScriptsAreValidShell
+- TestK8sForwardScriptKillsKubectlWhenItsInputEnds
+- TestFwdOutSeesTheReadyLine
+- TestK8sPipeCopiesBothWays
+- TestK8sPortForwardThroughTheSSHConnection
+- TestK8sPortForwardReportsAHostThatCannotStartIt
+- TestWorkloadSpecShowsTheContainersAndWhereValuesComeFrom
+- TestEditableYAMLLeavesOutWhatIsTheClustersAndKeepsTheVersion
+- TestEditPreviewIsADryRunAndShowsWhatWouldChange
+- TestEditRefusesWhatIsNotTheSameObjectBeforeAnythingIsSent
+- TestEditApplyReplacesTheObjectAndIsAuditedWithoutItsText
+- TestEditApplyTellsWhenSomeoneElseChangedItMeanwhile
+- TestSetContainerSendsOnlyWhatChangedAndNamesNoValueInTheAudit
+- TestSetContainerRefusesWhatIsNotAnImageAVariableOrAQuantity
+- TestAddSidecarAddsANewContainerAndRefusesAnExistingName
+- TestSaveYAMLWritesToDownloadsPrivatelyAndNeverOverAFile
+- TestLineDiffKeepsContextAndCountsChanges
+- TestEditRightIsAskedAndHostsNeverGetThePutSide
+- TestEditYAMLOnAHostPreviewsWithADryRunAndAppliesWithReplace
+- TestEditYAMLOnAHostSaysWhenSomeoneChangedTheObjectFirst
+- TestEditYAMLOnAHostFallsBackForAKubectlWithoutStrictValidation
+- TestEditConfigOnAHostChangesTheContainerAndKeepsValuesOffTheCommandLine
+- TestEditConfigOnAHostRefusesWhatTheClusterWouldAndSendsNothing
+- TestAddSidecarOnAHostAppendsTheContainerAndRefusesAnExistingName
+- TestApplyContainerEditMatchesTheMergePatch
 - TestAddKeyPairAcceptsAMatchingPublicKeyAndCertificate
 - TestAddKeyPairWithoutThePublicPartsIsAnOrdinaryImport
 - TestAddKeyPairRefusesWhatDoesNotBelong
@@ -477,6 +638,14 @@
 - TestLocalCopyCopiesFoldersWithContentAndKeepsModes
 - TestLocalCopyAsksAboutExistingFilesAndReplacesOnlyOnOverwrite
 - TestLocalCopyRefusesIntoItselfIgnoresLinksAndNeverCopiesOntoItself
+- TestPreferencesFollowTheUserToANewMachineAndBetweenMachines
+- TestOnlyTheTickedGroupsTravelInEitherDirection
+- TestOnlyAChangeOfAGroupMovesItsDateAndTheNewestCopyWins
+- TestNothingIsSentOrTakenForAnUntickedGroupAndDefaultsNeverOutvote
+- TestAMachineSetUpBeforePreferencesSyncedDatesItsNonDefaultGroupsAtTheFirstSync
+- TestMergeKeepsTheNewerCopyOfEachGroup
+- TestAKindOfDataThatIsNotTickedIsNeitherSentNorTaken
+- TestSelectingWhatToSyncIsConsistent
 - TestQueueUploadsAFolderInTheBackgroundAndReportsIt
 - TestQueueDownloadsAFolder
 - TestConflictsListWhatWouldBeReplaced
@@ -495,6 +664,70 @@
 - TestQueuePausedBeforeItStartsAndEventsCarryTheList
 - TestQueueClosingTheSessionStopsRunningJobs
 - TestEnqueueRefusesNonsense
+- TestSyncIsNotAffectedByWhatTheKeychainHolds
+- TestParseAudit
+- TestParseLogins
+- TestCronScheduleAndCommandChecks
+- TestCronAddReplaceDeleteKeepTheOtherLines
+- TestCronCallsRefuseWhatCannotBeEditedBeforeTouchingTheServer
+- TestParseScheduleReadsTheAccountOfThisConnection
+- TestParseFirewallRules
+- TestUfwRuleArgs
+- TestRulePorts
+- TestLogQueryTimesAreCheckedAndWrittenByUs
+- TestLogCommandForARangeBootAndFollow
+- TestParseClock
+- TestParseIncident
+- TestIncidentRefusesBadRanges
+- TestLogsFollowStreamsAndStops
+- TestMergeSSHDropIn
+- TestSecurityEditsRefuseBeforeTouchingTheServer
+- TestParseSystem
+- TestSystemEditsRefuseBeforeTouchingTheServer
+- TestParseOverview
+- TestParseOverviewSurvivesAShortOrEmptyOutput
+- TestParseProcessesSortsByCPUAndKeepsTheWholeCommand
+- TestParseProcessesLeavesOutThePanelsOwnPs
+- TestParseUnitsJoinsEnabledStateAndPutsFailedFirst
+- TestParseContainers
+- TestServerServiceRunsFixedCommandsAndRefusesOddNames
+- TestParsePortsJoinsTheFirewallAndMergesIPv4WithIPv6
+- TestDockerParsers
+- TestDockerCommandsRefuseOddNames
+- TestParseUsers
+- TestParseCertsSortsBySoonestAndReadsTheNamesAndDays
+- TestParseCertsNotFoundAndExpired
+- TestParseNginxListsTheServerBlocksOfTheHTTPBlock
+- TestParseCaddyfile
+- TestParseWebReadsKindVersionAndRunning
+- TestParseTestResult
+- TestComposeProjectFromLabels
+- TestParseUpdatesApt
+- TestParseUpdatesDnfAndNone
+- TestParseDockerSize
+- TestParseCleanup
+- TestParseFolders
+- TestParseSecurity
+- TestParseSchedule
+- TestParseBackup
+- TestParseFleet
+- TestServerToolsRefuseWhatIsNotCheckedBeforeAnyCommand
+- TestValidServerPath
+- TestServerToolScriptsAreValidShell
+- TestDockerPullAndStackUpDownChecks
+- TestParseFleetCertDays
+- TestClipNotificationText
+- TestFleetActionRefusesUnknownAction
+- TestParseUpgrade
+- TestUpgradeScriptsAreValidShell
+- TestParseAuthorizedKeyTellsAPrivateKeyAndGarbageApart
+- TestAddAndRemoveKeepOtherLinesAndRefuseADuplicate
+- TestUserNamesAndShellsThatReachAScript
+- TestParseUsersReadsTheAccountOfThisConnection
+- TestParseLockedAndUserEditsRefuseBadNames
+- TestParseSiteFiles
+- TestCheckCertRequest
+- TestWebEditRefuseBadNamesBeforeTouchingTheServer
 - TestForwardOnDedicatedConnection
 - TestForwardAutoStartRidesSessionAndDiesWithIt
 - TestAutoStartForwardIsRebuiltAfterReconnect
@@ -530,6 +763,7 @@
 - TestUnknownServerTypeStaysEmpty
 - TestSFTPConnectionAlsoLearnsTheServerType
 - TestHighlightOutputIsOnForNewAndOldSettingsFilesAndCanBeSwitchedOff
+- TestGpuRendererIsOnForNewAndOldSettingsFilesAndCanBeSwitchedOff
 - TestTerminalMouseSettingsDefaultsAndValidation
 - TestSyncThroughAFolderEndToEnd
 - TestUpdateIdentityRenamesAndReplacesAPasswordWhereItIs
@@ -600,8 +834,19 @@
 - TestSyncSendsNothingWhenTheVaultKeyIsNotTheHeadersKey
 - TestLocalEmptyIsTrueUntilThisMachineHoldsSomething
 
-### `internal/vault` (28)
+### `internal/vault` (39)
 
+- TestRealGuardedStoreSaysNotAvailableWithoutTheEntitlement
+- TestTieredKeepsTheKeyInTheGuardedItemAndNowhereElse
+- TestTieredFallsBackToAPlainItemWhenTheGuardedOneIsNotAllowed
+- TestTieredFallsBackWhenTheGuardedItemFailsForAnotherReason
+- TestTieredUpgradeMovesAPlainItemOnlyWhenItIsTheSameKey
+- TestTieredRemovesAnItemMadeUnreadable
+- TestStatusDoesNotReadAGuardedKey
+- TestAGuardedItemIsNotAskedForTouchIDTwice
+- TestOldPlainItemIsUpgradedOnTheNextUnlock
+- TestAFailingGuardedStoreNeverBlocksUnlock
+- TestUnreadableGuardedKeyFallsBackToThePassword
 - TestCreateRejectsWeakPassword
 - TestCreateTwiceFails
 - TestSecretRoundTripAcrossReopen
@@ -636,7 +881,7 @@
 - TestKeygenSignVerifyRoundTripAndNeverOverwritesAKey
 - TestSigningKeyFromTheEnvironmentAndBadInput
 
-**Go test functions: 573** (table-driven cases and sub-tests are extra).
+**Go test functions: 803** (table-driven cases and sub-tests are extra).
 
 ## Frontend (Vitest)
 

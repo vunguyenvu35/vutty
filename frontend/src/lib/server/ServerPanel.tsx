@@ -20,13 +20,17 @@ import {Users} from './Users'
 import {Schedule} from './Schedule'
 import {Ports} from './Firewall'
 import {Kubernetes} from './Kubernetes'
+import {Incident} from './Incident'
+import {LogRange, useServerClock, type LogWindow} from './LogRange'
+import {useLogStream} from './logStream'
+import {around, lineTime, withContext} from './logTime'
 import type {K8sLogTarget} from './KubernetesShared'
 import type {Host, K8sMultiLogs, K8sPod, K8sPodDetail, ServerBackup, ServerCerts, ServerContainer, ServerContainers, ServerOverview, ServerProcess, ServerUnit, ServerUpdates} from '../types'
 
-type Section = 'overview' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
+type Section = 'overview' | 'incident' | 'processes' | 'services' | 'docker' | 'kubernetes' | 'logs' | 'ports' | 'web' | 'maintenance' | 'security' | 'schedule' | 'users'
 /** kind 'pod' is a pod of the Kubernetes tab: name is `namespace/pod`; container and previous say which log of it */
 /** kind 'workload': every pod of a workload or Service, the name being ns/kind/name */
-export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean}
+export interface LogSource {kind: '' | 'service' | 'container' | 'stack' | 'web' | 'pod' | 'workload'; name: string; container?: string; previous?: boolean; /** a time range (RFC 3339) to open the log on */ range?: LogWindow}
 
 /** the log source of what the Kubernetes tab asked to open */
 export const logSourceOf = (p: K8sLogTarget): LogSource => (p.kind ? {kind: 'workload', name: p.ns + '/' + p.kind + '/' + p.name} : {kind: 'pod', name: p.ns + '/' + p.name, container: p.container, previous: p.previous})
@@ -72,7 +76,7 @@ export function ServerPanel({host, visible, onAccess, onShell}: {host: Host; vis
   }
   const [section, setSection] = useState<Section>('overview')
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
-  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
+  const sections: [Section, string][] = [['overview', t('Overview')], ['processes', t('Processes')], ['services', t('Services')], ['docker', t('Docker')], ['kubernetes', t('Kubernetes')], ['web', t('Web')], ['logs', t('Logs')], ['incident', t('Incident')], ['ports', t('Ports & firewall')], ['maintenance', t('Maintenance')], ['security', t('Security')], ['users', t('Users')], ['schedule', t('Schedule')]]
   const showLogs = (s: LogSource) => { setSource(s); setSection('logs') }
   return (
     <div className="sp" role="region" aria-label={t('Server panel of {name}', {name: host.label})}>
@@ -114,6 +118,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {k8sOpened && <div className="sp-keep" hidden={section !== 'kubernetes'}><Kubernetes sid={sid} host={host} visible={visible && section === 'kubernetes'} onShell={onShell} onAccess={onAccess} onContext={setK8sCtx} onNamespace={setK8sNs} onLogs={p => showLogs(logSourceOf(p))} /></div>}
             {section === 'web' && <Web sid={sid} onLogs={(kind, name) => showLogs({kind, name})} />}
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={k8sCtx} k8sNs={k8sNs} />}
+            {section === 'incident' && <Incident sid={sid} onLogs={showLogs} />}
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
             {section === 'maintenance' && <Maintenance sid={sid} host={host} />}
             {section === 'security' && <Security sid={sid} />}
@@ -412,6 +417,12 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const [regex, setRegex] = useState(false)
   const [lineCount, setLineCount] = useState('300')
   const [since, setSince] = useState<'' | '15m' | '1h' | '24h'>('')
+  const [range, setRange] = useState<LogWindow | null>(source.range ?? null) // a time range of its own, in place of "the last N minutes"
+  const [boot, setBoot] = useState(false) // the boot before this one
+  const [picked, setPicked] = useState('') // the line clicked: the range around it can be asked for
+  const [context, setContext] = useState(false) // keep the lines around each match
+  const clock = useServerClock(sid)
+  useEffect(() => { setRange(source.range ?? null); setBoot(false); setPicked('') }, [source.kind, source.name, source.range?.from, source.range?.until]) // eslint-disable-line react-hooks/exhaustive-deps
   const boxRef = useRef<HTMLDivElement>(null)
   const stuck = useRef(true) // the view is at the bottom: new lines scroll into sight, but never pull away from what is being read
   // what the source list offers: asked once, and left out quietly when the login cannot ask
@@ -443,18 +454,28 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const opts = lineCount === '300' && since === '' ? undefined : {lines: Number(lineCount), since}
   const podKey = isPod || isMulti ? `${k8sCtx}:${container}:${previous}:${timestamps}` : ''
   const [multi, setMulti] = useState<K8sMultiLogs | null>(null)
+  const byTime = !isPod && !isMulti && !podsOnly && (!!range || boot) // a time range of its own, or the boot before: read once, never followed
+  const streamable = !isPod && !isMulti && !podsOnly && !byTime
+  const kindOf = source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>
+  const stream = useLogStream(sid, follow && visible && streamable, kindOf, source.name, Number(lineCount), since)
+  const streaming = follow && visible && streamable && !stream.failed // else Follow reads the log again every 2 seconds
   const load = useCallback(() => (podsOnly && !isPod && !isMulti ? Promise.resolve('') : isMulti
     ? (k8sCtx ? be.server.k8sLogsMulti(sid, k8sCtx, multiOf[0], multiOf[1], multiOf[2], {container: '', lines: Number(lineCount) as 100, since, previous: false, timestamps}).then(r => { setMulti(r); return r.text }) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))
     : isPod
     ? (k8sCtx ? be.server.k8sLogs(sid, k8sCtx, podOf[0], podOf[1], {container, lines: Number(lineCount) as 100, since, previous, timestamps}) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))
-    : be.server.logs(sid, source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>, source.name, opts)), [be, sid, source.kind, source.name, lineCount, since, podKey, podsOnly]) // eslint-disable-line react-hooks/exhaustive-deps
-  const {data, error, busy, reload} = useLoad<string>(load, follow && visible ? FOLLOW_MS : null)
+    : byTime
+    ? be.server.logsAt(sid, kindOf, source.name, Number(lineCount), range?.from ?? '', range?.until ?? '', boot)
+    : be.server.logs(sid, source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>, source.name, opts)), [be, sid, source.kind, source.name, lineCount, since, podKey, podsOnly, range?.from, range?.until, boot]) // eslint-disable-line react-hooks/exhaustive-deps
+  const {data, error, busy, reload} = useLoad<string>(load, follow && visible && !streaming ? FOLLOW_MS : null)
   // useLoad reads again by itself only on a timer: another source, number of lines or time is asked for here
-  const asked = useRef(`${source.kind}:${source.name}:${lineCount}:${since}:${podKey}`)
+  const asked = useRef(`${source.kind}:${source.name}:${lineCount}:${since}:${podKey}:${range?.from}:${range?.until}:${boot}`)
   useEffect(() => {
-    const now = `${source.kind}:${source.name}:${lineCount}:${since}:${podKey}`
+    const now = `${source.kind}:${source.name}:${lineCount}:${since}:${podKey}:${range?.from}:${range?.until}:${boot}`
     if (asked.current !== now) { asked.current = now; reload() }
-  }, [source.kind, source.name, lineCount, since, podKey, reload])
+  }, [source.kind, source.name, lineCount, since, podKey, range?.from, range?.until, boot, reload])
+  // Follow turned off (or the tab hidden): the screen has what was streamed; the last reading is older than that, so read again
+  const wasStreaming = useRef(false)
+  useEffect(() => { if (wasStreaming.current && !streaming) reload(); wasStreaming.current = streaming }, [streaming, reload])
   const toast = useToast()
   const save = async () => {
     const d = new Date(), p2 = (n: number) => String(n).padStart(2, '0')
@@ -466,36 +487,65 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   }
   const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
   // what the programs print can hold colour codes: they are read for the colours, but what is searched, counted as an error or saved is the text
-  const all = useMemo(() => (data ?? '').split('\n').filter(l => stripAnsi(l) !== ''), [data])
-  const lines = useMemo(
-    () => all.filter(l => { const p = stripAnsi(l); return (!matcher.test || matcher.test(p)) && (lv === 'all' || (lv === 'info' ? logLevel(p) === '' : logLevel(p) === lv)) }),
-    [all, matcher, lv])
-  useEffect(() => { const b = boxRef.current; if (b && stuck.current) b.scrollTop = b.scrollHeight }, [lines])
+  const text = streaming ? stream.rows.join('\n') : data
+  const loaded = streaming ? stream.rows.length > 0 || stream.ended : data !== null
+  const all = useMemo(() => (text ?? '').split('\n').filter(l => stripAnsi(l) !== ''), [text])
+  const passes = useCallback((l: string) => { const p = stripAnsi(l); return (!matcher.test || matcher.test(p)) && (lv === 'all' || (lv === 'info' ? logLevel(p) === '' : logLevel(p) === lv)) }, [matcher, lv])
+  const lines = useMemo(() => all.filter(passes), [all, passes])
+  const filtering = !!matcher.test || lv !== 'all'
+  // with Context on, each match comes with the lines around it (a hole between two groups is a null)
+  const rows = useMemo(() => (context && filtering ? withContext(all, passes, 3) : lines), [context, filtering, all, passes, lines])
+  useEffect(() => { const b = boxRef.current; if (b && stuck.current) b.scrollTop = b.scrollHeight }, [rows])
   const onScroll = () => { const b = boxRef.current; if (b) stuck.current = b.scrollHeight - b.scrollTop - b.clientHeight < 40 }
   const levels: ['all' | 'err' | 'warn' | 'info', string][] = [['all', t('All')], ['err', t('Errors')], ['warn', t('Warnings')], ['info', t('Info')]]
+  const timed = !isPod && !isMulti && !podsOnly // a log with times to choose from (the nginx error file has none, the backend says so)
+  const journal = timed && (source.kind === '' || source.kind === 'service' || (source.kind === 'web' && source.name === 'caddy'))
+  const pickedAt = picked && timed ? lineTime(picked) : null
+  const showRange = (r: LogWindow | null) => { setRange(r); setBoot(false); setFollow(false); setPicked('') }
+  const timeChoice = async (v: string) => {
+    if (v !== 'custom') { setRange(null); setSince(v as typeof since); return }
+    try {
+      const c = await clock.get()
+      const now = Date.parse(c.now)
+      showRange({from: new Date(now - 3600000).toISOString().replace(/\.\d+Z$/, 'Z'), until: new Date(now).toISOString().replace(/\.\d+Z$/, 'Z')})
+    } catch (e) { toast.error(errMsg(e)) }
+  }
   return (
     <div className="sp-view fill">
       <Bar2 busy={busy} onReload={reload}>
         <FilterInput label={t('Filter log lines')} placeholder={t('Filter log lines')} invalid={matcher.bad} value={filter} onChange={setFilter} />
         <button aria-pressed={regex} className={regex ? 'primary' : ''} title={matcher.bad ? t('Not a valid regular expression') : t('Treat the filter as a regular expression')} onClick={() => setRegex(r => !r)}>.*</button>
         {levels.map(([k, n]) => <button key={k} aria-pressed={lv === k} className={lv === k ? 'primary' : ''} onClick={() => setLv(k)}>{n}</button>)}
-        <button aria-pressed={follow} className={follow ? 'primary' : ''} title={t('Reads the log again every 2 seconds and keeps the newest line in view')} onClick={() => { stuck.current = true; setFollow(f => !f) }}>{t('Follow')}</button>
+        <button aria-pressed={context} className={context ? 'primary' : ''} disabled={!filtering} title={filtering ? t('Show 3 lines before and after each match') : t('Filter the log first: Context keeps the lines around each match')} onClick={() => setContext(c => !c)}>{t('Context')}</button>
+        <button aria-pressed={follow} className={follow ? 'primary' : ''} disabled={byTime} title={byTime ? t('A time range or an earlier boot is read once: choose Any time to follow') : streamable ? t('Shows new lines as they arrive and keeps the newest in view') : t('Reads the log again every 2 seconds and keeps the newest line in view')} onClick={() => { stuck.current = true; setFollow(f => !f) }}>{t('Follow')}</button>
       </Bar2>
       <div className="sp-bar">
-        <Select className="sp-pick" label={t('Log source')} value={sourceKey(source)} onChange={v => onSource(parseSource(v))} options={sources} placeholder={podsOnly ? t('Choose a pod') : undefined} searchable />
+        <Select className="sp-pick" label={t('Log source')} value={sourceKey(source)} onChange={v => onSource({...parseSource(v), range: range ?? undefined})} options={sources} placeholder={podsOnly ? t('Choose a pod') : undefined} searchable />
         <Select className="sp-pick" label={t('Number of lines')} value={lineCount} onChange={setLineCount} options={['100', '300', '1000', '5000'].map(n => ({value: n, label: t('Last {n} lines', {n})}))} />
-        <Select className="sp-pick" label={t('Time range')} value={since} onChange={v => setSince(v as typeof since)}
-          options={[{value: '', label: t('Any time')}, {value: '15m', label: t('Last 15 minutes')}, {value: '1h', label: t('Last hour')}, {value: '24h', label: t('Last 24 hours')}]} />
+        <Select className="sp-pick" label={t('Time range')} value={range ? 'custom' : since} onChange={v => void timeChoice(v)}
+          options={[{value: '', label: t('Any time')}, {value: '15m', label: t('Last 15 minutes')}, {value: '1h', label: t('Last hour')}, {value: '24h', label: t('Last 24 hours')}, ...(timed ? [{value: 'custom', label: t('Choose a range…')}] : [])]} />
+        {journal && <button aria-pressed={boot} className={boot ? 'primary' : ''} title={t('The log of the boot before this one: what happened before the last restart')} onClick={() => { setBoot(b => !b); setRange(null); setFollow(false); setPicked('') }}>{t('Previous boot')}</button>}
+        {range && timed && <LogRange range={range} clock={clock.clock} onRange={showRange} />}
         {isPod && <Select className="sp-pick" label={t('Container')} value={container} onChange={setContainer} options={container && !containers.some(c => c.value === container) ? [...containers, {value: container, label: container}] : containers} />}
         {isPod && previous && <button aria-pressed className="primary" aria-label={t('Previous container')} title={t('The container that ran before the last restart: press to read the current one')} onClick={() => setPrevious(false)}>{t('Previous container')} ×</button>}
         {(isPod || isMulti) && <button aria-pressed={timestamps} className={timestamps ? 'primary' : ''} onClick={() => setTimestamps(v => !v)}>{t('Timestamps')}</button>}
         <button disabled={lines.length === 0} title={t('Save the lines shown to a file')} onClick={() => void save()}><IconDownload size={14} /> {t('Download')}</button>
-        <span className="sp-source" role="status">{data !== null && (filter || lv !== 'all') ? t('{shown} of {total} lines', {shown: lines.length, total: all.length}) : ''}</span>
+        <span className="sp-source" role="status">{loaded && filtering ? t('{shown} of {total} lines', {shown: lines.length, total: all.length}) : ''}</span>
       </div>
+      {boot && <div className="sp-note k8s-hint" role="status">{t('Showing the boot before this one. Times are the time of the server.')}</div>}
+      {stream.failed && follow && streamable && <div className="sp-note k8s-hint" role="status">{t('Could not follow the log live ({reason}): it is read again every 2 seconds.', {reason: stream.failed})}</div>}
+      {streaming && stream.ended && <div className="sp-note k8s-hint" role="status">{t('The command on the server ended: nothing more will arrive.')}</div>}
+      {streaming && stream.skipped > 0 && <div className="sp-note k8s-hint" role="status">{tn(stream.skipped, '{n} line was skipped: the log is faster than the screen', '{n} lines were skipped: the log is faster than the screen')}</div>}
+      {pickedAt && <div className="sp-picked" role="group" aria-label={t('Around the picked line')}>
+        <span>{t('Line of {time}:', {time: pickedAt.replace('T', ' ').replace('Z', ' UTC')})}</span>
+        {[1, 5, 30].map(m => <button key={m} onClick={() => showRange(around(pickedAt, m))}>{t('Show ±{n} min around it', {n: m})}</button>)}
+        <button className="ghost" onClick={() => setPicked('')}>{t('Clear')}</button>
+      </div>}
       {isMulti && multi && <div className="sp-note k8s-hint" role="status">{tn(multi.pods, '{n} pod read', '{n} pods read')}{multi.skipped > 0 && ' · ' + t('{n} more pods are not shown', {n: multi.skipped})}{multi.failed.length > 0 && ' · ' + t('Could not read: {list}', {list: multi.failed.join('; ')})}</div>}
       <Err error={error} />
-      <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !follow} onScroll={onScroll}>
-        {lines.map((l, i) => {
+      <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !streaming} onScroll={onScroll}>
+        {rows.map((l, i) => {
+          if (l === null) return <div key={i} className="sp-log-gap" aria-hidden>···</div>
           const p = stripAnsi(l)
           // the colours of the program, unless a search is on (a match is marked on the plain text) or the line is an error or a warning (its own colour)
           const pre = isMulti ? /^\[([^\]]+)\] /.exec(p) : null // a merged log: the pod each line came from, in a colour of its own
@@ -503,9 +553,10 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
           const text = pre ? p.slice(pre[0].length) : p
           const inner = text === rest || logLevel(p) ? text : ansiSpans(rest).map((s, k) => (s.style ? <span key={k} style={s.style}>{s.text}</span> : s.text))
           const body = matcher.mark ? highlight(p, matcher.mark) : pre ? <><span className="sp-pod" style={{color: podColor(pre[1])}}>[{pre[1]}]</span> {inner}</> : inner
-          return <div key={i} className={'sp-log-line ' + logLevel(p)}>{body}</div>
+          const clickable = timed && lineTime(p) !== null
+          return <div key={i} className={'sp-log-line ' + logLevel(p) + (l === picked ? ' picked' : '')} onClick={clickable ? () => setPicked(l === picked ? '' : l) : undefined} style={clickable ? {cursor: 'pointer'} : undefined}>{body}</div>
         })}
-        {data !== null && lines.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
+        {loaded && rows.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
       </div>
     </div>
   )

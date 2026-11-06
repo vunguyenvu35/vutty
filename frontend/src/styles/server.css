@@ -162,3 +162,18 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 /* the state of the upgrade, with room before the log under it */
 .sp-upgrade-head { margin-bottom: 12px; }
 .sp-upgrade-head + .error, .sp-upgrade-head + .sp-pre { margin-top: 0; }
+
+/* a time range of a log: two boxes in the time of the server, and what was picked in the log */
+.sp-range { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sp-range label { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.sp-range input { font: inherit; font-size: 12.5px; padding: 3px 6px; }
+.sp-log-line.picked { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.sp-log-line { cursor: default; }
+.sp-log-gap { color: var(--muted); user-select: none; }
+.sp-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; }
+
+/* the Incident tab: the errors of each minute as a strip of bars, tallest first */
+.sp-strip { display: flex; align-items: flex-end; gap: 2px; height: 72px; padding: 4px 0; }
+.sp-bar-col { flex: 1 1 0; min-width: 3px; padding: 0; border: 0; border-radius: 2px 2px 0 0; background: var(--danger); cursor: pointer; }
+.sp-bar-col.none { background: var(--line); cursor: default; }
+.sp-bar-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

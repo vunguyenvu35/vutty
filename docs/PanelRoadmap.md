@@ -51,6 +51,7 @@ Suggested order: 1, 2, 3, 4. Expired certificates and full disks are the common 
 
 ## Open questions
 
+- **Looking back (built):** the Logs tab reads a time range or the previous boot, and the Incident tab reads what the journal and Docker kept, so a night can be reconstructed the next day without anything installed. What is still missing is CPU, memory and disk history for a time the app was closed: either read `sar` where the host has it, or an opt-in collector on the host.
 - **Alerts need something running.** History and alerts while the app is closed require a process on the server (which breaks "nothing installed") or only work while Vutty is open on the desktop. Decide which before building 2 beyond a live chart.
 - **Linux only.** Panel assumes Linux with systemd and, for Docker, the Docker CLI. Other init systems and distros are not covered.
 - **Runbooks vs fixed commands.** Runbooks (12) are the one place where the user supplies the command. Decide how they are stored, whether they sync, and how they are shown in the confirmation.
