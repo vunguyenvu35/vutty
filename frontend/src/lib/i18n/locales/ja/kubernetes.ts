@@ -216,6 +216,7 @@ export default {
   "not running": "停止中",
   "Opens a new terminal tab on {host} and runs kubectl exec -it. It tries bash, then sh.": "{host} で新しいターミナルタブを開き、kubectl exec -it を実行します。bash を試し、なければ sh を使います。",
   "Filter pods": "Pod を絞り込む",
+  "All statuses": "すべての状態",
   "Problems only": "問題のあるものだけ",
   "{shown} of {total} pods": "{total} 個中 {shown} 個の Pod",
   "Pod": "Pod",

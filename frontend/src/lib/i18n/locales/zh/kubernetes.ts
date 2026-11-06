@@ -216,6 +216,7 @@ export default {
   "not running": "未运行",
   "Opens a new terminal tab on {host} and runs kubectl exec -it. It tries bash, then sh.": "在 {host} 上打开新的终端标签页并运行 kubectl exec -it。先尝试 bash，再尝试 sh。",
   "Filter pods": "筛选 Pod",
+  "All statuses": "所有状态",
   "Problems only": "仅显示有问题的",
   "{shown} of {total} pods": "{total} 个 Pod 中的 {shown} 个",
   "Pod": "Pod",

@@ -216,6 +216,7 @@ export default {
   "not running": "không chạy",
   "Opens a new terminal tab on {host} and runs kubectl exec -it. It tries bash, then sh.": "Mở tab terminal mới trên {host} và chạy kubectl exec -it. Thử bash trước, rồi sh.",
   "Filter pods": "Lọc pod",
+  "All statuses": "Mọi trạng thái",
   "Problems only": "Chỉ pod có sự cố",
   "{shown} of {total} pods": "{shown}/{total} pod",
   "Pod": "Pod",

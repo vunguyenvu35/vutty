@@ -92,9 +92,9 @@ describe('the protocol screen', () => {
     await userEvent.click(screen.getByRole('radio', {name: /FTPS/}))
     expect(screen.queryByRole('note')).toBeNull()
   })
-  it('shows FTP as unavailable on a host without it', () => {
+  it('does not offer FTP on a host without it', () => {
     choose({id: 'h1', label: 'f', hostname: 'f.example.com'})
-    expect(screen.getByRole('radio', {name: /FTP/})).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByRole('radio', {name: /FTP/})).toBeNull()
   })
 })
 

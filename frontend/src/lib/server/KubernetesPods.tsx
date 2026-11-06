@@ -104,6 +104,7 @@ export function KubernetesPods({seed}: {seed: string}) {
   const t = useT()
   const [filter, setFilter] = useKept('pods.filter', '')
   const [problems, setProblems] = useKept('pods.problems', false)
+  const [status, setStatus] = useKept('pods.status', '') // '' = every status
   useEffect(() => { if (seed) setFilter(seed) }, [seed]) // eslint-disable-line react-hooks/exhaustive-deps -- coming from the Overview with a pod to look at
   const tn = useTn()
   const [groupBy, setGroupBy] = usePref<PodGroup>('vutty.k8s.pods.group', POD_GROUPS, 'node')
@@ -112,7 +113,8 @@ export function KubernetesPods({seed}: {seed: string}) {
   const {data, error, busy, reload} = useKLoad<K8sPod[]>(load, true)
   const {th, apply} = useSort<PodSort>(['name', 'status', 'node'])
   const del = useDeletePod()
-  const list = (data ?? []).filter(p => matches(filter, p.name, p.namespace, p.node, p.status) && (!problems || p.tone === 'bad' || p.tone === 'warn'))
+  const statuses = [...new Set((data ?? []).map(p => p.status))].sort((a, b) => a.localeCompare(b))
+  const list = (data ?? []).filter(p => matches(filter, p.name, p.namespace, p.node, p.status) && (!status || p.status === status) && (!problems || p.tone === 'bad' || p.tone === 'warn'))
   const shown = apply(list, (p, key) => key === 'ready' ? Number(p.ready.split('/')[0]) : key === 'age' ? p.age_sec : key === 'restarts' ? p.restarts : p[key])
   // the groups, by name (what has no node, no owner, ... last); the order of the pods inside each is the order of the columns
   const keyOf = (p: K8sPod) => groupBy === 'node' ? p.node : groupBy === 'namespace' ? p.namespace : groupBy === 'workload' ? workloadOf(p.owner) : ''
@@ -143,6 +145,8 @@ export function KubernetesPods({seed}: {seed: string}) {
       <Toolbar busy={busy} onReload={reload}>
         <FilterInput label={t('Filter pods')} placeholder={t('Filter pods')} value={filter} onChange={setFilter} />
         <button aria-pressed={problems} className={problems ? 'primary' : ''} onClick={() => setProblems(!problems)}>{t('Problems only')}</button>
+        <Select className="sp-pick" label={t('Status')} value={statuses.includes(status) ? status : ''} onChange={setStatus}
+          options={[{value: '', label: t('All statuses')}, ...statuses.map(x => ({value: x, label: x, hint: String((data ?? []).filter(p => p.status === x).length)}))]} />
         <Select className="sp-pick" label={t('Group by')} value={groupBy} onChange={v => setGroupBy(v as PodGroup)}
           options={[{value: 'node', label: t('Group by node')}, {value: 'namespace', label: t('Group by namespace')}, {value: 'workload', label: t('Group by workload')}, {value: 'none', label: t('No groups')}]} />
         <span className="sp-note" role="status">{data ? t('{shown} of {total} pods', {shown: shown.length, total: data.length}) : ''}</span>

@@ -69,8 +69,8 @@ describe('the protocol screen: VNC', () => {
     await userEvent.click(screen.getByRole('radio', {name: /VNC/}))
     expect(screen.queryByRole('note')).toBeNull()
   })
-  it('cannot be picked on a host without it', () => {
+  it('is not offered on a host without it', () => {
     choose({})
-    expect(screen.getByRole('radio', {name: /VNC/})).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByRole('radio', {name: /VNC/})).toBeNull()
   })
 })

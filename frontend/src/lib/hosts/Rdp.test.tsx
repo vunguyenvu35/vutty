@@ -51,8 +51,8 @@ describe('the protocol screen: RDP', () => {
     await userEvent.click(screen.getByRole('button', {name: 'Continue'}))
     expect(onContinue).toHaveBeenCalledWith('rdp')
   })
-  it('cannot be picked on a host without it', () => {
+  it('is not offered on a host without it', () => {
     render(<Providers be={makeFake({})}><ProtocolScreen host={host({id: 'h1', label: 'w', hostname: 'w'})} onContinue={vi.fn()} onClose={vi.fn()} /></Providers>)
-    expect(screen.getByRole('radio', {name: /RDP/})).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByRole('radio', {name: /RDP/})).toBeNull()
   })
 })
