@@ -1,8 +1,13 @@
 /* ---- New host: Add Telnet card, theme cards ---- */
-.add-wide { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 44px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
-.add-wide:hover { background: var(--bg-3); }
+.add-wide { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 40px; padding: 0 18px 0 2px; border-radius: 20px; background: transparent; border: 1px dashed var(--line); color: var(--muted); font-weight: 600; text-align: left; transition: background .15s, border-color .15s, color .15s; }
+.add-wide svg { flex: none; box-sizing: border-box; width: 34px; height: 34px; padding: 8px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); transition: background .15s, color .15s; }
+.add-wide:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.add-wide:hover { background: var(--accent-soft); border-style: dashed; border-color: var(--accent); color: var(--text); }
+.add-wide:hover svg { background: var(--accent); color: #fff; }
 .card-sub { margin: 6px 0 0; font-size: 14px; font-weight: 600; }
-.remove-telnet { margin-left: auto; font-size: 12px; }
+.inline-field button.link[class*="remove-"] { margin-left: auto; padding: 5px 12px; font-size: 12.5px; font-weight: 600; border-radius: 8px; color: var(--danger, #ef5b5b); background: color-mix(in srgb, var(--danger, #ef5b5b) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger, #ef5b5b) 35%, transparent); transition: background .15s, color .15s; }
+.inline-field button.link[class*="remove-"]:hover { color: #fff; background: var(--danger, #ef5b5b); border-color: var(--danger, #ef5b5b); }
+.inline-field button.link[class*="remove-"]:focus-visible { outline: 2px solid var(--danger, #ef5b5b); outline-offset: 2px; }
 .theme-thumb.large { width: 72px; height: 50px; }
 .theme-thumb { position: relative; overflow: hidden; }
 .theme-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; display: flex; }
@@ -40,9 +45,9 @@
 .topbar .tab-title { min-width: 0; }
 
 /* ---- connecting screen and "Choose protocol" ---- */
-.connect-screen { display: flex; justify-content: center; align-items: flex-start; height: 100%; padding-top: 12vh; background: var(--bg); }
+.connect-screen { display: flex; justify-content: center; align-items: flex-start; height: 100%; padding: min(12vh, 96px) 0 32px; box-sizing: border-box; overflow-y: auto; background: var(--bg); }
 .connect-over { position: absolute; inset: 0; z-index: 6; }
-.connect-card { width: min(400px, 90vw); display: flex; flex-direction: column; gap: 18px; }
+.connect-card { width: min(400px, 90vw); flex: none; display: flex; flex-direction: column; gap: 18px; }
 .connect-head { display: flex; align-items: center; gap: 14px; }
 .connect-head .os-tile, .connect-os { width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-3); flex: none; }
 .connect-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -60,7 +65,7 @@
 .connect-msg { color: var(--muted); }
 .connect-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .proto-list { display: flex; flex-direction: column; gap: 12px; }
-.proto { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 14px 16px; background: var(--bg-3); border: 2px solid transparent; border-left: 5px solid #2f7bf5; border-radius: 10px; color: var(--text); }
+.proto { flex: none; display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 14px 16px; background: var(--bg-3); border: 2px solid transparent; border-left: 5px solid #2f7bf5; border-radius: 10px; color: var(--text); }
 .proto.telnet { border-left-color: #7c5cd6; }
 .proto.ssh { border-left-color: #1f9d55; }
 .proto.panel { border-left-color: #e08a1e; }

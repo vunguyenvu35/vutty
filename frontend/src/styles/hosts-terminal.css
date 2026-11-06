@@ -43,7 +43,7 @@
 .side-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; font-weight: 700; border-bottom: 1px solid #00000030; }
 .side-body { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .side-foot { padding: 12px 16px; border-top: 1px solid #00000030; display: flex; gap: 8px; justify-content: flex-end; }
-.card-section { background: var(--card); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.card-section { background: var(--bg-2); border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: 0 1px 0 #ffffff0a inset, 0 4px 14px #00000033; border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .card-section h4 { margin: 0 0 2px; font-size: 13px; }
 .card-section input, .card-section select { background: var(--bg); border-color: var(--line); }
 .card-section input:focus, .card-section select:focus { border-color: var(--accent); }
