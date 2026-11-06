@@ -142,3 +142,6 @@ button[aria-busy=true]:disabled { opacity: .7; cursor: progress; }
 
 /* room between the filter bar of Fleet and the box under it */
 .hosts-page > .sp-bar + .sp-card { margin-top: 12px; }
+
+/* the buttons of a view sit at the right end of the row of its switch */
+.sp-slot { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
 import {useMenuAnchor} from './KubernetesShared'
 import {useBackend} from '../backend'
@@ -7,24 +7,37 @@ import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {Field, Modal} from '../ui/Modal'
 import {errMsg} from '../util'
-import {actionQuestion, Err, stackQuestion, Toolbar, useLoad, type ServerAction, type StackAction} from './shared'
+import {actionQuestion, Err, RefreshButton, stackQuestion, useLoad, type ServerAction, type StackAction} from './shared'
 import type {DockerInspect, DockerObjects, DockerStat, Host, ServerContainer, ServerContainers} from '../types'
 import type {LogSource} from './ServerPanel'
 
 const POLL_MS = 5000
 type View = 'containers' | 'images' | 'volumes' | 'networks'
 
+/** where the buttons of the shown view go: at the right of the row of the view switch, not in a row of their own */
+const BarSlot = createContext<HTMLElement | null>(null)
+function InBar({children}: {children: ReactNode}) {
+  const el = useContext(BarSlot)
+  return el ? createPortal(children, el) : null
+}
+
 /** The Docker section: containers (with a shell, their load and what is inside them), and the images, volumes and networks. */
 export function Docker({sid, host, onLogs, onShell}: {sid: string; host: Host; onLogs(s: LogSource): void; onShell?(host: Host, command: string, title: string): void}) {
   const t = useT()
   const [view, setView] = useState<View>('containers')
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
   const views: [View, string][] = [['containers', t('Containers')], ['images', t('Images')], ['volumes', t('Volumes')], ['networks', t('Networks')]]
   return (
     <div className="sp-view">
-      <div className="segmented" role="tablist" aria-label={t('Docker')}>
-        {views.map(([k, label]) => <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{label}</button>)}
+      <div className="sp-bar">
+        <div className="segmented" role="tablist" aria-label={t('Docker')}>
+          {views.map(([k, label]) => <button key={k} role="tab" aria-selected={view === k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{label}</button>)}
+        </div>
+        <span className="sp-slot" ref={setSlot} />
       </div>
-      {view === 'containers' ? <Containers sid={sid} host={host} onLogs={onLogs} onShell={onShell} /> : <Objects sid={sid} view={view} />}
+      <BarSlot.Provider value={slot}>
+        {view === 'containers' ? <Containers sid={sid} host={host} onLogs={onLogs} onShell={onShell} /> : <Objects sid={sid} view={view} />}
+      </BarSlot.Provider>
     </div>
   )
 }
@@ -95,7 +108,7 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
   }
   return (
     <>
-      <Toolbar busy={busy} onReload={reload} />
+      <InBar><RefreshButton busy={busy} onReload={reload} /></InBar>
       <Err error={error} />
       {data && !data.installed && <div className="sp-empty">{t('Docker is not installed on this server.')}</div>}
       {data?.installed && data.containers.length === 0 && <div className="sp-empty">{t('No containers.')}</div>}
@@ -111,9 +124,11 @@ function Containers({sid, host, onLogs, onShell}: {sid: string; host: Host; onLo
                 {g.items.some(c => c.state === 'running')
                   ? <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'stop')}>{t('Stop')}</button>
                   : <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'start')}>{t('Start')}</button>}
-                <button aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'up')}>{t('Up')}</button>
-                <button className="danger" aria-busy={working === 'stack:' + g.project} disabled={working === 'stack:' + g.project} onClick={() => void stack(g.project, 'down')}>{t('Down')}</button>
-                <button onClick={() => onLogs({kind: 'stack', name: g.project})}>{t('Logs')}</button>
+                <RowMenu name={g.project} items={[
+                  {label: t('Up'), disabled: working === 'stack:' + g.project, run: () => void stack(g.project, 'up')},
+                  {label: t('Logs'), run: () => onLogs({kind: 'stack', name: g.project})},
+                  {label: t('Down'), danger: true, disabled: working === 'stack:' + g.project, run: () => void stack(g.project, 'down')},
+                ]} />
               </div>
             )}
           </div>
@@ -224,7 +239,7 @@ function Objects({sid, view}: {sid: string; view: Exclude<View, 'containers'>}) 
   const inUse = <span className="sp-pill ok">{t('In use')}</span>
   return (
     <>
-      <Toolbar busy={busy} onReload={reload}>{view === 'images' && <button onClick={() => setPulling(true)}>{t('Pull image')}</button>}</Toolbar>
+      <InBar>{view === 'images' && <button onClick={() => setPulling(true)}>{t('Pull image')}</button>}<RefreshButton busy={busy} onReload={reload} /></InBar>
       <Err error={error} />
       {out && <pre className={'sp-pre ' + (out.ok ? '' : 'bad')} role="status" aria-label={t('Result')}>{out.text}</pre>}
       {pulling && <PullForm onPull={async img => { setPulling(false); await pull(img) }} onClose={() => setPulling(false)} />}

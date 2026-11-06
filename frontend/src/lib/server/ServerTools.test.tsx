@@ -193,12 +193,16 @@ describe('Docker stacks', () => {
     const {be} = setup()
     await open('Docker')
     const stack = (await screen.findByText('Stack shop')).closest('section') as HTMLElement
-    await userEvent.click(within(stack).getByRole('button', {name: 'Down'}))
+    const menuItem = async (name: string) => {
+      await userEvent.click(within(stack).getByRole('button', {name: 'More actions for shop'}))
+      await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', {name}))
+    }
+    await menuItem('Down')
     expect(ask).toHaveBeenLastCalledWith(expect.stringContaining('Take the stack shop down?'))
     expect(calls(be, 'server.stackAction')).toHaveLength(0)
     ask.mockReturnValue(true)
-    await userEvent.click(within(stack).getByRole('button', {name: 'Up'}))
-    await userEvent.click(within(stack).getByRole('button', {name: 'Down'}))
+    await menuItem('Up')
+    await menuItem('Down')
     await waitFor(() => expect(calls(be, 'server.stackAction')).toEqual([['server.stackAction', 'shop', 'up'], ['server.stackAction', 'shop', 'down']]))
     await waitFor(() => expect(screen.queryByText('Stack shop')).toBeNull())
     ask.mockRestore()
@@ -224,7 +228,8 @@ describe('Docker stacks', () => {
     const {be} = setup()
     await open('Docker')
     const stack = (await screen.findByText('Stack shop')).closest('section') as HTMLElement
-    await userEvent.click(within(stack.querySelector('.sp-card-head') as HTMLElement).getByRole('button', {name: 'Logs'}))
+    await userEvent.click(within(stack).getByRole('button', {name: 'More actions for shop'}))
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', {name: 'Logs'}))
     await waitFor(() => expect(calls(be, 'server.logs').at(-1)).toEqual(['server.logs', 'stack', 'shop']))
   })
 })
