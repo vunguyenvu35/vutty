@@ -154,13 +154,32 @@
 
 /* Back, and the views beside it */
 /* the views of the tab: a rail on the left like the one of the panel (the .sp-rail and .sp-item rules), the body beside it */
-.k8s-views { flex: none; align-items: flex-start; gap: 18px; min-width: 0; width: 100%; }
-.k8s-rail { width: 176px; padding: 0 12px 0 0; gap: 10px; overflow: visible; position: sticky; top: 0; }
+.k8s { flex: 1 1 auto; }
+.k8s-views { flex: 1 1 auto; align-items: stretch; gap: 18px; min-width: 0; width: 100%; } /* stretched: the line of the rail runs down to the bottom of the page */
+.k8s-rail { width: 176px; padding: 0 12px 0 0; gap: 10px; overflow: visible; border-right: 1px solid color-mix(in srgb, var(--text) 16%, var(--line)); }
 .k8s-rail .sp-item em { font-style: normal; padding: 0 6px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font-size: 11px; }
 .k8s-rail .sp-item[aria-selected="true"] em { background: #ffffff33; color: inherit; }
 .k8s-back { color: var(--muted); }
 .k8s-back:disabled { opacity: .35; cursor: default; }
 .k8s-views > .k8s-body { flex: 1 1 0; min-width: 0; }
-@media (max-width: 760px) { .k8s-views { flex-direction: column; gap: 8px; } .k8s-rail { width: auto; position: static; } }
+@media (max-width: 760px) { .k8s-views { flex-direction: column; gap: 8px; } .k8s-rail { width: auto; border-right: 0; } }
 /* Shell with and without the ▾ (a pod with several containers) is the same width, so a column of them lines up */
 .k8s-shell { min-width: 74px; justify-content: center; text-align: center; white-space: nowrap; }
+
+/* Events: the severity as a stripe at the left of the row, the kind of object as a tag, a long message cut after three lines until it is opened, and when and how often at the right */
+.k8s-events table { table-layout: fixed; }
+.k8s-events th:nth-child(1) { width: 190px; }
+.k8s-events th:nth-child(2) { width: 30%; }
+.k8s-events th:nth-child(4) { width: 96px; }
+.k8s-events td { vertical-align: top; }
+.k8s-events tr.ev-bad td:first-child { box-shadow: inset 3px 0 var(--danger); }
+.k8s-events tr.ev-warn td:first-child { box-shadow: inset 3px 0 var(--warn); }
+.k8s-events tr.ev-ok td:first-child { box-shadow: inset 3px 0 var(--ok); }
+.k8s-events .ev-kind { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 5px; background: var(--bg-3); color: var(--muted); font: 600 10.5px/17px ui-monospace, Menlo, monospace; text-transform: uppercase; vertical-align: 1px; }
+.k8s-events .k8s-msg { max-width: none; line-height: 1.5; color: var(--text); }
+.k8s-events .ev-msg { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.k8s-events .ev-msg:hover:not(:disabled) { background: none; border: 0; color: var(--text); }
+.k8s-events .ev-msg.open { display: block; -webkit-line-clamp: unset; }
+.k8s-events .ev-seen { white-space: nowrap; }
+.k8s-events .ev-seen small { display: inline-block; margin-top: 3px; padding: 0 7px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font: 600 11px/17px ui-monospace, Menlo, monospace; }
+.k8s-events th.n { text-align: right; }

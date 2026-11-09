@@ -803,7 +803,7 @@ describe('Events', () => {
   it('shows the warnings of the last hour, newest first, and Normal on request', async () => {
     await openOn('Events')
     expect(await screen.findByText('BackOff')).toBeInTheDocument()
-    const reasons = () => screen.getAllByRole('row').slice(1).map(r => within(r).getAllByRole('cell')[1].textContent)
+    const reasons = () => screen.getAllByRole('row').slice(1).map(r => within(r).getAllByRole('cell')[0].textContent)
     expect(reasons()).toEqual(['BackOff', 'FailedScheduling', 'Failed', 'NodeNotReady', 'Unhealthy'])
     expect(screen.queryByText('OldNews')).toBeNull() // older than an hour
     expect(screen.queryByText('Pulled')).toBeNull() // Normal is off
