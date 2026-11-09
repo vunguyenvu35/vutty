@@ -140,6 +140,17 @@ function GroupPicker({groups, value, onChange, onCreated}: {groups: Group[]; val
   )
 }
 
+/** The namespace a cluster opens on. Empty leaves the choice to the screen; the namespace the kubeconfig names for its context is shown as the hint. */
+function DefaultNamespace({value, onChange, fallback}: {value: string; onChange(v: string): void; fallback?: string}) {
+  const t = useT()
+  return (
+    <>
+      <input aria-label={t('Default namespace')} value={value} spellCheck={false} autoComplete="off" onChange={e => onChange(e.target.value)} placeholder={fallback ? t('Default namespace (the file names {ns})', {ns: fallback}) : t('Default namespace (optional)')} />
+      <div className="muted">{t('The namespace this cluster opens on. Leave it empty to choose each time.')}</div>
+    </>
+  )
+}
+
 const ENV_OPTIONS = (t: ReturnType<typeof useT>) => [{value: '', label: t('No environment')}, {value: 'dev', label: 'dev'}, {value: 'staging', label: 'staging'}, {value: 'prod', label: t('prod (production)')}]
 
 /** Add a cluster from a kubeconfig, or (with `replace`) give a cluster a new kubeconfig. */
@@ -151,6 +162,7 @@ export function ClusterAddForm({groups, replace, onClose, onSaved, onGroupCreate
   const [label, setLabel] = useState('')
   const [env, setEnv] = useState<Env>('')
   const [groupId, setGroupId] = useState('')
+  const [namespace, setNamespace] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const preview = read?.preview
@@ -168,7 +180,7 @@ export function ClusterAddForm({groups, replace, onClose, onSaved, onGroupCreate
     try {
       const c = replace
         ? await be.clusters.replaceKubeconfig(replace.id, read.path, read.text)
-        : await be.clusters.add({label: label.trim() || chosen.cluster, group_id: groupId, env, path: read.path, kubeconfig: read.text, context: choice})
+        : await be.clusters.add({label: label.trim() || chosen.cluster, group_id: groupId, env, path: read.path, kubeconfig: read.text, context: choice, default_namespace: namespace.trim()})
       onSaved(c)
     } catch (e) { setErr(errMsg(e)); setBusy(false) }
   }
@@ -189,6 +201,7 @@ export function ClusterAddForm({groups, replace, onClose, onSaved, onGroupCreate
           <input aria-label={t('Cluster name')} value={label} onChange={e => setLabel(e.target.value)} placeholder={chosen.cluster} />
           <Select label={t('Environment')} value={env} onChange={v => setEnv(v as Env)} options={ENV_OPTIONS(t)} />
           <GroupPicker groups={groups} value={groupId} onChange={setGroupId} onCreated={onGroupCreated} />
+          <DefaultNamespace value={namespace} onChange={setNamespace} fallback={chosen.namespace} />
         </Section>
       )}
       {replace && <div className="muted">{t('Login programs that you approved for the old file are not approved for the new one.')}</div>}
@@ -205,6 +218,7 @@ export function ClusterEditForm({cluster, groups, onClose, onSaved, onGroupCreat
   const [env, setEnv] = useState<Env>(cluster.env ?? '')
   const [groupId, setGroupId] = useState(cluster.group_id ?? '')
   const [context, setContext] = useState(cluster.context ?? '')
+  const [namespace, setNamespace] = useState(cluster.default_namespace ?? '')
   const [contexts, setContexts] = useState<KubeContext[]>([])
   const [approved, setApproved] = useState<string[]>(cluster.approved_exec ?? [])
   const [err, setErr] = useState('')
@@ -216,7 +230,7 @@ export function ClusterEditForm({cluster, groups, onClose, onSaved, onGroupCreat
   const save = async () => {
     setErr('')
     if (!label.trim()) return setErr(t('Name is required'))
-    try { onSaved(await be.clusters.update({...cluster, label: label.trim(), env, group_id: groupId || undefined, context})) } catch (e) { setErr(errMsg(e)) }
+    try { onSaved(await be.clusters.update({...cluster, label: label.trim(), env, group_id: groupId || undefined, context, default_namespace: namespace.trim()})) } catch (e) { setErr(errMsg(e)) }
   }
   return (
     <SidePanel title={t('Edit cluster')} onClose={onClose} footer={<><button onClick={onClose}>{t('Cancel')}</button><button className="primary" onClick={() => void save()}>{t('Save')}</button></>}>
@@ -224,6 +238,7 @@ export function ClusterEditForm({cluster, groups, onClose, onSaved, onGroupCreat
         <input aria-label={t('Cluster name')} value={label} onChange={e => setLabel(e.target.value)} autoFocus />
         <Select label={t('Environment')} value={env} onChange={v => setEnv(v as Env)} options={ENV_OPTIONS(t)} />
         <GroupPicker groups={groups} value={groupId} onChange={setGroupId} onCreated={onGroupCreated} />
+        <DefaultNamespace value={namespace} onChange={setNamespace} />
         {contexts.length > 1 && <Select label={t('Context')} value={context} onChange={setContext} options={contexts.map(c => ({value: c.name, label: c.name, hint: c.server}))} />}
       </Section>
       <Section title={t('Kubeconfig')}>

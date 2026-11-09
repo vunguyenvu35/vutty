@@ -196,6 +196,8 @@ type Cluster struct {
 	SecretRef string `json:"secret_ref,omitempty"`
 	// Context is the one chosen when the kubeconfig was added ("" asks each time).
 	Context string `json:"context,omitempty"`
+	// DefaultNamespace is the namespace the cluster opens on ("" shows all of them, where the login may list them).
+	DefaultNamespace string `json:"default_namespace,omitempty"`
 	// Server is the address of that context's API server, for display only.
 	Server string `json:"server,omitempty"`
 	// ApprovedExec are the login programs (a whole command line each) that the user agreed to run for this cluster.

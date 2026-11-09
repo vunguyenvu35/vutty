@@ -1479,3 +1479,28 @@ func TestClusterFollowsTheLogOfAPodThroughTheAPIServer(t *testing.T) {
 		t.Fatalf("log request = %v", got)
 	}
 }
+
+func TestClusterKeepsTheNamespaceItOpensOn(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	h.core.Kube = testKube{}
+	if _, err := h.app.Cluster.Add(ClusterInput{Label: "bad", Kubeconfig: f.kubeconfig("{token: tok}"), DefaultNamespace: "Shop; id"}); err == nil {
+		t.Fatal("a namespace with a space and a command was accepted")
+	}
+	cl, err := h.app.Cluster.Add(ClusterInput{Label: "prod", Kubeconfig: f.kubeconfig("{token: tok}"), DefaultNamespace: " shop "})
+	if err != nil || cl.DefaultNamespace != "shop" {
+		t.Fatalf("%+v %v", cl, err)
+	}
+	got := h.app.Cluster.List()
+	if len(got) != 1 || got[0].DefaultNamespace != "shop" {
+		t.Fatalf("the namespace is not kept: %+v", got)
+	}
+	cl.DefaultNamespace = "Bad_Name"
+	if _, err := h.app.Cluster.Update(cl); err == nil {
+		t.Fatal("an update with a bad namespace was accepted")
+	}
+	cl.DefaultNamespace = ""
+	if up, err := h.app.Cluster.Update(cl); err != nil || up.DefaultNamespace != "" {
+		t.Fatalf("it can be emptied: %+v %v", up, err)
+	}
+}

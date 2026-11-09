@@ -27,6 +27,8 @@ export interface Host {
   /** this host may use the keys of the user's ssh-agent (or this host's saved key) to sign in to other machines while connected (ssh -A) */
   forward_agent?: boolean
   /** also reachable with Telnet (unencrypted) on this port */
+  /** a cluster opened with a kubeconfig: the namespace its tab opens on */
+  default_namespace?: string
   telnet_enabled?: boolean
   mosh_enabled?: boolean
   telnet_port?: number
@@ -878,6 +880,8 @@ export interface Cluster {
   env?: Env
   /** the context chosen when it was added */
   context?: string
+  /** the namespace it opens on (empty: the screen decides) */
+  default_namespace?: string
   /** the API server of that context, for display */
   server?: string
   /** login programs the user agreed to run for this cluster (a command line each) */
@@ -888,7 +892,7 @@ export interface Cluster {
 export interface KubeContext {name: string; cluster: string; server: string; user: string; namespace?: string; current: boolean; auth: KubeAuth; exec?: string; insecure?: boolean}
 /** what a kubeconfig holds: the contexts that can be used, and why the others cannot (by context name) */
 export interface ClusterPreview {contexts: KubeContext[]; problems: Record<string, string>}
-export interface ClusterInput {label: string; group_id: string; env: Env; path: string; kubeconfig: string; context: string}
+export interface ClusterInput {label: string; group_id: string; env: Env; path: string; kubeconfig: string; context: string; default_namespace?: string}
 
 /** the time on a server and how far it is from UTC, in seconds east */
 export interface ServerClock {

@@ -1,13 +1,30 @@
 import {act, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {calls, goTo, openKubernetes, openOn, rowOf, subTab, web} from '../../test/k8sKit'
-import {makeFake} from '../../test/fakeBackend'
+import {makeFake, Providers} from '../../test/fakeBackend'
+import {render} from '@testing-library/react'
+import {ServerPanel} from './ServerPanel'
 
 beforeEach(() => { vi.spyOn(window, 'confirm').mockReturnValue(true) })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 const CTX = 'prod-cluster'
 const podRow = (name: string) => rowOf(name)
+
+describe('Default namespace', () => {
+  it('a host that names a default namespace opens the tab on it', async () => {
+    localStorage.clear()
+    localStorage.setItem('vutty.k8s.context.h1', 'prod-cluster')
+    const be = makeFake({hosts: [web]})
+    const named = {...web, default_namespace: 'shop'}
+    render(<Providers be={be}><ServerPanel host={named} visible /></Providers>)
+    await screen.findByText(/up 41d 0h/)
+    await userEvent.click(screen.getByRole('tab', {name: 'Kubernetes'}))
+    await screen.findByRole('tablist', {name: 'Kubernetes views'})
+    expect(screen.getByRole('combobox', {name: /^Namespace/})).toHaveTextContent('shop')
+    await waitFor(() => expect(calls(be, 'server.k8sOverview').at(-1)![2]).toBe('shop'))
+  })
+})
 
 describe('Overview', () => {
   it('shows the numbers, what needs attention and the namespaces', async () => {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"vutty/internal/domain"
@@ -33,6 +34,8 @@ type ClusterInput struct {
 	Path       string     `json:"path"`
 	Kubeconfig string     `json:"kubeconfig"`
 	Context    string     `json:"context"`
+	// DefaultNamespace is the namespace the cluster opens on; empty leaves the choice to the screen.
+	DefaultNamespace string `json:"default_namespace"`
 }
 
 // ClusterPreview is what a kubeconfig holds, for the screen to show before it is saved. Problems say why a context cannot be used.
@@ -155,11 +158,15 @@ func (s *ClusterService) Add(in ClusterInput) (domain.Cluster, error) {
 	if strings.TrimSpace(in.Label) == "" {
 		in.Label = chosen.Cluster
 	}
+	ns, err := cleanNamespace(in.DefaultNamespace)
+	if err != nil {
+		return domain.Cluster{}, err
+	}
 	ref, err := s.c.Vault.AddSecret(domain.SecretKubeconfig, data)
 	if err != nil {
 		return domain.Cluster{}, err
 	}
-	cl, err := s.c.Store.SaveCluster(domain.Cluster{Label: in.Label, GroupID: in.GroupID, Env: in.Env, SecretRef: ref, Context: chosen.Name, Server: chosen.Server})
+	cl, err := s.c.Store.SaveCluster(domain.Cluster{Label: in.Label, GroupID: in.GroupID, Env: in.Env, SecretRef: ref, Context: chosen.Name, Server: chosen.Server, DefaultNamespace: ns})
 	if err != nil {
 		_ = s.c.Vault.DeleteSecret(ref)
 		return domain.Cluster{}, err
@@ -175,6 +182,11 @@ func (s *ClusterService) Update(in domain.Cluster) (domain.Cluster, error) {
 		return domain.Cluster{}, err
 	}
 	cur.Label, cur.GroupID, cur.Env = in.Label, in.GroupID, in.Env
+	ns, err := cleanNamespace(in.DefaultNamespace)
+	if err != nil {
+		return domain.Cluster{}, err
+	}
+	cur.DefaultNamespace = ns
 	if in.Context != "" && in.Context != cur.Context {
 		pv, err := s.Describe(cur.ID)
 		if err != nil {
@@ -307,3 +319,14 @@ func (s *ClusterService) Delete(id string) error {
 
 // Open starts a Server session on the cluster (see ServerService.OpenCluster).
 func (s *ClusterService) Open(id string) (ServerInfo, error) { return s.srv.OpenCluster(id) }
+
+var namespaceRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$`)
+
+// cleanNamespace checks the namespace a cluster opens on: empty, or a DNS label as Kubernetes names them.
+func cleanNamespace(ns string) (string, error) {
+	ns = strings.TrimSpace(ns)
+	if ns != "" && !namespaceRe.MatchString(ns) {
+		return "", errors.New("that is not a namespace name: lowercase letters, digits and - (at most 63)")
+	}
+	return ns, nil
+}

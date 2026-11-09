@@ -135,6 +135,7 @@ var additions = []struct{ table, column, def string }{
 	{"hosts", "backup_path", "TEXT NOT NULL DEFAULT ''"},      // where its backups land (the Panel)
 	{"port_forwards", "label", "TEXT NOT NULL DEFAULT ''"},    // a name for a rule
 	{"identities", "certificate", "TEXT NOT NULL DEFAULT ''"}, // OpenSSH user certificate
+	{"clusters", "default_namespace", "TEXT NOT NULL DEFAULT ''"}, // the namespace a cluster opens on
 }
 
 // clustersTable holds the Kubernetes clusters (the kubeconfig of each is a vault secret, not a column). Like the activity log it is
@@ -149,6 +150,9 @@ const activityTable = `CREATE TABLE IF NOT EXISTS activity_log (
 		host_label TEXT NOT NULL DEFAULT '', message TEXT NOT NULL, ok INTEGER NOT NULL DEFAULT 1)`
 
 func ensureAdditions(tx *sql.Tx) error {
+	if _, err := tx.Exec(clustersTable); err != nil { // before the columns that are added to it
+		return err
+	}
 	have := map[string]map[string]bool{}
 	for _, a := range additions {
 		if have[a.table] == nil {
@@ -176,9 +180,6 @@ func ensureAdditions(tx *sql.Tx) error {
 		if _, err := tx.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, a.table, a.column, a.def)); err != nil {
 			return fmt.Errorf("add %s.%s: %w", a.table, a.column, err)
 		}
-	}
-	if _, err := tx.Exec(clustersTable); err != nil {
-		return err
 	}
 	_, err := tx.Exec(activityTable)
 	return err
@@ -311,7 +312,7 @@ func (p StorePersister) Load() (domain.Data, bool, error) {
 	}
 	rows.Close()
 
-	rows, err = p.db.Query(`SELECT id,label,group_id,env,secret_ref,context,server,approved_exec,created_at,updated_at,deleted_at FROM clusters ORDER BY rowid`)
+	rows, err = p.db.Query(`SELECT id,label,group_id,env,secret_ref,context,server,approved_exec,default_namespace,created_at,updated_at,deleted_at FROM clusters ORDER BY rowid`)
 	if err != nil {
 		return data, false, err
 	}
@@ -319,7 +320,7 @@ func (p StorePersister) Load() (domain.Data, bool, error) {
 		var x domain.Cluster
 		var env, approved, created, upd string
 		var del sql.NullString
-		if err := rows.Scan(&x.ID, &x.Label, &x.GroupID, &env, &x.SecretRef, &x.Context, &x.Server, &approved, &created, &upd, &del); err != nil {
+		if err := rows.Scan(&x.ID, &x.Label, &x.GroupID, &env, &x.SecretRef, &x.Context, &x.Server, &approved, &x.DefaultNamespace, &created, &upd, &del); err != nil {
 			rows.Close()
 			return data, false, err
 		}
@@ -385,8 +386,8 @@ func (p StorePersister) Save(d domain.Data) error {
 		if x.ApprovedExec == nil {
 			approved = []byte("[]")
 		}
-		if _, err := tx.Exec(`INSERT INTO clusters(id,label,group_id,env,secret_ref,context,server,approved_exec,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-			x.ID, x.Label, x.GroupID, string(x.Env), x.SecretRef, x.Context, x.Server, string(approved), ts(x.CreatedAt), ts(x.UpdatedAt), tsNull(x.DeletedAt)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO clusters(id,label,group_id,env,secret_ref,context,server,approved_exec,default_namespace,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+			x.ID, x.Label, x.GroupID, string(x.Env), x.SecretRef, x.Context, x.Server, string(approved), x.DefaultNamespace, ts(x.CreatedAt), ts(x.UpdatedAt), tsNull(x.DeletedAt)); err != nil {
 			return err
 		}
 	}
