@@ -344,6 +344,7 @@ export default {
   "Namespace name": "Tên namespace",
   "namespace": "namespace",
   "Add": "Thêm",
+  "Forget": "Quên",
   "Default namespace": "Namespace mặc định",
   "Default namespace (optional)": "Namespace mặc định (tuỳ chọn)",
   "Default namespace (the file names {ns})": "Namespace mặc định (file ghi {ns})",

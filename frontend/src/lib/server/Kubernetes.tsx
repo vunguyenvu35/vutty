@@ -153,35 +153,25 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   return (
     <K8sProvider value={api}>
       <div className="sp-view k8s">
-        <div className="k8s-scope">
-          <div className="k8s-field">
-            <small>{t('Context')}</small>
-            {session.contexts.contexts.length > 1
-              ? <Select className="sp-pick" label={t('Context')} value={ctx} onChange={v => v !== ctx && onSwitch(v)} options={session.contexts.contexts.map(c => ({value: c.name, label: c.name, hint: c.server}))} />
-              : <span className="k8s-chip"><IconCloud size={14} /><b>{ctx}</b></span>}
-          </div>
-          <div className="k8s-field">
-            <small>{t('Namespace')}</small>
-            <div className="k8s-field-row">
-              <Select className="sp-pick" label={t('Namespace')} value={ns} onChange={v => { picked.current = true; setNs(v); setPage(null) }} searchable
-                options={[...(noList ? (allAdded ? [{value: allAdded, label: t('All added namespaces ({n})', {n: extra.length})}] : []) : [{value: '', label: t('All namespaces')}]), ...nsOptions.map(n => ({value: n, label: n}))]} />
-              {adding
-                ? <span className="k8s-add-ns">
-                    <input autoFocus aria-label={t('Namespace name')} value={draft} placeholder={t('namespace')} spellCheck={false} onChange={e => { setDraft(e.target.value); setDraftErr('') }}
-                      onKeyDown={e => { if (e.key === 'Enter') addNs(); if (e.key === 'Escape') { setAdding(false); setDraft(''); setDraftErr('') } }} />
-                    <button className="primary" onClick={addNs}>{t('Add')}</button>
-                    <button onClick={() => { setAdding(false); setDraft(''); setDraftErr('') }}>{t('Cancel')}</button>
-                  </span>
-                : <button className="k8s-tool" aria-label={t('Add namespace')} title={t('Add a namespace by name')} onClick={() => setAdding(true)}><IconPlus size={14} /></button>}
-              {ns !== '' && !ns.includes(',') && extra.includes(ns) && !listed.includes(ns) && <button className="k8s-tool" aria-label={t('Forget namespace {n}', {n: ns})} title={t('Forget this namespace')} onClick={() => forget(ns)}><IconTrash size={14} /></button>}
-            </div>
-          </div>
-          <span className="k8s-server" title={direct ? t('server {v} · direct', {v: session.check.server_version}) : t('server {v} · kubectl {k}', {v: session.check.server_version, k: session.detect.client_version})}>
-            <i aria-hidden="true" />{direct ? t('server {v} · direct', {v: session.check.server_version}) : t('server {v} · kubectl {k}', {v: session.check.server_version, k: session.detect.client_version})}
-          </span>
+        <div className="sp-bar k8s-ctx">
+          {session.contexts.contexts.length > 1
+            ? <Select className="sp-pick" label={t('Context')} value={ctx} onChange={v => v !== ctx && onSwitch(v)} options={session.contexts.contexts.map(c => ({value: c.name, label: c.name, hint: c.server}))} />
+            : <span className="k8s-chip" title={t('Context')}><IconCloud size={14} /><b>{ctx}</b></span>}
+          <Select className="sp-pick" label={t('Namespace')} value={ns} onChange={v => { picked.current = true; setNs(v); setPage(null) }} searchable
+            options={[...(noList ? (allAdded ? [{value: allAdded, label: t('All added namespaces ({n})', {n: extra.length})}] : []) : [{value: '', label: t('All namespaces')}]), ...nsOptions.map(n => ({value: n, label: n}))]} />
+          {adding
+            ? <span className="k8s-add-ns">
+                <input autoFocus aria-label={t('Namespace name')} value={draft} placeholder={t('namespace')} spellCheck={false} onChange={e => { setDraft(e.target.value); setDraftErr('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') addNs(); if (e.key === 'Escape') { setAdding(false); setDraft(''); setDraftErr('') } }} />
+                <button className="primary" onClick={addNs}>{t('Add')}</button>
+                <button onClick={() => { setAdding(false); setDraft(''); setDraftErr('') }}>{t('Cancel')}</button>
+              </span>
+            : <button aria-label={t('Add namespace')} title={t('Add a namespace by name')} onClick={() => setAdding(true)}><IconPlus size={14} /> {t('Namespace')}</button>}
+          {ns !== '' && !ns.includes(',') && extra.includes(ns) && !listed.includes(ns) && <button aria-label={t('Forget namespace {n}', {n: ns})} title={t('Forget this namespace')} onClick={() => forget(ns)}><IconTrash size={14} /> {t('Forget')}</button>}
+          <span className="sp-note k8s-server">{direct ? t('server {v} · direct', {v: session.check.server_version}) : t('server {v} · kubectl {k}', {v: session.check.server_version, k: session.detect.client_version})}</span>
         </div>
-        {draftErr && <div className="k8s-notice err" role="alert">{draftErr}</div>}
-        {noList ? <div className="k8s-notice">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
+        {draftErr && <div className="sp-note k8s-hint" role="alert">{draftErr}</div>}
+        {noList ? <div className="sp-note k8s-hint">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
         <div className="k8s-nav">
         <button className="k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={15} /></button>
         <div className="sp-tabs k8s-sub" role="tablist" aria-label={t('Kubernetes views')}>
