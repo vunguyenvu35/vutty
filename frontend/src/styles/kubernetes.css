@@ -157,8 +157,8 @@
 .k8s { flex: 1 1 auto; }
 .k8s-views { flex: 1 1 auto; align-items: stretch; gap: 18px; min-width: 0; width: 100%; } /* stretched: the line of the rail runs down to the bottom of the page */
 .k8s-rail { width: 176px; padding: 0 12px 0 0; gap: 10px; overflow: visible; border-right: 1px solid color-mix(in srgb, var(--text) 16%, var(--line)); }
-.k8s-rail .sp-item em { font-style: normal; padding: 0 6px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font-size: 11px; }
-.k8s-rail .sp-item[aria-selected="true"] em { background: #ffffff33; color: inherit; }
+.k8s-rail .sp-item em { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 26px; height: 18px; padding: 0 7px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font: 600 10.5px/1 ui-monospace, Menlo, monospace; font-style: normal; font-variant-numeric: tabular-nums; } /* a pill with the number in the middle, whatever its digits */
+.k8s-rail .sp-item[aria-selected="true"] em { background: #ffffff38; color: inherit; }
 .k8s-back { color: var(--muted); }
 .k8s-back:disabled { opacity: .35; cursor: default; }
 .k8s-views > .k8s-body { flex: 1 1 0; min-width: 0; }
@@ -183,3 +183,12 @@
 .k8s-events .ev-seen { white-space: nowrap; }
 .k8s-events .ev-seen small { display: inline-block; margin-top: 3px; padding: 0 7px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font: 600 11px/17px ui-monospace, Menlo, monospace; }
 .k8s-events th.n { text-align: right; }
+
+/* the context chip and the namespace menu say what they are; the rail can be reduced to icons, as the panel's */
+.k8s-ctx .k8s-lbl { color: var(--muted); font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; margin-left: 4px; }
+.k8s-views.slim .k8s-rail { width: 54px; padding-right: 8px; align-items: stretch; }
+.k8s-views.slim .k8s-rail .sp-item { justify-content: center; padding: 8px 0; }
+.k8s-views.slim .k8s-rail .sp-item .lab, .k8s-views.slim .k8s-rail .sp-item em { display: none; }
+.k8s-rail .sp-slim { margin-top: auto; align-self: flex-end; }
+.k8s-views.slim .k8s-rail .sp-slim { align-self: center; }
+@media (max-width: 760px) { .k8s-rail .sp-slim { display: none; } .k8s-views.slim .k8s-rail { width: auto; } }

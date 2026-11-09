@@ -57,6 +57,8 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   const t = useT()
   const ctx = session.ctx
   const direct = !!session.detect.direct
+  const [slim, setSlim] = useState(() => { try { return localStorage.getItem('vutty.k8s.rail.slim') === '1' } catch { return false } }) // the views as icons only
+  const toggleSlim = () => setSlim(v => { try { localStorage.setItem('vutty.k8s.rail.slim', v ? '0' : '1') } catch { /* not kept */ } return !v })
   const [ns, setNs] = useState(host.default_namespace ?? '') // a cluster may name the namespace it opens on
   useEffect(() => { onNamespace?.(ns) }, [ns, onNamespace])
   const [view, setView] = useState<K8sView>('overview')
@@ -158,6 +160,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
           {session.contexts.contexts.length > 1
             ? <Select className="sp-pick" label={t('Context')} value={ctx} onChange={v => v !== ctx && onSwitch(v)} options={session.contexts.contexts.map(c => ({value: c.name, label: c.name, hint: c.server}))} />
             : <span className="k8s-chip" title={t('Context')}><IconCloud size={14} /><b>{ctx}</b></span>}
+          <span className="k8s-lbl">{t('Namespace')}</span>
           <Select className="sp-pick" label={t('Namespace')} value={ns} onChange={v => { picked.current = true; setNs(v); setPage(null) }} searchable
             options={[...(noList ? (allAdded ? [{value: allAdded, label: t('All added namespaces ({n})', {n: extra.length})}] : []) : [{value: '', label: t('All namespaces')}]), ...nsOptions.map(n => ({value: n, label: n}))]} />
           {adding
@@ -172,17 +175,18 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
           <span className="sp-note k8s-server">{direct ? t('server {v} · direct', {v: session.check.server_version}) : t('server {v} · kubectl {k}', {v: session.check.server_version, k: session.detect.client_version})}</span>
         </div>
         {draftErr && <div className="sp-note k8s-hint" role="alert">{draftErr}</div>}
-        {noList ? <div className="sp-note k8s-hint">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
-        <div className="sp-shell k8s-views">
+        {noList ? (extra.length === 0 && <div className="sp-note k8s-hint">{t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div>) : <Err error={error} />} {/* said only while there is nothing to choose from: once a namespace is added, the menu speaks for itself */}
+        <div className={'sp-shell k8s-views' + (slim ? ' slim' : '')}>
         <nav className="sp-rail k8s-rail" aria-label={t('Kubernetes')}>
           <button className="sp-item k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={16} /><span className="lab">{t('Back')}</span></button>
           <div className="sp-grp" role="tablist" aria-orientation="vertical" aria-label={t('Kubernetes views')}>
             {views.map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={view === id} className="sp-item" onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>
+              <button key={id} role="tab" aria-selected={view === id} className="sp-item" title={slim ? label + (counts?.[id] !== undefined ? ' · ' + counts[id] : '') : undefined} onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>
                 {K8S_VIEW_ICONS[id]}<span className="lab">{label}</span>{counts?.[id] !== undefined && <em aria-hidden="true">{counts[id]}</em>}
               </button>
             ))}
           </div>
+          <button className="sp-slim" onClick={toggleSlim} aria-pressed={slim} aria-label={slim ? t('Show section names') : t('Show icons only')} title={slim ? t('Show section names') : t('Show icons only')}>{slim ? '»' : '«'}</button>
         </nav>
         <div className="k8s-body" key={key}>
           {page ? <Page page={page} /> : (
