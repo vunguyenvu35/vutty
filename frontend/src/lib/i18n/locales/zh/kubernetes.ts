@@ -344,6 +344,7 @@ export default {
   "Namespace name": "命名空间名称",
   "namespace": "命名空间",
   "Add": "添加",
+  "Back": "返回",
   "Forget": "忘记",
   "Default namespace": "默认命名空间",
   "Default namespace (optional)": "默认命名空间(可选)",

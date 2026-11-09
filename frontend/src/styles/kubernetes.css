@@ -150,9 +150,14 @@
 .k8s-seen-row:hover { background: var(--bg-3); }
 
 /* Back, and the views beside it */
-.k8s-nav { display: flex; align-items: flex-end; gap: 6px; }
-.k8s-nav .sp-tabs { flex: 1 1 auto; min-width: 0; }
-.k8s-back { flex: none; width: 30px; height: 30px; margin-bottom: 5px; padding: 0; display: grid; place-items: center; }
+/* the views of the tab: a rail on the left like the one of the panel (the .sp-rail and .sp-item rules), the body beside it */
+.k8s-shell { flex: none; align-items: flex-start; gap: 18px; min-width: 0; }
+.k8s-rail { width: 176px; padding: 0 12px 0 0; gap: 10px; overflow: visible; position: sticky; top: 0; }
+.k8s-rail .sp-item em { font-style: normal; padding: 0 6px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font-size: 11px; }
+.k8s-rail .sp-item[aria-selected="true"] em { background: #ffffff33; color: inherit; }
+.k8s-back { color: var(--muted); }
 .k8s-back:disabled { opacity: .35; cursor: default; }
+.k8s-shell > .k8s-body { flex: 1; }
+@media (max-width: 760px) { .k8s-shell { flex-direction: column; gap: 8px; } .k8s-rail { width: auto; position: static; } }
 /* Shell with and without the ▾ (a pod with several containers) is the same width, so a column of them lines up */
 .k8s-shell { min-width: 74px; justify-content: center; text-align: center; white-space: nowrap; }

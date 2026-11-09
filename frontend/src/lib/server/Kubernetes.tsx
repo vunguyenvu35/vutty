@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useBackend} from '../backend'
 import {useT} from '../i18n'
 import {IconArrowLeft, IconCloud, IconPlus, IconTrash} from '../ui/Icons'
+import {K8S_VIEW_ICONS} from './sections'
 import {Select} from '../ui/Select'
 import {Err, useLoad} from './shared'
 import {KubernetesConnect, remember, savedNamespaces, saveNamespaces, type K8sSession} from './KubernetesConnect'
@@ -172,12 +173,17 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
         </div>
         {draftErr && <div className="sp-note k8s-hint" role="alert">{draftErr}</div>}
         {noList ? <div className="sp-note k8s-hint">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
-        <div className="k8s-nav">
-        <button className="k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={15} /></button>
-        <div className="sp-tabs k8s-sub" role="tablist" aria-label={t('Kubernetes views')}>
-          {views.map(([id, label]) => <button key={id} role="tab" aria-selected={view === id} onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>{label}{counts?.[id] !== undefined && <em aria-hidden="true">{counts[id]}</em>}</button>)}
-        </div>
-        </div>
+        <div className="sp-shell k8s-shell">
+        <nav className="sp-rail k8s-rail" aria-label={t('Kubernetes')}>
+          <button className="sp-item k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={16} /><span className="lab">{t('Back')}</span></button>
+          <div className="sp-grp" role="tablist" aria-orientation="vertical" aria-label={t('Kubernetes views')}>
+            {views.map(([id, label]) => (
+              <button key={id} role="tab" aria-selected={view === id} className="sp-item" onClick={() => { if (id !== view || page) remember(); setView(id); setSeed(''); setPage(null) }}>
+                {K8S_VIEW_ICONS[id]}<span className="lab">{label}</span>{counts?.[id] !== undefined && <em aria-hidden="true">{counts[id]}</em>}
+              </button>
+            ))}
+          </div>
+        </nav>
         <div className="k8s-body" key={key}>
           {page ? <Page page={page} /> : (
             <>
@@ -193,6 +199,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
               {view === 'events' && <Events />}
             </>
           )}
+        </div>
         </div>
       </div>
     </K8sProvider>

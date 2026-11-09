@@ -344,6 +344,7 @@ export default {
   "Namespace name": "名前空間の名前",
   "namespace": "名前空間",
   "Add": "追加",
+  "Back": "戻る",
   "Forget": "削除",
   "Default namespace": "既定の名前空間",
   "Default namespace (optional)": "既定の名前空間 (任意)",

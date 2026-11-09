@@ -26,3 +26,17 @@ export const SECTION_ICONS: Record<Section, ReactNode> = {
   users: I(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5M16 5a3.5 3.5 0 0 1 0 6.5M18 14.8c1.7.7 3 2.4 3.5 5" /></>),
   maintenance: I(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L3 17.7 6.3 21l6.3-6.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4z" />),
 }
+
+/** the icon of each view of the Kubernetes tab, drawn like those of the sections of the panel */
+export const K8S_VIEW_ICONS: Record<string, ReactNode> = {
+  overview: SECTION_ICONS.overview,
+  pods: I(<><path d="M12 2.5 20 7v10l-8 4.5L4 17V7z" /><path d="M4 7l8 4.5L20 7M12 11.5v10" /></>),
+  workloads: I(<><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="18" height="6" rx="1.5" /><path d="M7 7h.1M7 17h.1" /></>),
+  network: I(<><circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="19" r="2.5" /><circle cx="19" cy="19" r="2.5" /><path d="M12 7.5v4M12 11.5l-5.5 5.3M12 11.5l5.5 5.3" /></>),
+  config: I(<><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>),
+  apps: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
+  resources: I(<><path d="M12 3 3 8l9 5 9-5z" /><path d="M3 12.5l9 5 9-5M3 17l9 5 9-5" /></>),
+  security: SECTION_ICONS.ports,
+  nodes: I(<><rect x="3" y="4" width="18" height="6" rx="1.5" /><rect x="3" y="14" width="18" height="6" rx="1.5" /><path d="M7 7h4M7 17h4" /></>),
+  events: SECTION_ICONS.schedule,
+}
