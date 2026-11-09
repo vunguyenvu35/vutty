@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/brand/logo-horizontal-light.png" alt="Vutty" width="520"></p>
+<p align="center"><img src="docs/assets/brand/logo-horizontal-light.png" alt="Vutty" width="520"></p>
 
 <p align="center">
   <b>Vutty is a free, open-source SSH client for macOS, Windows and Linux that keeps your hosts, keys and passwords in an encrypted vault that you own.</b>
@@ -8,9 +8,9 @@
   <a href="https://github.com/vunguyenvu35/vutty/releases/latest"><img src="https://img.shields.io/github/v/release/vunguyenvu35/vutty?label=Download%20latest&style=for-the-badge&color=2ea44f" alt="Download the latest Vutty release"></a>
 </p>
 
-<p align="center"><sub>macOS says the app "can't be opened"? Beta builds are not notarized yet: <a href="docs/InstallMac.md"><b>how to open it in three clicks</b></a>. · <a href="docs/Comparison.md">Vutty vs Termius, Tabby and WindTerm</a></sub></p>
+<p align="center"><sub>macOS says the app "can't be opened"? Beta builds are not notarized yet: <a href="docs/getting-started/install-macos.md"><b>how to open it in three clicks</b></a>. · <a href="docs/evaluation/comparison.md">Vutty vs Termius, Tabby and WindTerm</a></sub></p>
 
-<p align="center"><img src="docs/screenshots/20-split-panes.png" alt="Vutty with two terminals side by side" width="900"></p>
+<p align="center"><img src="docs/assets/screenshots/20-split-panes.png" alt="Vutty with two terminals side by side" width="900"></p>
 
 ## Why Vutty
 
@@ -31,21 +31,23 @@
 - **A sidebar beside every terminal**: your hosts as a tree like a file manager's (groups with a count, one line per host, a dot on the ones you have open, *Expand all* and the arrow keys), snippets (run or paste), command history, and terminal themes and font.
 - **More than SSH**: a shell on this computer, serial ports, Telnet (with its own login), Mosh, FTP and FTPS, RDP and VNC, a *Choose protocol* and connecting screen, Known Hosts and Logs pages.
 - **Browse and transfer files with SFTP** in a tab of its own (and in the terminal sidebar): two panes, several files and folders at once, drag and drop, and a **transfer queue** with pause, resume (a copy is continued from the bytes already sent, also after a lost connection), cancel and retry. Compare and **sync folders** (nothing is ever deleted), **edit a remote file** and have it saved back when you save, and a right-click menu with permissions. A copy keeps the modification time of its source, and nothing is replaced without asking.
-- **Ask an AI about your terminal** with the official CLI you already use (Claude Code, Codex CLI, Gemini CLI; Antigravity CLI is experimental): the screen is sent with every secret replaced by `*******`, the assistant only suggests commands, and you decide what runs. Add MCP servers for extra tools. See the [user guide](docs/UserGuide.md#22-ai-assistant) and the [design](docs/AIAssistant.md).
+- **Run a Linux server from a tab with Panel.** A dashboard with no terminal and nothing installed on the server: CPU, memory, disk and what needs attention, processes, systemd services, Docker (Compose stacks, images, volumes), logs that follow live and an **Incident** view of what happened at a past time, certificates and sites of nginx or Caddy, firewall, users and SSH keys, security checks, updates and cron. **Fleet** shows every host on one page, with alerts. Every change asks first. See [Panel](docs/user-guide/08-panel.md).
+- **Look after Kubernetes clusters** through a host that has `kubectl`, or from a kubeconfig with nothing installed: pods, workloads, Helm releases, any resource, logs of all the pods of a workload, a shell in a pod, edit YAML with a preview, drain a node. See [Kubernetes](docs/user-guide/09-kubernetes.md).
+- **Ask an AI about your terminal** with the official CLI you already use (Claude Code, Codex CLI, Gemini CLI; Antigravity CLI is experimental): the screen is sent with every secret replaced by `*******`, the assistant only suggests commands, and you decide what runs. Add MCP servers for extra tools. See the [user guide](docs/user-guide/10-ai-assistant.md) and the [design](docs/design/ai-assistant.md).
 - **Save snippets** of commands you run often and type them into any terminal with a click.
 - **Make it yours**: four languages, 26 terminal colour themes, light / dark / auto appearance, font, cursor and scrollback, interface zoom, your own keyboard shortcuts, all in a Settings popup (⌘/Ctrl + ,) like VS Code's: move it by its title bar, resize it by its edges, or turn it into a tab.
 - **Forward ports**: local, remote and SOCKS5 proxy.
 - **Stay in control.** Import and export your `~/.ssh/config`, import hosts from a listing you made with `aws`, `gcloud` or `ansible-inventory` (or a CSV; Vutty never contacts a cloud), share a host list without secrets, make encrypted backups, or sync between your computers through a private Git repository. The vault locks by itself when the computer sleeps.
-- **Heavy output stays smooth.** Output waits for the terminal to draw it, so `cat` of a huge file or a busy `tail -f` slows down instead of freezing the window ([measurements](docs/Assessment.md#terminal-performance-with-heavy-output-g4)).
+- **Heavy output stays smooth.** Output waits for the terminal to draw it, so `cat` of a huge file or a busy `tail -f` slows down instead of freezing the window ([measurements](docs/evaluation/assessment.md#terminal-performance-with-heavy-output-g4)).
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/16-hosts-in-group.png" alt="Hosts"><br><sub>Hosts and groups</sub></td>
-    <td width="50%"><img src="docs/screenshots/18-snippets-page.png" alt="Snippets"><br><sub>Snippets</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/16-hosts-in-group.png" alt="Hosts"><br><sub>Hosts and groups</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/18-snippets-page.png" alt="Snippets"><br><sub>Snippets</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/11-test-connection-ok.png" alt="New host with a successful connection test"><br><sub>New host: Test connection, Save or Connect</sub></td>
-    <td><img src="docs/screenshots/48-settings-terminal-theme.png" alt="Settings with terminal themes"><br><sub>Settings and terminal themes</sub></td>
+    <td><img src="docs/assets/screenshots/11-test-connection-ok.png" alt="New host with a successful connection test"><br><sub>New host: Test connection, Save or Connect</sub></td>
+    <td><img src="docs/assets/screenshots/48-settings-terminal-theme.png" alt="Settings with terminal themes"><br><sub>Settings and terminal themes</sub></td>
   </tr>
 </table>
 
@@ -65,11 +67,11 @@
 
   The links always point to the newest release. A release also has the same files with the version in their name (`vutty-<version>-macos.dmg`), for an older version, and lists `SHA256SUMS` so you can check your download.
 - **macOS with Homebrew:** `brew install --cask vunguyenvu35/vutty/vutty` (the first run adds the tap `vunguyenvu35/vutty`; update later with `brew upgrade --cask vutty`). The cask clears the quarantine flag for you, so the first-launch warning below does not apply.
-- **From source:** see the [Development guide](docs/Development.md) (three commands).
+- **From source:** see the [Development guide](docs/development/development.md) (three commands).
 
-> **First launch.** Beta builds are not signed with a developer certificate yet. On macOS, open the app, then **System Settings → Privacy & Security → Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/vutty.app`); step by step in [Installing on macOS](docs/InstallMac.md). On Windows, SmartScreen may warn: choose **More info → Run anyway**.
+> **First launch.** Beta builds are not signed with a developer certificate yet. On macOS, open the app, then **System Settings → Privacy & Security → Open Anyway** (or run `xattr -dr com.apple.quarantine /Applications/vutty.app`); step by step in [Installing on macOS](docs/getting-started/install-macos.md). On Windows, SmartScreen may warn: choose **More info → Run anyway**.
 
-**Updates:** **Help → About → Check for updates** tells you when a newer release is out. On a Mac with Apple silicon, **Install and restart** downloads it, checks that the release's checksum list is signed with the project's key and that the file matches, replaces the app and restarts it ([how](docs/ReleaseSigning.md)); version 1.3.0 has to be installed by hand once, as earlier versions do not carry the key. On Windows, Linux and Intel Macs the release page opens: replace the old app with the new one and your data is kept. Once a day, when the app opens, Vutty asks GitHub for the latest release (a plain request that sends nothing about you or your data); switch it off in **Settings → General → Check for updates automatically**.
+**Updates:** **Help → About → Check for updates** tells you when a newer release is out. On a Mac with Apple silicon, **Install and restart** downloads it, checks that the release's checksum list is signed with the project's key and that the file matches, replaces the app and restarts it ([how](docs/development/release-signing.md)); version 1.3.0 has to be installed by hand once, as earlier versions do not carry the key. On Windows, Linux and Intel Macs the release page opens: replace the old app with the new one and your data is kept. Once a day, when the app opens, Vutty asks GitHub for the latest release (a plain request that sends nothing about you or your data); switch it off in **Settings → General → Check for updates automatically**.
 
 ### 2. First five minutes
 
@@ -79,7 +81,7 @@
 4. **Connect**: double-click a saved host any time. The first time, check the server fingerprint and choose *Trust and connect*.
 5. **Make it yours**: save a **Snippet**, split the pane, open **Port Forwarding**, import your existing `~/.ssh/config` from **Import / Export**, or open **Settings** (⌘/Ctrl + ,) to pick a terminal theme.
 
-The [User guide](docs/UserGuide.md) walks through every screen with screenshots.
+The [User guide](docs/user-guide/README.md) walks through every screen with screenshots.
 
 ### No server to test with?
 
@@ -152,12 +154,12 @@ Your feedback is the point of this beta. Please [open an issue](../../issues/new
   <tr>
     <td align="center" width="300">
       <img src="https://img.shields.io/badge/USDT-Tron%20%C2%B7%20TRC20-EF0027?logo=tron&logoColor=white&style=flat-square" alt="USDT on Tron (TRC20)"><br><br>
-      <img src="docs/donate/usdt-tron.png" width="190" alt="QR code of the USDT Tron address"><br>
+      <img src="docs/assets/donate/usdt-tron.png" width="190" alt="QR code of the USDT Tron address"><br>
       <sub><code>TMXXHRNG7qauoFWJKYbqEbd4FGgt3DgjBK</code></sub>
     </td>
     <td align="center" width="300">
       <img src="https://img.shields.io/badge/USDT-BSC%20%C2%B7%20BEP20-F0B90B?logo=binance&logoColor=black&style=flat-square" alt="USDT on BSC (BEP20)"><br><br>
-      <img src="docs/donate/usdt-bsc.png" width="190" alt="QR code of the USDT BSC address"><br>
+      <img src="docs/assets/donate/usdt-bsc.png" width="190" alt="QR code of the USDT BSC address"><br>
       <sub><code>0x4bdfd1d6456c28d06e3f8456ddac59e6168e5153</code></sub>
     </td>
   </tr>
@@ -181,16 +183,18 @@ CRYPTO-DONATE end -->
 
 ## Documentation
 
+Start at the [documentation index](docs/README.md).
+
 | | |
 | --- | --- |
-| [User guide](docs/UserGuide.md) | every feature, with screenshots |
+| [User guide](docs/user-guide/README.md) | every feature, chapter by chapter, with screenshots |
+| [Installing on macOS](docs/getting-started/install-macos.md) | opening a beta that is not notarized (Gatekeeper) |
 | [Release notes](RELEASE_NOTES.md) | what is new, quality results, known issues |
-| [Development guide](docs/Development.md) | build, test, Docker, deploy |
-| [Architecture](docs/CleanArchitecture.md) | layers, decisions, technical debt |
-| [Installing on macOS](docs/InstallMac.md) | opening a beta that is not notarized (Gatekeeper) |
-| [Release signing](docs/ReleaseSigning.md) | how updates are signed, and how the app installs them itself |
-| [Comparison](docs/Comparison.md) | short table against Termius, Tabby and WindTerm |
-| [Assessment](docs/Assessment.md) | honest comparison with the original design |
+| [Development guide](docs/development/development.md) | build, test, Docker, deploy |
+| [Release signing](docs/development/release-signing.md) | how updates are signed, and how the app installs them itself |
+| [Architecture](docs/design/clean-architecture.md) | layers, decisions, technical debt |
+| [Comparison](docs/evaluation/comparison.md) | short table against Termius, Tabby and WindTerm |
+| [Assessment](docs/evaluation/assessment.md) | honest comparison with the original design |
 
 ## License
 

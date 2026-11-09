@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Heavy-output benchmark of the terminal in the real macOS WKWebView (docs/Assessment.md G4, Known issues 6).
+# Heavy-output benchmark of the terminal in the real macOS WKWebView (docs/evaluation/assessment.md G4, Known issues 6).
 # The page is the app's own terminal set-up (xterm.js 5.5, DOM renderer, 10000 lines of scrollback, the output highlighter, the
 # same base64 -> bytes -> term.write path as a term:data event); a small native Swift app feeds it chunks through
 # evaluateJavaScript, like Wails does. "paced" = one chunk of up to 64 KB every 16 ms (what the backend's batcher sends at most when

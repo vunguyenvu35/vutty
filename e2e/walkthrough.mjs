@@ -1,5 +1,5 @@
 // End-to-end walkthrough of Vutty against the real Go backend (wails dev -browser) and two
-// demo SSH servers. Every step asserts behaviour, and screenshots are written to docs/screenshots.
+// demo SSH servers. Every step asserts behaviour, and screenshots are written to docs/assets/screenshots.
 //
 //   VUTTY_URL=http://localhost:34115 DEMOSERVER=/path/to/demoserver SSH_CONFIG_DIR=/path node walkthrough.mjs
 import {chromium} from 'playwright'
@@ -14,7 +14,7 @@ import {fileURLToPath} from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 // Screenshots go to SHOT_DIR, outside the repo while the app runs: `wails dev` watches the project
-// and would reload on every new file. run.sh copies them into docs/screenshots afterwards.
+// and would reload on every new file. run.sh copies them into docs/assets/screenshots afterwards.
 const OUT = process.env.SHOT_DIR ?? path.resolve(here, '..', 'docs', 'screenshots')
 const URL = process.env.VUTTY_URL ?? 'http://localhost:34115'
 const DEMO = process.env.DEMOSERVER
@@ -49,7 +49,8 @@ startDemo(2201, 'bastion')
 let appServer = startDemo(2202, 'app-server')
 await sleep(600)
 
-const browser = await chromium.launch()
+// The terminal draws with WebGL when it can, which leaves no text in the page for the steps to read: use the DOM renderer here.
+const browser = await chromium.launch({args: ['--disable-webgl', '--disable-3d-apis']})
 const page = await (await browser.newContext({viewport: {width: 1360, height: 860}})).newPage()
 page.setDefaultTimeout(15000)
 const pageErrors = []

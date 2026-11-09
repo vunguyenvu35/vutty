@@ -125,7 +125,7 @@ jobs:
           ls
       - name: Checksums
         run: cd dist && rm -f *.sha256 && sha256sum * > SHA256SUMS
-      # The app updates itself only to a release whose checksum list is signed with the maintainer's key (docs/ReleaseSigning.md).
+      # The app updates itself only to a release whose checksum list is signed with the maintainer's key (docs/development/release-signing.md).
       # Without the secret the release is still published, just not signed: the app then offers the release page instead.
       - uses: actions/setup-go@v5
         with:

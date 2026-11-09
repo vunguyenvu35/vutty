@@ -24,7 +24,7 @@ const NS_RE = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/
 
 /**
  * The Kubernetes tab of the Panel: kubectl on the host, over the SSH connection the Panel already has. First the way in (connect
- * flow), then the cluster in seven views. See docs/KubernetesPanel.md.
+ * flow), then the cluster in seven views. See docs/design/kubernetes-panel.md.
  */
 export function Kubernetes({sid, host, visible, clusterId, onReopen, onShell, onPodShell, onAccess, onLogs, onContext, onNamespace}: {
   sid: string; host: Host; visible: boolean

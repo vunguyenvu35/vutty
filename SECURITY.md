@@ -54,7 +54,7 @@ Out of scope:
 
 Keys and passwords are encrypted with AES-256-GCM under a key derived from your master password (Argon2id). Unknown server keys are confirmed by you, and a changed key blocks the connection with no override. Nothing leaves your computer unless you turn on sync, which uploads only encrypted data to a repository or folder you control.
 
-The details, the findings of the last review and the **known residual risks** (redaction in the AI assistant is best effort, for example) are in [docs/SecurityReview.md](docs/SecurityReview.md).
+The details, the findings of the last review and the **known residual risks** (redaction in the AI assistant is best effort, for example) are in [docs/design/security-review.md](docs/design/security-review.md).
 
 ## Safe harbour
 

@@ -3,7 +3,7 @@
 //	app (delivery) -> usecase -> domain
 //	infrastructure (store, vault, sshx, ...) -> domain
 //
-// Source-level dependencies only point inward. See docs/CleanArchitecture.md.
+// Source-level dependencies only point inward. See docs/design/clean-architecture.md.
 package archtest
 
 import (

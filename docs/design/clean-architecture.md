@@ -1,0 +1,127 @@
+<p align="center"><img src="../assets/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
+
+# Clean architecture
+
+## Layers and the dependency rule
+
+Source-level dependencies point inward only. A test (`internal/archtest`) fails the build if the rule is broken.
+
+```mermaid
+flowchart LR
+    subgraph Delivery
+        APP["app/<br/><small>Wails bindings, events, native dialogs, composition root</small>"]
+    end
+    subgraph Application
+        UC["internal/usecase<br/><small>services + ports.go</small>"]
+    end
+    subgraph Domain
+        DOM["internal/domain<br/><small>entities, validation, merge, jump-chain rules</small>"]
+    end
+    subgraph Infrastructure
+        SQL["sqlitedb"]
+        ST["store (JSON)"]
+        V["vault"]
+        SSH["sshx / forward"]
+        IO["importer / exporter"]
+        GIT["syncgit"]
+    end
+    APP --> UC --> DOM
+    SQL -. implements .-> UC
+    ST -. implements .-> UC
+    V -. implements .-> UC
+    SQL --> DOM
+    ST --> DOM
+    V --> DOM
+    SSH --> DOM
+    IO --> DOM
+    GIT --> DOM
+```
+
+| Layer | Package(s) | May import | Must not import |
+| --- | --- | --- | --- |
+| Domain | `internal/domain` | standard library | any project package, Wails, `x/crypto/ssh` |
+| Application | `internal/usecase` | domain, ports it declares, `fsutil`, the infrastructure libraries listed below | Wails, `app`, `store` |
+| Infrastructure | `sqlitedb`, `store`, `vault`, `sshx`, `forward`, `importer`, `exporter`, `syncgit`, `syncfolder`, `fsutil`, `testssh` | domain, each other | `usecase`, `app`, Wails |
+| Delivery / composition root | `app` | everything | — |
+
+### What lives where
+
+- **Domain** (`internal/domain`): `Host`, `Group`, `Identity`, `PortForward`, `Secret`, the vault header and status types, and rules that do not need I/O: `NormalizeHost` (including rejecting control characters that could inject ssh config directives), `NormalizeForward` (loopback by default), `CheckJumpChain` (loops, depth limit), `IsLoopback`, and the record-level `Merge` (last-write-wins with tombstones).
+- **Ports** (`internal/usecase/ports.go`): `Repository` (hosts, groups, identities, forwards), `SecretVault` (encryption, unlock, secrets, sync helpers) and `Emitter` (events to the UI).
+- **Adapters**: `sqlitedb` provides the persisters used in production; `store` and `vault` contain the in-memory models/crypto and accept any `Persister` (SQLite, JSON file, test double).
+- **Composition root**: `app.Build` is the only place that constructs concrete adapters and wires them into the use cases.
+
+### Using a different storage engine
+
+Implement `store.Persister` and `vault.Persister`, then pass them to `store.OpenWith` / `vault.NewWith` in `app.Build`. Use cases and the UI do not change. The same use-case test suite runs on SQLite today (`internal/usecase/harness_test.go`).
+
+## Known technical debt (visible and bounded)
+
+`internal/usecase` still imports these infrastructure packages directly instead of through ports:
+
+| Package | Why | Planned port |
+| --- | --- | --- |
+| `sshx` | SSH dialing, PTY shell, keepalive | `Connector` returning a `Connection` with `OpenShell`, `Dial`, `Listen` |
+| `forward` | forwarding engine uses the SSH connection | folds into `Connector` |
+| `importer`, `exporter` | ssh config parsing/writing, backup envelope | `ConfigCodec` |
+| `syncgit` | git CLI transport | `SyncTransport` |
+| `syncfolder` | synced-folder (Drive, iCloud, Dropbox) transport | `SyncTransport` |
+| `vault` | key parsing helpers (`ParsePrivateKey`, `GenerateEd25519`), keychain types | move key helpers behind `SecretVault`/`KeyTools` |
+
+`internal/archtest` holds this list as an allow-list: it may shrink but adding a new infrastructure import to `usecase` fails the test.
+
+---
+
+# Architecture decision records
+
+## ADR-0001: Use SQLite for local persistence
+
+- **Status**: accepted (supersedes "JSON files, no SQLite in the MVP" in `Architecture.md` §2/§4).
+- **Context**: The product requirement is that the app uses SQLite. Data is small, single-user, and must survive crashes.
+- **Decision**: One database file, `data/vutty.db`, via the pure-Go driver `modernc.org/sqlite` (no extra CGO toolchain). Tables: `groups`, `hosts`, `identities`, `port_forwards`, `secrets`, `vault_header`. Schema versioned with `PRAGMA user_version`; a database newer than the app is refused. WAL mode, one connection, every save is a single transaction.
+- **Consequences**: atomicity comes from transactions instead of tmp+rename; records keep `updated_at`/`deleted_at` columns for sync; secrets remain AES-GCM ciphertext in `secrets`, verified by a test that greps the database and WAL for plaintext. Whole-set saves are O(n), which is fine at this scale; if data grows, switch to per-record upserts behind the same `Persister`. `known_hosts` stays an OpenSSH text file and `settings.json` stays JSON on purpose (tools and users edit them).
+
+## ADR-0002: Clean architecture with ports and an enforced dependency rule
+
+- **Status**: accepted.
+- **Context**: Business rules (validation, merge, jump-host safety) and orchestration were mixed with storage and UI wiring, which made them hard to test and to change.
+- **Decision**: Four layers as above. Rules moved into `domain`; orchestration moved from `app/` into `internal/usecase` behind `Repository`, `SecretVault` and `Emitter`; `app/` kept only Wails glue and the composition root. `internal/archtest` parses imports and fails on violations.
+- **Consequences**: the use-case tests run without Wails; storage is swappable. The remaining direct infrastructure imports are documented debt (table above).
+
+## ADR-0003: Own `ssh_config` parser
+
+- **Status**: accepted (deviates from `Architecture.md` §2, which suggested `kevinburke/ssh_config`).
+- **Context**: Import must derive the group from the file name of each `Include`d file and keep a `# vutty:` metadata comment for round-trips; the library does not expose the source file of a block.
+- **Decision**: Small purpose-built parser (`internal/importer`) covering `Host`, `HostName`, `Port`, `User`, `IdentityFile`, `ProxyJump`, `Local/Remote/DynamicForward`, `Include` (with loop and depth protection). Unsupported directives such as `ProxyCommand` produce warnings.
+- **Consequences**: fewer directives than OpenSSH supports (no `Match`, no token expansion); round-trip export → import is covered by tests.
+
+## ADR-0004: Output is buffered until the frontend attaches
+
+- **Status**: accepted.
+- **Context**: `Open` returns a session id after the backend has already started connecting. Events emitted before the UI subscribed (host key prompt, banner) would be lost, especially for fast local hosts.
+- **Decision**: `Open` starts the connection; `Attach(sid)` marks the UI as listening. Until then output is buffered (1 MiB cap) and state (pending host key prompt, ready, closed) is replayed on `Attach`.
+- **Consequences**: no lost first output; one extra binding call per session.
+
+## ADR-0005: No automatic reconnect
+
+- **Status**: accepted (from `Architecture.md` §6).
+- **Decision**: a dropped link keeps the terminal content and shows a banner; the user presses Enter to reconnect. Forwards flagged `auto_start` are rebuilt after a successful reconnect.
+- **Rationale**: avoids replaying commands or duplicating side effects without the user noticing.
+
+## ADR-0006: Settings is a second process with its own native window
+
+- **Status**: superseded for Settings by ADR-0007 (the bridge and the app windows below remain).
+- **Context**: Wails v2 creates one native window per process. Settings should be a real window (own title bar, macOS full screen, movable outside the main window), not a popup layer.
+- **Decision**: `vutty --settings` starts a second process of the same binary. It opens no database and no vault. The main process runs a `Bridge` (`app/bridge.go`): HTTP on `127.0.0.1` with a random token in a `0600` file (`settings-ipc.json`), exposing an explicit allow-list of use case methods (`SettingsService`, the security methods of `VaultService`, `SyncService`). After a change it emits `bridge:changed` so the main window reloads. The Settings process quits when the main process quits (the launcher kills it on shutdown; a heartbeat covers a crash). Where there is no native window (browser mode, E2E) the frontend falls back to the in-app Settings window.
+- **Consequences**: use cases stay in one process (no second SQLite or vault writer); the bridge is a new local attack surface, kept small by the token, loopback binding and the allow-list; the Settings process is hidden from the Dock, so no second icon appears.
+
+### ADR-0006 addendum: app windows (Duplicate in new window)
+
+The same bridge now carries a second kind of client: an **app window** (`vutty --window`), the whole UI in another process. The delivery layer stays thin: `Bridge.DispatchApp` reflects over the existing use case services (no new use case, no new port), `/events` hands the main process's emitted events to the window (terminal and SFTP events only for sessions the window opened, found through `Bridge.watch`), and in the window the frontend's `window.go.usecase` is a proxy to `/appcall`. Dependencies still point inward: `internal/domain ← usecase ← adapters`, and only `app/` knows about processes, ports and tokens. `archtest` is unchanged and still green.
+
+## ADR-0007: Settings is a popup of the main window
+
+- **Status**: accepted.
+- **Context**: ADR-0006 made Settings a second process so it could be a real window. That cost a launcher, a Dock-less helper bundle on macOS, a window-raising workaround, a second allow-list on the bridge and a copy of the data flow (a backend that forwarded every call). Other SSH clients also keep their settings inside the main window, and the terminal's own colours and font are changeable from the terminal sidebar.
+- **Decision**: Settings is a popup over the main window, the way VS Code opens its Settings: a bordered panel inset from the edges (a backdrop around it), the gear and the name at the left of its title bar and Maximize / Close at the right, the categories on the left and the settings on the right. Esc, the backdrop and the × close it; the shortcut toggles it. It opens at a size taken from the window it is in (nearly all of it, at most 1280 × 880) sits below the top bar (with the macOS window buttons), can be moved by its title bar (inside the window, never over the top bar) and dragged larger or smaller by its edges and corners; the size is remembered as a share of the window. Its "Open in a tab" button (VS Code's "open as editor") moves it into a Settings tab of the tab bar (`kind: 'settings'`, one at most, closable, no rename, never asks before closing); while that tab exists the gear, the menu and the shortcut show the tab. It is `SettingsWindow` rendered by `App` (`settingsOpen`) and calls the use case services like every other page. `vutty --settings`, `SettingsLauncher`, `SettingsBridge`, the `/call` and `/focus` endpoints, `bridgeBackend` and `scripts/macos-settings-helper.sh` are removed. The bridge stays for the app windows (`/appcall`, `/events`, `/menu`).
+- **Consequences**: one process less for Settings and a smaller local attack surface (no allow-listed endpoint); Settings cannot be dragged out of the main window or put on a second screen, and it covers the page while it is open. The old floating window (drag, roll up, resize, macOS-style dots) is gone.

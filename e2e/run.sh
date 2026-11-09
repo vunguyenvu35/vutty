@@ -2,7 +2,7 @@
 # Runs the end-to-end walkthrough on a fresh data directory:
 #   1. builds the demo SSH server
 #   2. starts `wails dev -browser` (real Go backend, SQLite, vault) on http://localhost:34115
-#   3. drives the UI with Playwright and writes screenshots to docs/screenshots
+#   3. drives the UI with Playwright and writes screenshots to docs/assets/screenshots
 # The demo SSH servers are started and stopped by walkthrough.mjs itself.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,8 +58,8 @@ cd "$ROOT/e2e"
 [ -d node_modules ] || npm install --no-audit --no-fund
 npx playwright install chromium >/dev/null
 VUTTY_URL="$URL" DEMOSERVER="$WORK/demoserver" SSH_CONFIG_DIR="$WORK/ssh" SHOT_DIR="$WORK/shots" node walkthrough.mjs
-mkdir -p "$ROOT/docs/screenshots"
-rm -f "$ROOT"/docs/screenshots/*.png # numbering changes between runs: drop stale shots
-cp "$WORK"/shots/*.png "$ROOT/docs/screenshots/"
-echo "screenshots copied to docs/screenshots"
-"$ROOT/scripts/check-doc-links.sh" || echo "WARNING: the docs link to screenshots that are gone (numbers shift when a step is added): fix the links"
+mkdir -p "$ROOT/docs/assets/screenshots"
+rm -f "$ROOT"/docs/assets/screenshots/*.png # numbering changes between runs: drop stale shots
+cp "$WORK"/shots/*.png "$ROOT/docs/assets/screenshots/"
+echo "screenshots copied to docs/assets/screenshots"
+"$ROOT/scripts/check-doc-links.sh" || echo "WARNING: the docs link to screenshots that are gone (numbers shift when a step is added): run node scripts/fix-shot-links.mjs, then check what is left"

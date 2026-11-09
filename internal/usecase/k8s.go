@@ -24,7 +24,7 @@ import (
 // installs nothing. The rules are those of the rest of ServerService, and stricter, because a cluster is worth more than a
 // service: every name and number from the screen is checked against a strict pattern before it goes into a command, and is then
 // put in single quotes (shq) unless it is plain text; `--context` and `-n` are always passed, so the "current context" of the
-// host cannot redirect a command; there is no free-form command, only the ones in the command map of docs/KubernetesPanel.md;
+// host cannot redirect a command; there is no free-form command, only the ones in the command map of docs/design/kubernetes-panel.md;
 // the values of a Secret are never read except the one key a person asks for, and that is never written to the audit log.
 
 // k8sNow is the clock of the age columns and of certificate expiry (a test replaces it).
