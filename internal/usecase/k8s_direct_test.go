@@ -1449,3 +1449,33 @@ func (k testKubeClient) Run(ctx context.Context, ns, pod, container string, comm
 	r, err := k.Client.Run(ctx, ns, pod, container, command, stdout)
 	return KubeRun{ExitCode: r.ExitCode, Stderr: r.Stderr}, err
 }
+
+func TestClusterFollowsTheLogOfAPodThroughTheAPIServer(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	f := newFakeCluster(t)
+	sid, _ := clusterSession(t, h, f, "{token: tok}")
+	s := h.app.Server
+	o := K8sLogOpts{Lines: 300, Container: "api", Timestamps: true}
+
+	if err := s.K8sLogsFollowStart(sid, "bad key!", "prod", "shop", "api-7d9f6c-x2kq8", o); err == nil {
+		t.Fatal("a key with a space was accepted")
+	}
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api; id", o); err == nil {
+		t.Fatal("a pod name with a command was accepted")
+	}
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api-7d9f6c-x2kq8", K8sLogOpts{Lines: 300, Previous: true}); err == nil {
+		t.Fatal("the log of an earlier run was followed")
+	}
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api-7d9f6c-x2kq8", o); err != nil {
+		t.Fatal(err)
+	}
+	lines := h.rec.wait(t, "server:log:follow-key-1").data.(map[string]any)["lines"].([]string)
+	if len(lines) != 2 || lines[0] != "line one" || lines[1] != "line two" {
+		t.Fatalf("%q", lines)
+	}
+	h.rec.wait(t, "server:logend:follow-key-1") // the fake cluster closes the answer: the log ended
+	got := f.called("GET", "/api/v1/namespaces/shop/pods/api-7d9f6c-x2kq8/log?")
+	if len(got) != 1 || !strings.Contains(got[0], "follow=true") || !strings.Contains(got[0], "tailLines=300") || !strings.Contains(got[0], "container=api") || !strings.Contains(got[0], "timestamps=true") {
+		t.Fatalf("log request = %v", got)
+	}
+}

@@ -257,6 +257,7 @@ export function k8sApi(k: () => K8sFake, rec: Rec): K8sApi {
     k8sConfigMap: async (s, c, n, name) => { rec('server.k8sConfigMap', c, n, name); return {...(k().configMaps[name] ?? {})} },
     k8sEvents: async (s, c, n) => { rec('server.k8sEvents', c, n); return copy(inNs(k().events, n)) },
     k8sLogs: async (s, c, n, p, o) => { rec('server.k8sLogs', c, n, p, o); return k().logs },
+    k8sLogsFollowStart: async (s, key, c, n, p, o) => { rec('server.k8sLogsFollowStart', c, n, p, o, key) },
     k8sLogsMulti: async (s, c, n, kind, name, o): Promise<K8sMultiLogs> => { rec('server.k8sLogsMulti', c, n, kind, name, o); return {text: k().logs.split('\n').map((l, i) => `[${name}-${i % 2 + 1}] ${l}`).join('\n'), pods: 2, skipped: 0, failed: []} },
     k8sYAML: async (s, c, kind, n, name) => { rec('server.k8sYAML', c, kind, n, name); return k().yaml },
     k8sCounts: async (s, c, n) => { rec('server.k8sCounts', c, n); const x = k(); return {pods: inNs(x.pods, n).length, workloads: inNs(x.workloads, n).length, network: inNs(x.network.services, n).length + inNs(x.network.ingresses, n).length} },

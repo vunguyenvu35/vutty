@@ -455,6 +455,17 @@ describe('Maintenance tab', () => {
     expect(await screen.findByRole('button', {name: '/var/lib'})).toBeInTheDocument()
   })
 
+  it('shows a loading ring while a log is being read, and the lines when it arrives', async () => {
+    const {be} = setup()
+    let finish: (t: string) => void = () => {}
+    be.server.logs = () => new Promise(res => { finish = res })
+    await open('Logs')
+    expect(await screen.findByText('Loading the log…')).toBeInTheDocument()
+    finish('first line\nsecond line')
+    expect(await screen.findByText('second line')).toBeInTheDocument()
+    expect(screen.queryByText('Loading the log…')).toBeNull()
+  })
+
   it('refuses a path with anything odd in it before asking the server', async () => {
     const {be} = setup()
     await open('Maintenance')

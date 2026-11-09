@@ -345,6 +345,8 @@ export interface Backend {
     k8sEvents(sid: string, ctx: string, ns: string): Promise<K8sEvent[]>
     k8sLogs(sid: string, ctx: string, ns: string, pod: string, opts: K8sLogOpts): Promise<string>
     k8sLogsMulti(sid: string, ctx: string, ns: string, kind: string, name: string, opts: K8sLogOpts): Promise<K8sMultiLogs>
+    /** the log of a pod as it grows: lines come as server:log:<key>, the end as server:logend:<key>; logsFollowStop(sid, key) stops it */
+    k8sLogsFollowStart(sid: string, key: string, ctx: string, ns: string, pod: string, opts: K8sLogOpts): Promise<void>
     k8sYAML(sid: string, ctx: string, kind: string, ns: string, name: string): Promise<string>
     k8sCounts(sid: string, ctx: string, ns: string): Promise<Record<string, number>>
     k8sSecurity(sid: string, ctx: string, ns: string): Promise<K8sSecurity>
@@ -744,6 +746,7 @@ export function wailsBackend(): Backend {
       k8sConfigMap: async (s, c, n, m) => (await u<Record<string, string>>('ServerService', 'K8sConfigMap', s, c, n, m)) ?? {},
       k8sEvents: async (s, c, n) => (await u<K8sEvent[]>('ServerService', 'K8sEvents', s, c, n)) ?? [],
       k8sLogs: (s, c, n, p, o) => u('ServerService', 'K8sLogs', s, c, n, p, o),
+      k8sLogsFollowStart: (s, key, c, n, p, o) => u('ServerService', 'K8sLogsFollowStart', s, key, c, n, p, o),
       k8sLogsMulti: async (s, c, n, k, m, o) => { const r = await u<K8sMultiLogs>('ServerService', 'K8sLogsMulti', s, c, n, k, m, o); return {...r, failed: r.failed ?? []} },
       k8sYAML: (s, c, k, n, m) => u('ServerService', 'K8sYAML', s, c, k, n, m),
       k8sCounts: async (s, c, n) => (await u<Record<string, number>>('ServerService', 'K8sCounts', s, c, n)) ?? {},

@@ -272,6 +272,21 @@ describe('Pods', () => {
 })
 
 describe('Logs tab with a pod source', () => {
+  it('Follow streams the log of a pod, with its container and timestamps, and stops it', async () => {
+    const {be} = await openOn('Pods')
+    await screen.findByText('redis-0')
+    await userEvent.click(within(podRow('redis-0')).getByRole('button', {name: 'Logs'}))
+    await screen.findByRole('button', {name: 'Timestamps'})
+    await userEvent.click(screen.getByRole('button', {name: 'Timestamps'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Follow'}))
+    await waitFor(() => expect(calls(be, 'server.k8sLogsFollowStart')).toHaveLength(1))
+    const c = calls(be, 'server.k8sLogsFollowStart')[0]
+    expect(c.slice(1, 4)).toEqual([CTX, 'shop', 'redis-0'])
+    expect(c[4]).toEqual({container: '', lines: 300, since: '', previous: false, timestamps: true})
+    await userEvent.click(screen.getByRole('button', {name: 'Follow'}))
+    await waitFor(() => expect(calls(be, 'server.logsFollowStop').at(-1)![1]).toEqual(c.at(-1)))
+  })
+
   it('shows Timestamps only for a pod, asks again when it changes, and has no Previous container switch of its own', async () => {
     const {be} = await openOn('Pods')
     await screen.findByText('redis-0')

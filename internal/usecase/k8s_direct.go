@@ -34,6 +34,8 @@ type KubeAPI interface {
 	Do(ctx context.Context, method, path, contentType string, body []byte) ([]byte, error)
 	// Capped is Get for what may be long: the answer is cut at max bytes, and truncated says so.
 	Capped(ctx context.Context, path string, max int64) (data []byte, truncated bool, err error)
+	// Stream is a GET that does not end (a log with follow=true): the body goes to w as it arrives until ctx is cancelled or the server closes it.
+	Stream(ctx context.Context, path string, w io.Writer) error
 	Server() string
 	// Exec runs a command with a terminal in a container of a pod (a shell): its output goes to onData, keystrokes come in
 	// through Write.
@@ -621,11 +623,27 @@ func (d *kubeDirect) topNodes(ctx string) (string, error) {
 
 // logs is `kubectl logs pod --tail=N [--since=15m] [-c name] [--previous] [--timestamps]`.
 func (d *kubeDirect) logs(ctx, ns string, args []string) (string, error) {
+	a, path, err := d.logPath(ctx, ns, args, false)
+	if err != nil {
+		return "", err
+	}
+	c, cancel := context.WithTimeout(context.Background(), serverTimeout)
+	defer cancel()
+	b, _, err := a.Capped(c, path, serverOutputCap)
+	return string(b), err
+}
+
+// logPath is the API path of the log that args ask for (the arguments of `kubectl logs`), and the API of the context; follow asks the
+// server to keep the answer open.
+func (d *kubeDirect) logPath(ctx, ns string, args []string, follow bool) (KubeAPI, string, error) {
 	if len(args) == 0 || ns == "" {
-		return "", errors.New("a pod and a namespace are needed")
+		return nil, "", errors.New("a pod and a namespace are needed")
 	}
 	pod := args[0]
 	q := url.Values{}
+	if follow {
+		q.Set("follow", "true")
+	}
 	for i := 1; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -634,7 +652,7 @@ func (d *kubeDirect) logs(ctx, ns string, args []string) (string, error) {
 		case strings.HasPrefix(a, "--since="):
 			dur, err := time.ParseDuration(strings.TrimPrefix(a, "--since="))
 			if err != nil {
-				return "", errors.New("that is not a time the log can show")
+				return nil, "", errors.New("that is not a time the log can show")
 			}
 			q.Set("sinceSeconds", strconv.Itoa(int(dur.Seconds())))
 		case a == "-c" && i+1 < len(args):
@@ -649,7 +667,7 @@ func (d *kubeDirect) logs(ctx, ns string, args []string) (string, error) {
 	if q.Get("container") == "" { // the API server wants a name when a pod has several: kubectl takes one itself, and so do we
 		name, err := d.defaultContainer(ctx, ns, pod)
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
 		if name != "" {
 			q.Set("container", name)
@@ -657,12 +675,9 @@ func (d *kubeDirect) logs(ctx, ns string, args []string) (string, error) {
 	}
 	a, err := d.api(ctx)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
-	c, cancel := context.WithTimeout(context.Background(), serverTimeout)
-	defer cancel()
-	b, _, err := a.Capped(c, "/api/v1/namespaces/"+url.PathEscape(ns)+"/pods/"+url.PathEscape(pod)+"/log?"+q.Encode(), serverOutputCap)
-	return string(b), err
+	return a, "/api/v1/namespaces/" + url.PathEscape(ns) + "/pods/" + url.PathEscape(pod) + "/log?" + q.Encode(), nil
 }
 
 // defaultContainer is the container that kubectl uses when none is named: the one the pod names in its

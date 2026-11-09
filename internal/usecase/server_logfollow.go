@@ -24,18 +24,23 @@ var followKey = regexp.MustCompile(followKeyShape)
 // logFollow is a log being read as it grows: a command that does not end, on a session of its own, whose lines go to the
 // screen in batches (event server:log:<key>), until the screen stops it, the command ends or the connection is lost.
 type logFollow struct {
-	sess  *ssh.Session
-	stdin io.WriteCloser
-	done  chan struct{}
-	once  sync.Once
+	halt func() // ends what feeds the log: a command on the host, or a request to the API server
+	done chan struct{}
+	once sync.Once
 }
 
-func (f *logFollow) stop() {
-	f.once.Do(func() {
-		_ = f.stdin.Close() // the script on the host takes the end of its input as the sign to stop the log
-		_ = f.sess.Signal(ssh.SIGTERM)
-		_ = f.sess.Close()
-	})
+func (f *logFollow) stop() { f.once.Do(f.halt) }
+
+// sshFollow is a followed log read by a command on the host, on a session of its own.
+func sshFollow(sess *ssh.Session, stdin io.WriteCloser) *logFollow {
+	f := &logFollow{done: make(chan struct{})}
+	f.halt = func() {
+		_ = stdin.Close() // the script on the host takes the end of its input as the sign to stop the log
+		_ = sess.Signal(ssh.SIGTERM)
+		_ = sess.Close()
+	}
+	go func() { _ = sess.Wait(); close(f.done) }()
+	return f
 }
 
 // followScript runs the log command in a job of its own, next to a watcher of the standard input: when the panel closes the
@@ -108,12 +113,39 @@ func (s *ServerService) LogsFollowStart(sid, key, kind, name string, lines int, 
 	if err != nil {
 		return err
 	}
+	return s.startFollow(sid, key, func(x *serverSession, out *lineBatcher) (*logFollow, error) {
+		if x.client == nil {
+			return nil, errors.New("this is a cluster reached with a kubeconfig: there is no server to run that on")
+		}
+		return s.followOnHost(x, out, followScript(cmd))
+	})
+}
+
+// followOnHost starts a script that does not end on a session of its own, and sends what it prints to out.
+func (s *ServerService) followOnHost(x *serverSession, out *lineBatcher, script string) (*logFollow, error) {
+	sess, err := x.client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	sess.Stdout, sess.Stderr = out, out
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		_ = sess.Close()
+		return nil, err
+	}
+	if err := sess.Start(script); err != nil {
+		_ = sess.Close()
+		return nil, err
+	}
+	return sshFollow(sess, stdin), nil
+}
+
+// startFollow registers a followed log under key and sends its lines to the screen in batches. start makes what feeds it (it runs with
+// the limit already checked, and returns the follow whose done is closed when the feed ends).
+func (s *ServerService) startFollow(sid, key string, start func(x *serverSession, out *lineBatcher) (*logFollow, error)) error {
 	x, err := s.get(sid)
 	if err != nil {
 		return err
-	}
-	if x.client == nil {
-		return errors.New("this is a cluster reached with a kubeconfig: there is no server to run that on")
 	}
 	x.fmu.Lock()
 	if len(x.follows) >= followMax {
@@ -124,31 +156,17 @@ func (s *ServerService) LogsFollowStart(sid, key, kind, name string, lines int, 
 		x.fmu.Unlock()
 		return errors.New("that log is followed already")
 	}
-	sess, err := x.client.NewSession()
-	if err != nil {
-		x.fmu.Unlock()
-		return err
-	}
 	out := &lineBatcher{}
-	sess.Stdout, sess.Stderr = out, out
-	stdin, err := sess.StdinPipe()
+	f, err := start(x, out)
 	if err != nil {
 		x.fmu.Unlock()
-		_ = sess.Close()
 		return err
 	}
-	if err := sess.Start(followScript(cmd)); err != nil {
-		x.fmu.Unlock()
-		_ = sess.Close()
-		return err
-	}
-	f := &logFollow{sess: sess, stdin: stdin, done: make(chan struct{})}
 	if x.follows == nil {
 		x.follows = map[string]*logFollow{}
 	}
 	x.follows[key] = f
 	x.fmu.Unlock()
-	go func() { _ = sess.Wait(); close(f.done) }()
 	go s.pumpFollow(x, key, f, out)
 	return nil
 }

@@ -1068,3 +1068,65 @@ func TestK8sPortForwardReportsAHostThatCannotStartIt(t *testing.T) {
 		t.Fatalf("%+v", list)
 	}
 }
+
+// A followed log of a pod on a host: `kubectl logs -f` on the SSH connection, with the lines sent in batches and the command stopped
+// when the screen stops following.
+func TestK8sLogsFollowThroughTheSSHConnection(t *testing.T) {
+	h := newHarness(t).unlocked(t)
+	var mu sync.Mutex
+	var sent string
+	ended := make(chan struct{}, 1)
+	srv, err := testssh.Start(testssh.Config{User: "root", Password: "pw",
+		ExecFunc:    func(cmd string) (string, string, int) { return "", "", 0 },
+		StreamMatch: func(cmd string) bool { return strings.Contains(cmd, "kubectl logs") },
+		ExecStream: func(cmd string, stdin io.Reader, stdout, stderr io.Writer) int {
+			mu.Lock()
+			sent = cmd
+			mu.Unlock()
+			_, _ = io.WriteString(stdout, "one\r\ntwo\n")
+			_, _ = io.Copy(io.Discard, stdin)
+			ended <- struct{}{}
+			return 0
+		}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Close)
+	sid := h.openServer(t, srv)
+	s := h.app.Server
+	o := K8sLogOpts{Lines: 300, Container: "api", Timestamps: true}
+
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api; id", o); err == nil {
+		t.Fatal("a pod name with a command was accepted")
+	}
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api-1", K8sLogOpts{Lines: 300, Previous: true}); err == nil {
+		t.Fatal("the log of an earlier run was followed")
+	}
+	if err := s.K8sLogsFollowStart(sid, "follow-key-1", "prod", "shop", "api-1", o); err != nil {
+		t.Fatal(err)
+	}
+	lines := h.rec.wait(t, "server:log:follow-key-1").data.(map[string]any)["lines"].([]string)
+	if len(lines) != 2 || lines[0] != "one" || lines[1] != "two" {
+		t.Fatalf("%q", lines)
+	}
+	mu.Lock()
+	cmd := sent
+	mu.Unlock()
+	for _, want := range []string{"kubectl logs api-1 --tail=300 -c api --timestamps -f", "-n shop", "--context prod"} {
+		if !strings.Contains(cmd, want) {
+			t.Fatalf("%q lacks %q", cmd, want)
+		}
+	}
+	if strings.Contains(cmd, "--request-timeout") {
+		t.Fatalf("a followed log has no request timeout: %q", cmd)
+	}
+	if err := s.LogsFollowStop(sid, "follow-key-1"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the command on the host was not stopped")
+	}
+	h.rec.wait(t, "server:logend:follow-key-1")
+}

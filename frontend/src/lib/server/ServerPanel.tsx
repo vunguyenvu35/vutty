@@ -8,7 +8,7 @@ import {openInSftp} from '../sftp/openRequest'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, Card, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
+import {actionQuestion, Card, Err, stackQuestion, Loading, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker, RowMenu} from './Docker'
@@ -470,9 +470,11 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const podKey = isPod || isMulti ? `${k8sCtx}:${container}:${previous}:${timestamps}` : ''
   const [multi, setMulti] = useState<K8sMultiLogs | null>(null)
   const byTime = !isPod && !isMulti && !podsOnly && (!!range || boot) // a time range of its own, or the boot before: read once, never followed
-  const streamable = !isPod && !isMulti && !podsOnly && !byTime
+  const streamable = isPod ? !previous && !!k8sCtx : !isMulti && !podsOnly && !byTime // a pod is followed too; the log of an earlier run and the merged log of a workload are read again
   const kindOf = source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>
-  const stream = useLogStream(sid, follow && visible && streamable, kindOf, source.name, Number(lineCount), since)
+  const stream = useLogStream(sid, follow && visible && streamable, isPod
+    ? {type: 'pod', ctx: k8sCtx, ns: podOf[0], pod: podOf[1], container, timestamps, lines: Number(lineCount), since}
+    : {type: 'host', kind: kindOf, name: source.name, lines: Number(lineCount), since})
   const streaming = follow && visible && streamable && !stream.failed // else Follow reads the log again every 2 seconds
   const load = useCallback(() => (podsOnly && !isPod && !isMulti ? Promise.resolve('') : isMulti
     ? (k8sCtx ? be.server.k8sLogsMulti(sid, k8sCtx, multiOf[0], multiOf[1], multiOf[2], {container: '', lines: Number(lineCount) as 100, since, previous: false, timestamps}).then(r => { setMulti(r); return r.text }) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))
@@ -503,6 +505,9 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
   // what the programs print can hold colour codes: they are read for the colours, but what is searched, counted as an error or saved is the text
   const text = streaming ? stream.rows.join('\n') : data
+  // the first reading, or another source, pod or time: a ring says so instead of an empty box (or the lines of the log before). A Follow that
+  // reads again every 2 seconds, and a stream, keep their lines.
+  const loading = busy && !streaming && !follow && !error
   const loaded = streaming ? stream.rows.length > 0 || stream.ended : data !== null
   const all = useMemo(() => (text ?? '').split('\n').filter(l => stripAnsi(l) !== ''), [text])
   const passes = useCallback((l: string) => { const p = stripAnsi(l); return (!matcher.test || matcher.test(p)) && (lv === 'all' || (lv === 'info' ? logLevel(p) === '' : logLevel(p) === lv)) }, [matcher, lv])
@@ -559,7 +564,7 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
       {isMulti && multi && <div className="sp-note k8s-hint" role="status">{tn(multi.pods, '{n} pod read', '{n} pods read')}{multi.skipped > 0 && ' · ' + t('{n} more pods are not shown', {n: multi.skipped})}{multi.failed.length > 0 && ' · ' + t('Could not read: {list}', {list: multi.failed.join('; ')})}</div>}
       <Err error={error} />
       <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !streaming} onScroll={onScroll}>
-        {rows.map((l, i) => {
+        {(loading ? [] : rows).map((l, i) => {
           if (l === null) return <div key={i} className="sp-log-gap" aria-hidden>···</div>
           const p = stripAnsi(l)
           // the colours of the program, unless a search is on (a match is marked on the plain text) or the line is an error or a warning (its own colour)
@@ -571,7 +576,8 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
           const clickable = timed && lineTime(p) !== null
           return <div key={i} className={'sp-log-line ' + logLevel(p) + (l === picked ? ' picked' : '')} onClick={clickable ? () => setPicked(l === picked ? '' : l) : undefined} style={clickable ? {cursor: 'pointer'} : undefined}>{body}</div>
         })}
-        {loaded && rows.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
+        {loading && <Loading kind="lines" what={t('Loading the log…')} />}
+        {loaded && !loading && rows.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
       </div>
     </div>
   )
