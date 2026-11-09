@@ -113,6 +113,8 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
   useEffect(() => { // start in what was added: all of it, or the only one
     if (noList && !picked.current && ns === '' && extra.length) { picked.current = true; setNs(extra.length > 1 ? extra.join(',') : extra[0]) }
   }, [noList, extra, ns])
+  // the default namespace of the cluster was changed (Edit cluster) while the tab is open: follow it, unless a namespace was chosen here
+  useEffect(() => { if (!picked.current) setNs(host.default_namespace ?? '') }, [host.default_namespace])
   const changeExtra = (list: string[]) => { setExtra(list); saveNamespaces(host.id, ctx, list) }
   const addNs = () => {
     const n = draft.trim()

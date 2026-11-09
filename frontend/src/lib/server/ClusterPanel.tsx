@@ -28,7 +28,7 @@ export function ClusterPanel({cluster, visible, onPodShell}: {cluster: Cluster; 
   const [source, setSource] = useState<LogSource>({kind: '', name: ''})
   const [ctx, setCtx] = useState('')
   const [ns, setNs] = useState('') // what the Kubernetes tab shows: the Logs tab lists the pods of the same
-  const host = useMemo(() => clusterHost(cluster), [cluster.id, cluster.label, cluster.server, cluster.env]) // eslint-disable-line react-hooks/exhaustive-deps
+  const host = useMemo(() => clusterHost(cluster), [cluster.id, cluster.label, cluster.server, cluster.env, cluster.default_namespace]) // eslint-disable-line react-hooks/exhaustive-deps
   const alive = useRef(true)
 
   useEffect(() => {
