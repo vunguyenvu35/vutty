@@ -21,7 +21,7 @@ import (
 // that only the maintainer holds; the app carries the public half. An update is installed only if the list is signed by that key
 // and the downloaded file has the checksum the list gives for it. The file is fetched by the app itself, so macOS does not mark it
 // as a download from a browser (Gatekeeper's quarantine flag), which is why only the very first install needs the "Open Anyway"
-// step. What protects the update is the signature, not Apple: see docs/ReleaseSigning.md.
+// step. What protects the update is the signature, not Apple: see docs/development/release-signing.md.
 
 // UpdateProgress is what the screen is told while an update installs (the update:progress event).
 type UpdateProgress struct {

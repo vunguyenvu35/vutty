@@ -15,7 +15,7 @@ import (
 // VUTTY_LIVE_CONTEXT its context. The cluster needs, in the namespace shop: a Deployment web-demo, a Helm release `web` (two revisions,
 // a Secret in its manifest, the password hunter2 given as a value), and a CRD widgets.example.com with printer columns Size and Phase
 // and one Widget w1 (spec.size large, status.phase Ready). TestLiveSecurityAndPortForward also needs a Service web in shop (port 8080) that
-// leads to an nginx. See docs/Development.md.
+// leads to an nginx. See docs/development/development.md.
 
 func liveSession(t *testing.T, h *harness, mode string) (sid, ctx string) {
 	t.Helper()

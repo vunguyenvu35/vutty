@@ -30,7 +30,7 @@ var modelID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@\[\]-]{0,99}$`)
 
 // AssistantService is the AI terminal assistant. It never lets raw terminal text reach an agent: everything
 // goes through secretpolicy.Guard first, and everything an agent says goes through it again before it is
-// shown, stored or run. See docs/AIAssistant.md.
+// shown, stored or run. See docs/design/ai-assistant.md.
 type AssistantService struct {
 	c    *Core
 	sess *SessionService

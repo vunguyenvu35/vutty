@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
+<p align="center"><img src="docs/assets/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
 # Vutty 1.6.7
 
@@ -18,7 +18,7 @@ Not yet seen against a real server: FTP, Mosh, RDP on Windows and Linux, and VNC
 - **Panel: the sections are in a list on the left, in three groups (#64).** Monitor (Overview, Processes, Logs, Incident), Run (Services, Docker, Kubernetes, Web, Schedule) and Manage (Ports & firewall, Security, Users, Maintenance), instead of one row of 13 tabs. What the Overview lists under *Needs attention* is marked on the section it belongs to (a failed service on Services, a certificate on Web, updates and the disk on Maintenance) and counted on its group, so it can be seen without opening the Overview. The list can show icons only (kept on this computer). Under 760 px it becomes a row.
 - **Panel: Logs for an on-call (#63).** *Choose a range…* reads a log between two times you type (in the time of the server, whose zone is shown), **Previous boot** reads the boot before this one, a click on a line offers the 1, 5 or 30 minutes around it, **Context** keeps 3 lines around each match, and the range stays when you change the source. **Follow** is now a real stream (`journalctl -f`, `docker logs -f`, `tail -F`) with the lines sent in batches, not a re-read every 2 seconds; if it cannot start, it falls back to the re-read and says so.
 - **Panel: an Incident tab (#63).** What the server wrote down about the last hour to 3 days or a range of your own: failed and restarted services, processes the kernel killed for memory, boots and shutdowns, error lines by minute (a bar opens the log of that time) and containers that started, stopped or restarted. It warns when the journal is kept in memory only (a reboot erases it) and offers, after asking, to keep it on disk.
-- Not done on purpose: CPU and memory history while the app is closed. It needs either `sar` on the host or something installed there, and is left as the open question in [docs/PanelRoadmap.md](docs/PanelRoadmap.md).
+- Not done on purpose: CPU and memory history while the app is closed. It needs either `sar` on the host or something installed there, and is left as the open question in [docs/design/panel-roadmap.md](docs/design/panel-roadmap.md).
 
 Not yet seen against a real server: the time ranges, the previous boot, the Incident reads and the stream are covered by tests with sample output and by a shell check that the host command stops when the input ends; try them on a throwaway VPS first.
 
@@ -63,14 +63,14 @@ Not yet seen against a real server: the Docker, history and Users parts are cove
 
 - **Panel grows into a VPS toolbox.** New tabs: **Web** (Let's Encrypt certificates with the time left, and the sites of nginx or Caddy with *Test configuration* and a *Reload* that tests first and reloads only if the test passes), **Maintenance** (pending updates with the security ones marked, disks, a cleanup that says how much it frees, and a folder-size scan), **Security** (failed SSH logins, fail2ban jails with *Unban*, the SSH settings) and **Schedule** (systemd timers with *Run now*, cron jobs, and a backup check: name a folder and see how old its newest file is). **Docker** groups containers by Compose project, with *Update* (pull, then up -d), Restart, Stop and Logs for the whole stack. **Logs** has *Follow* (reads again every 2 seconds). **Overview** keeps half an hour of CPU, memory, disk and network history while the tab is open, and warns about a certificate that runs out, security updates, a reboot and a stale backup. A new **Fleet** page lists every saved host (up or down, CPU, memory, disk, failed services), each over a short connection that never asks a question. Every change still asks first; docker volumes are never cleaned from the Panel. Covered by tests with sample output; not yet run against a real server.
 
-- **Kubernetes in Panel.** A **Kubernetes** tab on a host runs `kubectl` there over the SSH connection the Panel already has, and installs nothing. A **cluster from a kubeconfig** (*Clusters*, with the kubeconfig kept in the vault) is reached by Vutty itself, with no `kubectl` and no server. Views: Overview, Pods, Workloads, Network, Config & storage, Resources, Apps, Nodes and Events, with a Shell in a pod, Logs, Scale, Restart, Roll back, Cordon and Drain. Every change asks first, is audited (never with its output) and is locked, with the reason, when `kubectl auth can-i` says the login may not do it; a production cluster keeps its red frame. A login that may only see some namespaces (a Rancher project) adds them by name. See [docs/KubernetesPanel.md](docs/KubernetesPanel.md).
+- **Kubernetes in Panel.** A **Kubernetes** tab on a host runs `kubectl` there over the SSH connection the Panel already has, and installs nothing. A **cluster from a kubeconfig** (*Clusters*, with the kubeconfig kept in the vault) is reached by Vutty itself, with no `kubectl` and no server. Views: Overview, Pods, Workloads, Network, Config & storage, Resources, Apps, Nodes and Events, with a Shell in a pod, Logs, Scale, Restart, Roll back, Cordon and Drain. Every change asks first, is audited (never with its output) and is locked, with the reason, when `kubectl auth can-i` says the login may not do it; a production cluster keeps its red frame. A login that may only see some namespaces (a Rancher project) adds them by name. See [docs/design/kubernetes-panel.md](docs/design/kubernetes-panel.md).
 - **Resources: any kind, CRDs included, read only.** Every kind the cluster serves is listed (discovery); pick one, read its objects with the columns a CRD asks for, and open one as YAML. Buttons for Namespaces, PersistentVolumes, StorageClasses and HorizontalPodAutoscalers. The Secrets of the core group are never shown here.
 - **Apps: Helm releases, read only.** Releases are read from the Secrets Helm 3 keeps in the cluster, so nothing is installed. A release shows its chart, notes, manifest (the Secrets in it without their data) and its revisions; its **values** ask first and are audited, because they often hold passwords. *Copy rollback* puts the `helm rollback` command on the clipboard for a terminal: Vutty does not change releases. Chart repositories are not in the cluster and are not listed.
 - **Logs of all the pods.** *Logs* on a Deployment, StatefulSet, DaemonSet, Job or Service reads every pod it selects (up to 20), merged by time, each line with its pod in a colour of its own.
 - **Numbers on the tabs:** how many pods, workloads and network objects there are.
 - **Edit a workload** (Edit YAML with a preview of what changes, Edit config, Add sidecar) for a cluster opened with a kubeconfig.
 - **Fixes.** A screen that takes longer to load than its refresh interval (the Overview of a cluster behind Rancher) no longer stays on "Loading" for ever, and the loading ring keeps turning when *Reduce motion* is on.
-- **Verified** against a real kind cluster (Kubernetes 1.37 with Helm 4) through both ways in, for Resources, Apps, the merged logs and the numbers (`TestLiveCluster`, see [docs/Development.md](docs/Development.md)). Not yet run against Rancher, a managed cloud cluster, or by clicking through the screens of the app; the rest of the tab is covered by tests with sample answers. Port-forward works for a host only, and editing a workload for a kubeconfig only.
+- **Verified** against a real kind cluster (Kubernetes 1.37 with Helm 4) through both ways in, for Resources, Apps, the merged logs and the numbers (`TestLiveCluster`, see [docs/development/development.md](docs/development/development.md)). Not yet run against Rancher, a managed cloud cluster, or by clicking through the screens of the app; the rest of the tab is covered by tests with sample answers. Port-forward works for a host only, and editing a workload for a kubeconfig only.
 
 ## What's new in 1.5.1
 
@@ -87,7 +87,7 @@ Not yet seen against a real server: the Docker, history and Users parts are cove
 - **The host list of the terminal sidebar works like a file manager's tree.** One line per host (its name, then a muted `user@host` when that says something more), guide lines for each level, a folder icon and a count on every group, a dot on hosts with an open session, *Expand all* and *Collapse all*, and the arrow keys (up and down, right opens a group, left closes it or goes to its parent, Home and End). That is what DevOps asked for after MobaXterm.
 - **SFTP copies keep the modification time of their source** (upload, replace and download), so a folder sync no longer copies a file again, or picks the wrong side, only because the copy was made later. Partial copies (`.vutty-part-…`) that nothing has written to for 7 days are removed from the folder of a transfer, once per folder and session.
 - **Icons in the narrow navigation are centred.** In a narrow window, or with a large interface zoom, the invisible key hints still took room and pushed the icons to the left.
-- Under the hood: the largest files were split by topic without changing what they do (`styles.css` into 10 files, the assistant, session and bridge code, the input-method helpers), a data race in a test of the AI assistant gateway was fixed, and the table of gaps in [docs/Assessment.md](docs/Assessment.md) was brought up to date (G1, G2, G11, G13, G14 and G17).
+- Under the hood: the largest files were split by topic without changing what they do (`styles.css` into 10 files, the assistant, session and bridge code, the input-method helpers), a data race in a test of the AI assistant gateway was fixed, and the table of gaps in [docs/evaluation/assessment.md](docs/evaluation/assessment.md) was brought up to date (G1, G2, G11, G13, G14 and G17).
 
 ## What's new in 1.4.1
 
@@ -105,7 +105,7 @@ A release about downloading; the app itself is the same as 1.4.0.
 
 ## What's new in 1.3.0
 
-**Updates that install themselves (macOS, Apple silicon).** *Help → About → Check for updates → Install and restart* downloads the new version, checks that the release's checksum list is signed with the project's key and that the download matches it, replaces the app and restarts it. An update that fails either check is not installed. It does not need an Apple certificate: macOS only asks about files that a browser downloaded, and the signature, not Apple, is what makes the update trustworthy ([Release signing](docs/ReleaseSigning.md)). **This version has to be installed by hand once** (earlier versions do not carry the key); from the next release on, updates install from inside the app. Windows, Linux and Intel Macs still use the release page.
+**Updates that install themselves (macOS, Apple silicon).** *Help → About → Check for updates → Install and restart* downloads the new version, checks that the release's checksum list is signed with the project's key and that the download matches it, replaces the app and restarts it. An update that fails either check is not installed. It does not need an Apple certificate: macOS only asks about files that a browser downloaded, and the signature, not Apple, is what makes the update trustworthy ([Release signing](docs/development/release-signing.md)). **This version has to be installed by hand once** (earlier versions do not carry the key); from the next release on, updates install from inside the app. Windows, Linux and Intel Macs still use the release page.
 
 **Signing in and the vault**
 - **Servers that ask for more than a password** (a verification code, a Duo choice, a one-time password): a *Sign in to <host>* box shows the server's own questions, over the terminal, in the SFTP pane, the sidebar, port forwards and *Test connection*. A saved password answers the password question by itself, and nothing you type is saved or logged.
@@ -244,7 +244,7 @@ Ask an AI about what is on your terminal, without leaving VVTerm and without han
 - The assistant is not run on Windows or Linux yet, and chat history is kept in memory only (a new chat starts empty after a restart).
 - If you saved the AI settings before this release, your saved value of *Run read-only commands by itself* is kept; switch it on in Settings if you want the new default.
 
-Design, verification notes and the live checks that were run: [docs/AIAssistant.md](docs/AIAssistant.md). How to use it: [user guide](docs/UserGuide.md#22-ai-assistant).
+Design, verification notes and the live checks that were run: [docs/design/ai-assistant.md](docs/design/ai-assistant.md). How to use it: [user guide](docs/user-guide/10-ai-assistant.md).
 
 ## Highlights
 
@@ -255,7 +255,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 - **More in Settings**: new *General* (interface zoom, reduce motion, confirm before closing) and *Account* (local profile, ready for sign-in later) sections, **shortcuts you can change**, and a window you can maximise, roll up and resize.
 - **Snippets**: save commands you run often and type them into the focused terminal with one click. They sync, back up and export like everything else.
 - **New interface**: a *Vaults* tab with the terminals as tabs, left navigation, one search box that also connects (`ssh user@host`), group and host cards, custom dropdowns.
-- **New brand**: logo and wordmark on one row, macOS and Windows icons, favicon, social preview ([brand kit](docs/brand/README.md)).
+- **New brand**: logo and wordmark on one row, macOS and Windows icons, favicon, social preview ([brand kit](docs/assets/brand/README.md)).
 - **Docker** for CI and development fixtures, and a **dev / prod deploy script**.
 - **Terminal sidebar** (hosts, snippets with Run / Paste, command history, themes and font), **drag a tab onto a pane to split** without reconnecting, drag tabs to order them, take a pane back out into a tab, and **Duplicate in new window** (the whole app in a second window).
 - **Clearer connecting**: *Choose protocol*, a connecting screen whose line moves with the real connection (error, Retry, Show logs), connected / lost badges on tabs, a **New Tab** page with recent connections.
@@ -266,7 +266,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 ### Windows, tabs and panes
 - **Tabs**: the + opens a New Tab (search hosts or tabs, Local Terminal, recent connections). Tabs shrink like a browser's, show the server-type icon and a spinner / green / red badge, can be dragged to reorder, renamed, duplicated and split from a right-click menu.
 - **Drag a tab onto a pane** to split it left / right / top / bottom; **Move pane to its own tab** undoes it. All panes of all tabs are drawn in one flat list, so moving a pane never rebuilds it and its session is not interrupted.
-- **Duplicate in new window** opens the whole app in a second window (another process) that shares the vault, the hosts and the sessions' owner through a local bridge (loopback, random token in a 0600 file, see [ADR-0006](docs/CleanArchitecture.md)). Sessions it opened end with it.
+- **Duplicate in new window** opens the whole app in a second window (another process) that shares the vault, the hosts and the sessions' owner through a local bridge (loopback, random token in a 0600 file, see [ADR-0006](docs/design/clean-architecture.md)). Sessions it opened end with it.
 - A native menu bar (File, Edit, View, Window, Help) that stays the same in the Settings window; the browser's own right-click menu (Look Up, Translate, Inspect Element) is turned off.
 
 ### Connecting
@@ -305,7 +305,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 - Limits: single files only, no queue or resume, no drag and drop.
 
 ### Settings window
-- **A second native window** (a second VVTerm process, see [ADR-0006](docs/CleanArchitecture.md)): the standard red / yellow / green buttons, resize, full screen. It opens from the navigation, the gear or the shortcut, is raised instead of opened twice, and closes when the main app quits. Where no native window exists (browser mode, the E2E run) the same settings appear in an in-app floating window (drag, roll up, maximise) (Esc closes an open dropdown first). Opens from the navigation, the gear in the title bar, or ⌘/Ctrl + , (also inside a terminal).
+- **A second native window** (a second VVTerm process, see [ADR-0006](docs/design/clean-architecture.md)): the standard red / yellow / green buttons, resize, full screen. It opens from the navigation, the gear or the shortcut, is raised instead of opened twice, and closes when the main app quits. Where no native window exists (browser mode, the E2E run) the same settings appear in an in-app floating window (drag, roll up, maximise) (Esc closes an open dropdown first). Opens from the navigation, the gear in the title bar, or ⌘/Ctrl + , (also inside a terminal).
 - Left menu: General, Account, Terminal, Security, Sync, Shortcuts, then Theme (Auto / Light / Dark), Documentation, Request a feature, Report a bug, Release notes, Support on Ko-fi, and the Version.
 - **Terminal theme picker**: 26 themes in a two-column list with live swatches, dark/light filter, *Match app theme*, and a live preview with your font, size and cursor.
 - Font, size stepper, cursor style, blinking, scrollback. Auto-lock, keychain unlock and master-password change under Security.
@@ -332,7 +332,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 - `docker-compose.yml`: demo SSH servers (persistent host keys), a throw-away Git remote, and CI runners. Go tests also pass inside a Linux container.
 - `scripts/deploy.sh dev|prod` with release gates, signing/notarization hooks, zip + checksums and an explicit confirmation before anything is published. `VERSION` is the single source of the version number.
 - `e2e/run.sh` picks a free port, so it never collides with a `wails dev` you already have open.
-- Go 1.26 is declared consistently (`go.mod`, Docker, CI, README). `docs/Development.md` for contributors; the README is written for people trying the app.
+- Go 1.26 is declared consistently (`go.mod`, Docker, CI, README). `docs/development/development.md` for contributors; the README is written for people trying the app.
 
 ### Fixes
 - The window could not be dragged by the title bar (wrong CSS mechanism for Wails).
@@ -360,7 +360,7 @@ Design, verification notes and the live checks that were run: [docs/AIAssistant.
 | `scripts/deploy.sh` | dev install, every prod gate and a dry run exercised |
 | Docker dev fixtures | SSH host keys survive a restart; Git remote accepts a push |
 
-The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md); the plan and the manual checklist are in [docs/TestPlan.md](docs/TestPlan.md); the honest evaluation is [docs/Assessment.md](docs/Assessment.md).
+The complete list of test cases is [docs/development/test-inventory.md](docs/development/test-inventory.md); the plan and the manual checklist are in [docs/development/test-plan.md](docs/development/test-plan.md); the honest evaluation is [docs/evaluation/assessment.md](docs/evaluation/assessment.md).
 
 ## Known issues
 
@@ -368,8 +368,8 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 2. **Locking when the Mac sleeps** relies on the notifications macOS sends. The one for a *sleep* was exercised by a test that posts it by hand; the one for a *locked screen* needs the running app and was not exercised. On Windows and Linux the vault locks when the computer wakes up, and a sleep of a few seconds is not noticed.
 3. **Settings is a popup of the main window** (since 1.5.0); it was a second process before. *Duplicate in new window* still runs the whole app in a second process, through a local, token-protected bridge to the main app, so it needs the main app running. The Settings popup (moving, resizing, its distance from the macOS window buttons, *Open in a tab*) was tested in a browser against the real backend and with component tests, **not in the packaged native app**. The screenshots of Settings in `docs/screenshots` are from the older window and are not regenerated yet; please check the popup on your Mac.
 4. The packaged app was built and its icon, About box and bundle were checked, but it is **not notarized**: on first launch right-click → Open. The *release* pipeline can sign and notarize when you provide a Developer ID.
-5. The native macOS window, file dialogs and Keychain prompts were not exercised in this environment (the UI is verified in a browser against the real backend). Run the manual checklist in [docs/TestPlan.md](docs/TestPlan.md).
-6. **Terminal performance on heavy output** was measured in the real macOS WKWebView ([docs/Assessment.md](docs/Assessment.md) G4, `tools/termperf/run.sh`). Text output (plain, log lines, colours, Vietnamese/CJK) at the most the backend sends (about 3.7 MB/s) keeps 55–60 frames per second. A screen that is redrawn in place with every cell coloured (a heavier htop) drops to about 20 frames per second with the default renderer; the WebGL renderer keeps 60 and is now used for the terminal that has the focus (*Settings → Terminal → Fast drawing*, on by default; it falls back to the default renderer by itself). It was measured with the benchmark page, not yet looked at in the packaged app: if text looks wrong (fonts, selection), turn it off and tell us.
+5. The native macOS window, file dialogs and Keychain prompts were not exercised in this environment (the UI is verified in a browser against the real backend). Run the manual checklist in [docs/development/test-plan.md](docs/development/test-plan.md).
+6. **Terminal performance on heavy output** was measured in the real macOS WKWebView ([docs/evaluation/assessment.md](docs/evaluation/assessment.md) G4, `tools/termperf/run.sh`). Text output (plain, log lines, colours, Vietnamese/CJK) at the most the backend sends (about 3.7 MB/s) keeps 55–60 frames per second. A screen that is redrawn in place with every cell coloured (a heavier htop) drops to about 20 frames per second with the default renderer; the WebGL renderer keeps 60 and is now used for the terminal that has the focus (*Settings → Terminal → Fast drawing*, on by default; it falls back to the default renderer by itself). It was measured with the benchmark page, not yet looked at in the packaged app: if text looks wrong (fonts, selection), turn it off and tell us.
 7. Sync was tested against local Git remotes only. Edits made during the few seconds of a sync can be overwritten. After a vault reset the sync repository still holds the old vault: use a new repository.
 8. Last-write-wins depends on reasonably correct clocks.
 9. `ssh_config`: `ProxyCommand`, `Match`, token expansion are reported as warnings and skipped.
@@ -377,7 +377,7 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 11. Windows and Linux builds are made by the release workflow but are much less tested than macOS. Updates install by themselves on macOS with Apple silicon only.
 12. Use cases still depend directly on some infrastructure packages (documented debt, capped by a test).
 13. Replacing a saved host password creates a new identity; the old one stays in Keychain until you delete it.
-14. **New in 1.3.0 and not yet exercised on real hardware:** installing an update by itself (every step is covered by tests, including the real swap script; the first whole update of the packaged app is the one from 1.3.0 to 1.4.0), the `ssh://` registration in the macOS bundle, a verification-code prompt against a real bastion, and a hardware (FIDO2) key through ssh-agent. Run the checklist in [docs/TestPlan.md](docs/TestPlan.md) and tell us what you find.
+14. **New in 1.3.0 and not yet exercised on real hardware:** installing an update by itself (every step is covered by tests, including the real swap script; the first whole update of the packaged app is the one from 1.3.0 to 1.4.0), the `ssh://` registration in the macOS bundle, a verification-code prompt against a real bastion, and a hardware (FIDO2) key through ssh-agent. Run the checklist in [docs/development/test-plan.md](docs/development/test-plan.md) and tell us what you find.
 15. A port forward that starts with the app cannot answer a verification code: it waits three minutes and fails. Start it from the Port Forwarding page. *Run on hosts* never asks anything, so a host with an untrusted key or that wants a code fails there: open it once in a terminal tab first.
 16. Session logs are not rotated or deleted, and hold everything that was shown on screen. No tmux integration, no X11 forwarding, no Mosh.
 17. **The Kubernetes tab** was run against a real kind cluster for Resources, Apps, the merged logs and the numbers, and is covered by tests with sample answers for the rest; it was not run against Rancher or a managed cloud cluster, and its screens were not clicked through in the app on a real cluster. Port-forward needs a host with `kubectl`; editing a workload needs a cluster opened with a kubeconfig. Apps does not read Helm 2, releases kept in ConfigMaps or SQL, or chart repositories.
@@ -386,11 +386,11 @@ The complete list of test cases is [docs/TestInventory.md](docs/TestInventory.md
 
 | Design | Now | Why |
 | --- | --- | --- |
-| JSON files, no SQLite in the MVP | SQLite (`vvterm.db`, schema v2) | product requirement ([ADR-0001](docs/CleanArchitecture.md)) |
+| JSON files, no SQLite in the MVP | SQLite (`vvterm.db`, schema v2) | product requirement ([ADR-0001](docs/design/clean-architecture.md)) |
 | Snippets out of scope | Snippets included | requested |
 | No SFTP, fixed shortcuts | SFTP browser, configurable shortcuts, General and Account settings | requested |
-| `kevinburke/ssh_config` | own parser | needs per-file group names ([ADR-0003](docs/CleanArchitecture.md)) |
-| Services in `app/` | `internal/usecase`, Wails glue in `app/` | clean architecture ([ADR-0002](docs/CleanArchitecture.md)) |
+| `kevinburke/ssh_config` | own parser | needs per-file group names ([ADR-0003](docs/design/clean-architecture.md)) |
+| Services in `app/` | `internal/usecase`, Wails glue in `app/` | clean architecture ([ADR-0002](docs/design/clean-architecture.md)) |
 | Svelte or React | React + TypeScript | open question resolved |
 | Touch ID | keychain unlock without biometric enforcement | needs a native bridge |
 | "Lost password: nothing to do" | reset vault (keeps hosts, erases secrets) | requested |

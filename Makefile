@@ -1,4 +1,4 @@
-.PHONY: notices package help dev build test test-go test-web e2e inventory lint release clean-cache deploy-dev deploy-prod
+.PHONY: notices package help dev build test test-go test-web e2e guide-shots docs-check inventory lint release clean-cache deploy-dev deploy-prod
 
 VERSION ?= $(shell cat VERSION)
 WAILS   ?= $(shell go env GOPATH)/bin/wails
@@ -7,8 +7,10 @@ help:
 	@echo "make dev        run the app in development mode (hot reload)"
 	@echo "make build      build the desktop app into build/bin"
 	@echo "make test       run Go + frontend tests"
-	@echo "make e2e        run the Playwright walkthrough (real backend) and refresh docs/screenshots"
-	@echo "make inventory  regenerate docs/TestInventory.md"
+	@echo "make e2e        run the Playwright walkthrough (real backend) and refresh docs/assets/screenshots"
+	@echo "make guide-shots  screenshots of the newer features into docs/assets/screenshots/guide"
+	@echo "make docs-check  every link, image and anchor of the Markdown files must point somewhere"
+	@echo "make inventory  regenerate docs/development/test-inventory.md"
 	@echo "make notices    regenerate THIRD_PARTY_NOTICES.md (run after changing dependencies)"
 	@echo "make package    build and create dist/*.dmg and *.zip (macOS)"
 	@echo "make release    test, build and print checksums"
@@ -40,6 +42,12 @@ test-web:
 
 e2e:
 	./e2e/run.sh
+
+guide-shots:
+	./e2e/guide-shots.sh
+
+docs-check:
+	node scripts/check-doc-links.mjs
 
 inventory:
 	./scripts/test-inventory.sh

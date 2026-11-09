@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Generates docs/TestInventory.md: the exact list of automated test cases (Go, frontend, E2E).
+# Generates docs/development/test-inventory.md: the exact list of automated test cases (Go, frontend, E2E).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/docs/TestInventory.md"
+OUT="$ROOT/docs/development/test-inventory.md"
 cd "$ROOT"
 {
   echo "<p align=\"center\"><img src=\"brand/logo-mark-256.png\" alt=\"Vutty\" width=\"88\"></p>"

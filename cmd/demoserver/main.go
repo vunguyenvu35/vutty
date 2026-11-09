@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -37,6 +38,7 @@ func main() {
 	pass := flag.String("password", "demo-password", "accepted password")
 	name := flag.String("name", "demo", "name shown in the banner/prompt")
 	hostKey := flag.String("hostkey", "", "path of a persistent host key (created if missing); random per run when empty")
+	linux := flag.Bool("linux", false, "answer the commands of Panel, and of Run on hosts, like a small Ubuntu server (for the screenshots of the user guide)")
 	withSFTP := flag.Bool("sftp", false, "enable the sftp subsystem on an in-memory filesystem seeded with demo files")
 	flag.Parse()
 
@@ -44,6 +46,14 @@ func main() {
 		User: *user, Password: *pass,
 		Banner: "Welcome to " + *name + " (Vutty demo server: lines are echoed back)",
 		Prompt: *user + "@" + *name + ":~$ ",
+	}
+	if *linux {
+		cfg.ExecFunc = func(cmd string) (string, string, int) {
+			if strings.HasSuffix(strings.TrimSpace(cmd), "uptime") { // what the user guide runs on several hosts
+				return *name + "\n 09:41:07 up 41 days,  3:12,  1 user,  load average: 0.84, 0.71, 0.66\n", "", 0
+			}
+			return linuxReply(cmd)
+		}
 	}
 	if *withSFTP {
 		// the in-memory server's home directory is its root

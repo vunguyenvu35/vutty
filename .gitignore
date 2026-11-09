@@ -32,7 +32,7 @@ settings.json
 id_ed25519
 id_rsa
 
-# Test artifacts (screenshots are committed under docs/screenshots)
+# Test artifacts (screenshots are committed under docs/assets/screenshots)
 /e2e/test-results/
 /e2e/node_modules/
 

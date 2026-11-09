@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Screenshots of the update features (the Update chip, About, the update switch, Donate) into docs/updates.
+# Screenshots of the update features (the Update chip, About, the update switch, Donate) into docs/assets/updates.
 # Like run.sh but short: a fresh data directory, a stand-in for GitHub's "latest release" answering 9.9.9, and a
 # build that says it is 1.1.0, so the app sees a newer version.
 set -euo pipefail
@@ -41,6 +41,6 @@ cd "$ROOT/e2e"
 [ -d node_modules ] || npm install --no-audit --no-fund
 npx playwright install chromium >/dev/null
 VUTTY_URL="$URL" SHOT_DIR="$WORK/shots" node update-shots.mjs
-mkdir -p "$ROOT/docs/updates"
-cp "$WORK"/shots/*.png "$ROOT/docs/updates/"
-echo "screenshots copied to docs/updates"
+mkdir -p "$ROOT/docs/assets/updates"
+cp "$WORK"/shots/*.png "$ROOT/docs/assets/updates/"
+echo "screenshots copied to docs/assets/updates"

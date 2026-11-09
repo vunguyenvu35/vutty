@@ -23,7 +23,7 @@ type Codex struct {
 
 func (c *Codex) ID() string        { return "codex" }
 func (c *Codex) Name() string      { return "Codex CLI" }
-func (c *Codex) SupportsMCP() bool { return false } // not verified: see docs/AIAssistant.md 5.7
+func (c *Codex) SupportsMCP() bool { return false } // not verified: see docs/design/ai-assistant.md 5.7
 
 // SupportsImages: pictures are written into the empty working directory and passed with -i.
 func (c *Codex) SupportsImages() bool { return true }
