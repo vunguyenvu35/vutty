@@ -831,9 +831,9 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
         if (!c.path && !c.kubeconfig.trim()) throw 'choose a kubeconfig file or paste its text'
         const ctx = state.preview.contexts.find(x => x.name === c.context) ?? state.preview.contexts.find(x => x.current) ?? state.preview.contexts[0]
         const now = '2026-11-04T10:00:00Z'
-        return upsert(state.clusters, {label: c.label || ctx.cluster, group_id: c.group_id || undefined, env: c.env || undefined, context: ctx.name, server: ctx.server, created_at: now, updated_at: now}, 'cl')
+        return upsert(state.clusters, {label: c.label || ctx.cluster, group_id: c.group_id || undefined, env: c.env || undefined, context: ctx.name, default_namespace: c.default_namespace || undefined, server: ctx.server, created_at: now, updated_at: now}, 'cl')
       },
-      update: async c => { rec('clusters.update', c); return upsert(state.clusters, {...state.clusters.find(x => x.id === c.id), label: c.label, group_id: c.group_id, env: c.env, context: c.context}, 'cl') },
+      update: async c => { rec('clusters.update', c); return upsert(state.clusters, {...state.clusters.find(x => x.id === c.id), label: c.label, group_id: c.group_id, env: c.env, context: c.context, default_namespace: c.default_namespace || undefined}, 'cl') },
       replaceKubeconfig: async (i, p, x) => { rec('clusters.replaceKubeconfig', i, p, x); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = []; return {...c} },
       revokeExec: async (i, cmd) => { rec('clusters.revokeExec', i, cmd); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = (c.approved_exec ?? []).filter(x => x !== cmd); return {...c} },
       approveExec: async (i, cmd) => { rec('clusters.approveExec', i, cmd); const c = state.clusters.find(y => y.id === i)!; c.approved_exec = [...(c.approved_exec ?? []), cmd]; return {...c} },

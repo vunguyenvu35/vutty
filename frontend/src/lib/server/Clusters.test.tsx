@@ -178,6 +178,24 @@ describe('Add cluster', () => {
     expect(await screen.findByText('No login program was approved for this cluster.')).toBeInTheDocument()
   })
 
+  it('saves the namespace a cluster opens on, when it is added and when it is edited', async () => {
+    const be = await open([])
+    await userEvent.click(screen.getByRole('button', {name: 'Add cluster'}))
+    await userEvent.click(screen.getByRole('button', {name: 'Choose file…'}))
+    await screen.findByRole('radiogroup', {name: 'Context'})
+    await userEvent.type(screen.getByLabelText('Default namespace'), 'vl24hv2-qc')
+    await userEvent.click(screen.getByRole('button', {name: 'Add'}))
+    await waitFor(() => expect(calls(be, 'clusters.add')).toHaveLength(1))
+    expect(calls(be, 'clusters.add')[0][1]).toMatchObject({default_namespace: 'vl24hv2-qc'})
+    await userEvent.click(await screen.findByRole('button', {name: /^Edit /}))
+    const box = screen.getByLabelText('Default namespace')
+    expect(box).toHaveValue('vl24hv2-qc')
+    await userEvent.clear(box)
+    await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+    await waitFor(() => expect(calls(be, 'clusters.update')).toHaveLength(1))
+    expect(calls(be, 'clusters.update')[0][1]).toMatchObject({default_namespace: ''})
+  })
+
   it('edits name, environment and group', async () => {
     const be = await open()
     await userEvent.click(screen.getByRole('button', {name: 'Edit dev-kind'}))

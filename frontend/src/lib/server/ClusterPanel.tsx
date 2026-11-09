@@ -8,7 +8,7 @@ import {Logs, logSourceOf, type LogSource} from './ServerPanel'
 import type {Cluster, Host} from '../types'
 
 /** The Host that the Kubernetes tab is given for a cluster: it has no address to connect to, only a name, an id (the key of what is remembered) and an environment. */
-export const clusterHost = (c: Cluster): Host => ({id: 'kube:' + c.id, label: c.label, hostname: c.server ?? '', port: 0, username: '', keepalive_sec: 0, env: c.env})
+export const clusterHost = (c: Cluster): Host => ({id: 'kube:' + c.id, label: c.label, hostname: c.server ?? '', port: 0, username: '', keepalive_sec: 0, env: c.env, default_namespace: c.default_namespace})
 
 type Phase = 'connecting' | 'ready' | 'closed'
 

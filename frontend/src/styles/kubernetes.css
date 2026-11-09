@@ -3,6 +3,18 @@
 .sp-keep[hidden] { display: none; }
 .k8s { gap: 10px; }
 .k8s-body { display: flex; flex-direction: column; min-width: 0; }
+/* the context and the namespace being looked at: a box of the panel (same ground, border, corners and small capital labels as .sp-card) */
+.k8s-scope { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); }
+.k8s-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.k8s-field > small { margin: 0; font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.k8s-field-row { display: flex; align-items: center; gap: 6px; }
+.k8s-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-3); color: var(--text); font-size: 13px; }
+.k8s-chip svg { color: var(--muted); }
+.k8s-tool { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border-radius: 8px; }
+.k8s-server { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k8s-server i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.k8s-notice { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.k8s-notice.err { border-color: var(--danger); color: var(--danger); }
 .k8s-ctx { gap: 10px; }
 .k8s-pick { display: inline-flex; flex-direction: column; gap: 1px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); }
 .k8s-pick small { color: var(--muted); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
@@ -84,7 +96,8 @@
 @media (prefers-reduced-motion: reduce) { .k8s-roll i { transition: none; } }
 .k8s-opt .warn-text { color: var(--warn); }
 .k8s-add-ns { display: inline-flex; align-items: center; gap: 6px; }
-.k8s-add-ns input { width: 180px; }
+.k8s-add-ns input { width: 180px; height: 32px; }
+.k8s-add-ns button { height: 32px; }
 .k8s-add-ns-btn { min-width: 28px; padding: 4px 8px; }
 .k8s-hint { margin: 6px 0; }
 .k8s-ctn { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
