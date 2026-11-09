@@ -173,7 +173,7 @@ function Main({sid, host, visible, session, onSwitch, onShell, onPodShell, onAcc
         </div>
         {draftErr && <div className="sp-note k8s-hint" role="alert">{draftErr}</div>}
         {noList ? <div className="sp-note k8s-hint">{extra.length ? t('This login may not list the namespaces of the cluster: choose one you added, or add another with +.') : t('This login may not list the namespaces of the cluster, so there is no list to choose from. Add the namespace you work in with +: only the ones you add are shown.')}</div> : <Err error={error} />}
-        <div className="sp-shell k8s-shell">
+        <div className="sp-shell k8s-views">
         <nav className="sp-rail k8s-rail" aria-label={t('Kubernetes')}>
           <button className="sp-item k8s-back" aria-label={t('Back to the previous screen')} title={t('Back to the previous screen')} disabled={!canBack} onClick={back}><IconArrowLeft size={16} /><span className="lab">{t('Back')}</span></button>
           <div className="sp-grp" role="tablist" aria-orientation="vertical" aria-label={t('Kubernetes views')}>

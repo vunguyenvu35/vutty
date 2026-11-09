@@ -7,6 +7,9 @@
 .k8s-chip { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; }
 .k8s-chip svg { color: var(--muted); }
 .k8s-server { margin-left: auto; }
+/* the buttons of the bar are as tall as the menus beside them */
+.k8s-ctx > button, .k8s-add-ns button { height: 38px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; }
+.k8s-ctx svg { flex: none; }
 .k8s-ctx { gap: 10px; }
 .k8s-pick { display: inline-flex; flex-direction: column; gap: 1px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); }
 .k8s-pick small { color: var(--muted); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
@@ -151,13 +154,13 @@
 
 /* Back, and the views beside it */
 /* the views of the tab: a rail on the left like the one of the panel (the .sp-rail and .sp-item rules), the body beside it */
-.k8s-shell { flex: none; align-items: flex-start; gap: 18px; min-width: 0; }
+.k8s-views { flex: none; align-items: flex-start; gap: 18px; min-width: 0; width: 100%; }
 .k8s-rail { width: 176px; padding: 0 12px 0 0; gap: 10px; overflow: visible; position: sticky; top: 0; }
 .k8s-rail .sp-item em { font-style: normal; padding: 0 6px; border-radius: 9px; background: var(--bg-3); color: var(--muted); font-size: 11px; }
 .k8s-rail .sp-item[aria-selected="true"] em { background: #ffffff33; color: inherit; }
 .k8s-back { color: var(--muted); }
 .k8s-back:disabled { opacity: .35; cursor: default; }
-.k8s-shell > .k8s-body { flex: 1; }
-@media (max-width: 760px) { .k8s-shell { flex-direction: column; gap: 8px; } .k8s-rail { width: auto; position: static; } }
+.k8s-views > .k8s-body { flex: 1 1 0; min-width: 0; }
+@media (max-width: 760px) { .k8s-views { flex-direction: column; gap: 8px; } .k8s-rail { width: auto; position: static; } }
 /* Shell with and without the ▾ (a pod with several containers) is the same width, so a column of them lines up */
 .k8s-shell { min-width: 74px; justify-content: center; text-align: center; white-space: nowrap; }
