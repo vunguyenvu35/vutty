@@ -51,6 +51,8 @@ export default {
   "Where the space went": "容量の使い道",
   "Folder to look into": "調べるフォルダー",
   "Scanning…": "スキャン中…",
+  "{host}: the scan of {path} is done.": "{host}: {path} のスキャンが完了しました。",
+  "{host}: the scan of {path} failed: {error}": "{host}: {path} のスキャンに失敗しました: {error}",
   "Scan": "スキャン",
   "Nothing here, or this login cannot read it.": "何もないか、このログインでは読み取れません。",
   "Looking into big folders can take a while. The panel reads sizes only.": "大きなフォルダーの調査には時間がかかることがあります。パネルはサイズだけを読み取ります。",

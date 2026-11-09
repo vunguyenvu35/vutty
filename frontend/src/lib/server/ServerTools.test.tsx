@@ -441,6 +441,20 @@ describe('Maintenance tab', () => {
     await waitFor(() => expect(calls(be, 'server.diskUsage').at(-1)).toEqual(['server.diskUsage', '/var']))
   })
 
+  it('goes on scanning while another section is shown, says when it is done, and keeps the answer', async () => {
+    const {be} = setup()
+    let finish: (r: {path: string; size: number}[]) => void = () => {}
+    be.server.diskUsage = () => new Promise(res => { finish = res })
+    await open('Maintenance')
+    await userEvent.click(await screen.findByRole('button', {name: 'Scan'}))
+    expect(await screen.findByRole('button', {name: 'Scanning…'})).toBeDisabled()
+    await userEvent.click(screen.getByRole('tab', {name: 'Processes'}))
+    finish([{path: '/var/lib', size: 5 << 30}])
+    expect(await screen.findByText(/the scan of \/var is done/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', {name: 'Maintenance'}))
+    expect(await screen.findByRole('button', {name: '/var/lib'})).toBeInTheDocument()
+  })
+
   it('refuses a path with anything odd in it before asking the server', async () => {
     const {be} = setup()
     await open('Maintenance')

@@ -12,13 +12,13 @@ import {Modal} from '../ui/Modal'
 import type {Host, ServerCleanup, ServerFolder, ServerReclaim, ServerSystem, ServerUpdates, ServerUpgrade} from '../types'
 
 /** The Maintenance tab: what is waiting to be updated, where the disk went, and what can be cleaned without losing data. */
-export function Maintenance({sid, host}: {sid: string; host: Host}) {
+export function Maintenance({sid, host, visible = true}: {sid: string; host: Host; visible?: boolean}) {
   return (
     <div className="sp-view">
       <System sid={sid} />
       <Updates sid={sid} />
       <Cleanup sid={sid} />
-      <Folders sid={sid} host={host} />
+      <Folders sid={sid} host={host} visible={visible} />
     </div>
   )
 }
@@ -142,9 +142,12 @@ function Cleanup({sid}: {sid: string}) {
   )
 }
 
-function Folders({sid, host}: {sid: string; host: Host}) {
+function Folders({sid, host, visible}: {sid: string; host: Host; visible: boolean}) {
   const be = useBackend()
   const t = useT()
+  const toast = useToast()
+  const seen = useRef(visible) // whether the section is in front, read when the scan ends (the scan goes on while another section is shown)
+  seen.current = visible
   const [path, setPath] = useState('/var')
   const [shown, setShown] = useState('')
   const [rows, setRows] = useState<ServerFolder[] | null>(null)
@@ -155,7 +158,13 @@ function Folders({sid, host}: {sid: string; host: Host}) {
     setBusy(true)
     setError('')
     setPath(p)
-    try { setRows(await be.server.diskUsage(sid, p)); setShown(p) } catch (e) { setError(errMsg(e)) }
+    try {
+      setRows(await be.server.diskUsage(sid, p)); setShown(p)
+      if (!seen.current) toast.info(t('{host}: the scan of {path} is done.', {host: host.label, path: p}))
+    } catch (e) {
+      setError(errMsg(e))
+      if (!seen.current) toast.error(t('{host}: the scan of {path} failed: {error}', {host: host.label, path: p, error: errMsg(e)}))
+    }
     setBusy(false)
   }
   const top = Math.max(1, ...(rows ?? []).map(r => r.size))
