@@ -51,6 +51,8 @@ export default {
   "Where the space went": "Dung lượng đã đi đâu",
   "Folder to look into": "Thư mục cần xem",
   "Scanning…": "Đang quét…",
+  "{host}: the scan of {path} is done.": "{host}: đã quét xong {path}.",
+  "{host}: the scan of {path} failed: {error}": "{host}: quét {path} thất bại: {error}",
   "Scan": "Quét",
   "Nothing here, or this login cannot read it.": "Không có gì ở đây, hoặc tài khoản này không đọc được.",
   "Looking into big folders can take a while. The panel reads sizes only.": "Xem thư mục lớn có thể mất một lúc. Panel chỉ đọc kích thước.",

@@ -51,6 +51,8 @@ export default {
   "Where the space went": "空间用在哪了",
   "Folder to look into": "要查看的文件夹",
   "Scanning…": "正在扫描…",
+  "{host}: the scan of {path} is done.": "{host}:已扫描完 {path}。",
+  "{host}: the scan of {path} failed: {error}": "{host}:扫描 {path} 失败:{error}",
   "Scan": "扫描",
   "Nothing here, or this login cannot read it.": "这里没有内容，或此登录账号无法读取。",
   "Looking into big folders can take a while. The panel reads sizes only.": "查看大文件夹可能需要一些时间。面板只读取大小。",

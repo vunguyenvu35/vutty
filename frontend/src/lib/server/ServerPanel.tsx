@@ -116,6 +116,9 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
   // once opened, the Kubernetes tab stays (hidden) while another section is open: its connection steps, view and filters are not done again
   const [k8sOpened, setK8sOpened] = useState(false)
   if (section === 'kubernetes' && !k8sOpened) setK8sOpened(true)
+  // Maintenance stays (hidden) once opened: a folder scan can take minutes and must not be lost by looking at another section
+  const [maintOpened, setMaintOpened] = useState(false)
+  if (section === 'maintenance' && !maintOpened) setMaintOpened(true)
   return (
         <div className={'sp-shell' + (slim ? ' slim' : '')}>
           <nav className="sp-rail" aria-label={t('Server sections')}>
@@ -151,7 +154,7 @@ function Ready({sid, host, visible, onAccess, onShell, section, setSection, sour
             {section === 'logs' && <Logs sid={sid} visible={visible} source={source} onSource={setSource} k8sCtx={k8sCtx} k8sNs={k8sNs} />}
             {section === 'incident' && <Incident sid={sid} onLogs={showLogs} />}
             {section === 'ports' && <Ports sid={sid} sshPort={host.port} />}
-            {section === 'maintenance' && <Maintenance sid={sid} host={host} />}
+            {maintOpened && <div className="sp-keep" hidden={section !== 'maintenance'}><Maintenance sid={sid} host={host} visible={visible && section === 'maintenance'} /></div>}
             {section === 'security' && <Security sid={sid} />}
             {section === 'users' && <Users sid={sid} />}
             {section === 'schedule' && <Schedule sid={sid} host={host} onLogs={(kind, name) => showLogs({kind, name})} />}
