@@ -43,3 +43,4 @@ id_rsa
 
 # Release artifacts
 /dist/
+frontend/package.json.md5
