@@ -446,6 +446,8 @@ export default {
   "Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.": "Vutty khởi động ứng dụng Remote Desktop có sẵn trên máy bạn. Vutty không lưu mật khẩu RDP: ứng dụng đó sẽ hỏi.",
   "VNC port must be between 1 and 65535": "Cổng VNC phải từ 1 đến 65535",
   "Add VNC": "Thêm VNC",
+  "Add Mosh": "Thêm Mosh",
+  "Needs mosh on this computer and mosh-server on the host, and UDP ports 60000 to 61000 open to you.": "Cần mosh trên máy này, mosh-server trên host và cổng UDP 60000 đến 61000 mở cho bạn.",
   "VNC on": "VNC trên",
   "VNC port": "Cổng VNC",
   "Through the SSH login (recommended)": "Qua đăng nhập SSH (khuyến nghị)",

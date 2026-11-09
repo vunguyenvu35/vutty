@@ -1484,8 +1484,15 @@ describe('App: ask which protocol to use', () => {
     expect(await screen.findByText(/no app opened the \.rdp file/)).toBeInTheDocument()
   })
 
-  it('Mosh opens a terminal of its own for the host (mosh:<id>) and names the tab', async () => {
+  it('Mosh is only offered for a host that has it turned on', async () => {
     const be = setup({settings: {...DEFAULT_SETTINGS, ask_protocol: true}} as never)
+    await unlock(be)
+    await userEvent.dblClick(hostCard('web-1'))
+    expect(screen.queryByRole('radio', {name: /Mosh/})).toBeNull()
+  })
+
+  it('Mosh opens a terminal of its own for the host (mosh:<id>) and names the tab', async () => {
+    const be = setup({hosts: [host({id: 'h1', label: 'web-1', mosh_enabled: true}), host({id: 'h2', label: 'db-1'})], settings: {...DEFAULT_SETTINGS, ask_protocol: true}} as never)
     await unlock(be)
     await userEvent.dblClick(hostCard('web-1'))
     const mosh = screen.getByRole('radio', {name: /Mosh/})

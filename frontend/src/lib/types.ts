@@ -28,6 +28,7 @@ export interface Host {
   forward_agent?: boolean
   /** also reachable with Telnet (unencrypted) on this port */
   telnet_enabled?: boolean
+  mosh_enabled?: boolean
   telnet_port?: number
   telnet_username?: string
   /** '' or 'utf-8' (default), or 'iso-8859-1' */

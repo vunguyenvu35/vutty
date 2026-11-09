@@ -446,6 +446,8 @@ export default {
   "Vutty starts your computer's own Remote Desktop client. It does not keep an RDP password: the client asks for it.": "Vutty はお使いのコンピューターのリモートデスクトップクライアントを起動します。RDP のパスワードは保存せず、クライアントが尋ねます。",
   "VNC port must be between 1 and 65535": "VNC ポートは 1〜65535 にしてください",
   "Add VNC": "VNC を追加",
+  "Add Mosh": "Mosh を追加",
+  "Needs mosh on this computer and mosh-server on the host, and UDP ports 60000 to 61000 open to you.": "このコンピューターに mosh、ホストに mosh-server が必要で、UDP ポート 60000～61000 が開いている必要があります。",
   "VNC on": "VNC ポート",
   "VNC port": "VNC ポート",
   "Through the SSH login (recommended)": "SSH ログイン経由（推奨）",

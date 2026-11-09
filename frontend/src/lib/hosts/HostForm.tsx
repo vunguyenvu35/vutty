@@ -70,6 +70,7 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
     ftp_security: host?.ftp_enabled ? host.ftp_security || 'plain' : 'explicit', // an existing host with no mode is plain FTP
     ftp_username: host?.ftp_username ?? '',
     ftp_password: '',
+    mosh_on: !!host?.mosh_enabled,
     // Remote Desktop: Vutty starts the system's own client; there is no password here
     rdp_on: !!host?.rdp_enabled,
     rdp_port: host?.rdp_enabled ? String(host.rdp_port || 3389) : '',
@@ -119,6 +120,7 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
       ftp_port: ftp,
       ftp_security: f.ftp_on && f.ftp_security !== 'plain' ? f.ftp_security : '',
       ftp_username: f.ftp_on ? f.ftp_username.trim() : '',
+      mosh_enabled: f.mosh_on,
       rdp_enabled: rdp > 0,
       rdp_port: rdp,
       rdp_username: f.rdp_on ? f.rdp_username.trim() : '',
@@ -270,6 +272,16 @@ export function HostForm({host, isNew, groups, defaultGroupId, hosts, identities
               placeholder={existing && host?.ftp_enabled ? t('Saved in the vault (type to replace)') : t('Password')} />
             <button type="button" className="eye" aria-label={showFtpPw ? t('Hide FTP password') : t('Show FTP password')} aria-pressed={showFtpPw} onClick={() => setShowFtpPw(v => !v)}>{showFtpPw ? <IconEyeOff size={17} /> : <IconEye size={17} />}</button>
           </div>
+        </Section>
+      )}
+
+      {!f.mosh_on ? (
+        <button type="button" className="add-wide" onClick={() => setF(x => ({...x, mosh_on: true}))}><IconPlus size={17} /> {t('Add Mosh')}</button>
+      ) : (
+        <Section>
+          <div className="inline-field"><span>Mosh</span>
+            <button type="button" className="link remove-mosh" onClick={() => setF(x => ({...x, mosh_on: false}))}>{t('Remove')}</button></div>
+          <div className="muted" role="note">{t('Needs mosh on this computer and mosh-server on the host, and UDP ports 60000 to 61000 open to you.')}</div>
         </Section>
       )}
 

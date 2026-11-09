@@ -21,7 +21,7 @@ The form follows one flow, top to bottom:
 3. **SSH on … port**.
 4. **Credentials**: username and password, or choose a saved key/identity. The eye shows or hides the password.
 5. **Options**: host chaining (jump host), keepalive, key forwarding and the AI assistant setting of this host.
-6. **More protocols**: **Add Telnet**, **Add FTP**, **Add Remote Desktop** and **Add VNC** give the host another way to open. Each is explained where it is used: [Telnet](04-connecting.md#telnet-serial-ports-and-this-computer), [FTP](06-files.md#ftp-and-ftps), [RDP](04-connecting.md#rdp) and [VNC](04-connecting.md#vnc).
+6. **More protocols**: **Add Mosh**, **Add Telnet**, **Add FTP**, **Add Remote Desktop** and **Add VNC** give the host another way to open. Each is explained where it is used: [Telnet](04-connecting.md#telnet-serial-ports-and-this-computer), [FTP](06-files.md#ftp-and-ftps), [RDP](04-connecting.md#rdp) and [VNC](04-connecting.md#vnc).
 
 ![A host with FTP, Remote Desktop and VNC turned on](../assets/screenshots/guide/host-more-protocols.png)
 

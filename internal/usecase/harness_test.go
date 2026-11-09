@@ -185,7 +185,7 @@ func (h *harness) sshHost(t *testing.T, label string, srv *testssh.Server, jump 
 		t.Fatal(err)
 	}
 	host, err := h.app.Host.SaveHost(domain.Host{Label: label, Hostname: "127.0.0.1", Port: srv.Port(), Username: "root",
-		IdentityID: id.ID, JumpHostID: jump, KeepaliveSec: 1})
+		IdentityID: id.ID, JumpHostID: jump, KeepaliveSec: 1, MoshEnabled: true})
 	if err != nil {
 		t.Fatal(err)
 	}

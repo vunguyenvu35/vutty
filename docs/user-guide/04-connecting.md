@@ -34,14 +34,14 @@ Opening a host first asks **which protocol** to use. SSH is chosen for you: pres
 | Protocol | What you get | Needs |
 | --- | --- | --- |
 | **SSH** | A terminal tab. | Nothing extra. |
-| **Mosh** | A terminal that survives a change of network and a sleeping laptop. | `mosh` on your computer and `mosh-server` on the host. See [Mosh](#mosh). |
+| **Mosh** | A terminal that survives a change of network and a sleeping laptop. | **Add Mosh** in the host form, `mosh` on your computer and `mosh-server` on the host. See [Mosh](#mosh). |
 | **Telnet** | A terminal over Telnet (not encrypted). | Telnet turned on in the host form. |
 | **FTPS** or **FTP** | The file browser, over FTP or FTPS. | FTP turned on in the host form. See [Files](06-files.md#ftp-and-ftps). |
 | **RDP** | Your computer's Remote Desktop client, started on the host. | Remote Desktop turned on in the host form. See [RDP](#rdp). |
 | **VNC** | The screen of the host, drawn in a tab. | VNC turned on in the host form. See [VNC](#vnc). |
 | **Panel** | A dashboard of a Linux server, with no terminal. | A Linux server with systemd. See [Panel](08-panel.md). |
 
-Each extra protocol is added in the host form with **Add Telnet**, **Add FTP**, **Add Remote Desktop** or **Add VNC**; a protocol the host does not have is not offered. Turn the question off in **Settings → Terminal → Ask which protocol to use**; a host that has more than SSH still asks.
+Each extra protocol is added in the host form with **Add Mosh**, **Add Telnet**, **Add FTP**, **Add Remote Desktop** or **Add VNC**; a protocol the host does not have is not offered. Turn the question off in **Settings → Terminal → Ask which protocol to use**; a host that has more than SSH still asks.
 
 ## The connecting screen
 
@@ -60,7 +60,7 @@ A bastion or a company server often wants a second step after the password or th
 
 ## Mosh
 
-Choose **Mosh** on the protocol screen. Vutty logs in over SSH (with the same host key and sign-in questions as a terminal), starts `mosh-server` on the host, closes the SSH connection and starts the `mosh-client` of your own computer on the port and key it printed. The key goes to the client in its environment, never on a command line, and is not logged.
+Mosh is offered only for a host that has it turned on (**Add Mosh** in the host form), so a host that cannot run it is never offered it. Choose **Mosh** on the protocol screen. Vutty logs in over SSH (with the same host key and sign-in questions as a terminal), starts `mosh-server` on the host, closes the SSH connection and starts the `mosh-client` of your own computer on the port and key it printed. The key goes to the client in its environment, never on a command line, and is not logged.
 
 Mosh keeps the session through a change of network and a sleeping laptop, and shows what you type at once on a slow link.
 

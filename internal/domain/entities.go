@@ -101,6 +101,9 @@ type Host struct {
 	FTPPort     int    `json:"ftp_port,omitempty"`
 	FTPSecurity string `json:"ftp_security,omitempty"` // "" (plain), "explicit" (FTPS, AUTH TLS) or "implicit" (FTPS on its own port)
 	FTPUsername string `json:"ftp_username,omitempty"`
+	// MoshEnabled offers Mosh on the protocol screen. It is off until the host has mosh-server, so a host that never had it is not
+	// offered a protocol that can only fail.
+	MoshEnabled bool `json:"mosh_enabled,omitempty"`
 	// RDP: the host can also be reached with Remote Desktop on RDPPort; Vutty opens the system's own client for it (it does not draw the
 	// desktop itself). The password is never kept: the client asks for it.
 	RDPEnabled  bool   `json:"rdp_enabled,omitempty"`

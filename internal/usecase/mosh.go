@@ -68,6 +68,9 @@ func (s *SessionService) openMosh(sess *session, cols, rows int, onData func([]b
 	if err != nil {
 		return nil, "", err
 	}
+	if !h.MoshEnabled {
+		return nil, h.Label, errors.New("Mosh is not turned on for this host: add it in the host form")
+	}
 	if s.c.OpenMosh == nil {
 		return nil, h.Label, errors.New("Mosh is not available in this build")
 	}
