@@ -470,9 +470,11 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const podKey = isPod || isMulti ? `${k8sCtx}:${container}:${previous}:${timestamps}` : ''
   const [multi, setMulti] = useState<K8sMultiLogs | null>(null)
   const byTime = !isPod && !isMulti && !podsOnly && (!!range || boot) // a time range of its own, or the boot before: read once, never followed
-  const streamable = !isPod && !isMulti && !podsOnly && !byTime
+  const streamable = isPod ? !previous && !!k8sCtx : !isMulti && !podsOnly && !byTime // a pod is followed too; the log of an earlier run and the merged log of a workload are read again
   const kindOf = source.kind as Exclude<LogSource['kind'], 'pod' | 'workload'>
-  const stream = useLogStream(sid, follow && visible && streamable, kindOf, source.name, Number(lineCount), since)
+  const stream = useLogStream(sid, follow && visible && streamable, isPod
+    ? {type: 'pod', ctx: k8sCtx, ns: podOf[0], pod: podOf[1], container, timestamps, lines: Number(lineCount), since}
+    : {type: 'host', kind: kindOf, name: source.name, lines: Number(lineCount), since})
   const streaming = follow && visible && streamable && !stream.failed // else Follow reads the log again every 2 seconds
   const load = useCallback(() => (podsOnly && !isPod && !isMulti ? Promise.resolve('') : isMulti
     ? (k8sCtx ? be.server.k8sLogsMulti(sid, k8sCtx, multiOf[0], multiOf[1], multiOf[2], {container: '', lines: Number(lineCount) as 100, since, previous: false, timestamps}).then(r => { setMulti(r); return r.text }) : Promise.reject(t('Open the Kubernetes tab first to choose a cluster.')))

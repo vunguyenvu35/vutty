@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -471,5 +472,65 @@ func TestALoginProgramGivenAsARelativePathIsRefusedEvenWhenApproved(t *testing.T
 	}
 	if p, err := lookup("/opt/x/get-token"); err != nil || p != "/opt/x/get-token" {
 		t.Fatalf("%q %v", p, err)
+	}
+}
+
+// syncBuf is a writer whose content can be read while another goroutine writes it.
+type syncBuf struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.b.Write(p) }
+func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
+
+func TestStreamDeliversLinesWhileTheServerKeepsTheAnswerOpen(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("first\n"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+			_, _ = w.Write([]byte("second\n"))
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+	cl := open(t, kubeconfig(srv, "    token: x"), Options{Timeout: 200 * time.Millisecond}) // a call that is not a stream would give up long before the end
+	ctx, cancel := context.WithCancel(context.Background())
+	out := &syncBuf{}
+	done := make(chan error, 1)
+	go func() { done <- cl.Stream(ctx, "/api/v1/namespaces/shop/pods/p/log?follow=true", out) }()
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(out.String(), "first") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no line arrived: %q", out.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(400 * time.Millisecond) // past the timeout of an ordinary call: the stream is still open
+	select {
+	case err := <-done:
+		t.Fatalf("the stream ended by itself: %v", err)
+	default:
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("stopping the stream is not an error: %v", err)
+	}
+}
+
+func TestStreamReportsWhatTheServerRefused(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"pods \"p\" is forbidden","reason":"Forbidden"}`))
+	}))
+	defer srv.Close()
+	cl := open(t, kubeconfig(srv, "    token: x"), Options{})
+	err := cl.Stream(context.Background(), "/log", &syncBuf{})
+	var ae *APIError
+	if !errors.As(err, &ae) || ae.Code != 403 {
+		t.Fatalf("%v", err)
 	}
 }

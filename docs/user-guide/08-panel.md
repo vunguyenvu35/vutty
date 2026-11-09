@@ -65,7 +65,7 @@ The last 300 lines of the system journal, of one service or of one container; fi
 **Follow** starts a command on the host that does not end (`journalctl -f`, `docker logs -f`, `tail -F`) and shows each new line as it arrives, keeping the newest in view until you scroll up.
 
 - Up to three logs can be followed at once on one connection.
-- A log that cannot be followed live (the host refuses) is read again every 2 seconds instead, and the panel says so. A pod of the Kubernetes tab is read again every 2 seconds.
+- A log that cannot be followed live (the host refuses) is read again every 2 seconds instead, and the panel says so. The log of a pod of the Kubernetes tab is followed too (`kubectl logs -f` on a host, or the API server with `follow=true` for a cluster opened with a kubeconfig); the log of an earlier run is read once, and the merged log of a workload is read again every 2 seconds.
 - The command on the host stops when you turn Follow off, change source or close the tab, or when the connection drops.
 
 ![Logs with Follow on](../assets/screenshots/panel/logs-follow.png)

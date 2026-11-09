@@ -218,6 +218,38 @@ func (c *Client) Capped(ctx context.Context, path string, max int64) (data []byt
 	return c.do(ctx, http.MethodGet, path, "", nil, max)
 }
 
+// Stream is a GET whose answer does not end (a log asked with follow=true): the body is copied to w as it arrives, until the server
+// closes it, w refuses a write or ctx is cancelled. There is no time limit of its own: ctx is the limit. A refusal is an *APIError.
+func (c *Client) Stream(ctx context.Context, path string, w io.Writer) error {
+	if err := okPath(path); err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL(path), nil)
+	if err != nil {
+		return err
+	}
+	h, err := c.Header(ctx)
+	if err != nil {
+		return err
+	}
+	req.Header = h
+	req.Header.Set("Accept", "text/plain, */*")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return apiError(resp.StatusCode, b)
+	}
+	_, err = io.Copy(w, resp.Body)
+	if ctx.Err() != nil {
+		return nil // stopped by the caller
+	}
+	return err
+}
+
 // Get is Do with the method GET.
 func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 	return c.Do(ctx, http.MethodGet, path, "", nil)

@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -910,28 +911,28 @@ func (s *ServerService) K8sEvents(sid, ctx, ns string) ([]K8sEvent, error) {
 	return ev, err
 }
 
-// K8sLogs returns the end of the log of a pod (of one container, or the previous run of it).
-func (s *ServerService) K8sLogs(sid, ctx, ns, pod string, o K8sLogOpts) (string, error) {
+// k8sLogArgs checks what a log of a pod is asked with and turns it into the arguments of `kubectl logs`.
+func k8sLogArgs(ctx, ns, pod string, o K8sLogOpts) ([]string, error) {
 	if err := k8sTarget(ctx, ns, false); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := k8sName("pod", pod); err != nil {
-		return "", err
+		return nil, err
 	}
 	if o.Container != "" {
 		if err := k8sName("container", o.Container); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 	switch o.Lines {
 	case 100, 300, 1000, 5000:
 	default:
-		return "", errors.New("that is not a number of lines the log can show")
+		return nil, errors.New("that is not a number of lines the log can show")
 	}
 	args := []string{"logs", pod, "--tail=" + strconv.Itoa(o.Lines)}
 	if o.Since != "" {
 		if _, ok := serverLogSince[o.Since]; !ok {
-			return "", errors.New("that is not a time the log can show")
+			return nil, errors.New("that is not a time the log can show")
 		}
 		args = append(args, "--since="+o.Since)
 	}
@@ -944,11 +945,67 @@ func (s *ServerService) K8sLogs(sid, ctx, ns, pod string, o K8sLogOpts) (string,
 	if o.Timestamps {
 		args = append(args, "--timestamps")
 	}
+	return args, nil
+}
+
+// K8sLogs returns the end of the log of a pod (of one container, or the previous run of it).
+func (s *ServerService) K8sLogs(sid, ctx, ns, pod string, o K8sLogOpts) (string, error) {
+	args, err := k8sLogArgs(ctx, ns, pod, o)
+	if err != nil {
+		return "", err
+	}
 	out, err := s.k8sGet(sid, ctx, ns, args...)
 	if err != nil && out == "" {
 		return "", err
 	}
 	return out, nil
+}
+
+// K8sLogsFollowStart reads the log of a pod as it grows, like LogsFollowStart does for the host: the lines go to the screen in
+// batches (server:log:<key>) and server:logend:<key> says that it ended. A host runs `kubectl logs -f` on the SSH connection; a cluster
+// opened with a kubeconfig asks the API server for the log with follow=true. The log of an earlier run is read once, not followed.
+func (s *ServerService) K8sLogsFollowStart(sid, key, ctx, ns, pod string, o K8sLogOpts) error {
+	if !followKey.MatchString(key) {
+		return errors.New("a key of 8 to 64 letters, digits or dashes is required")
+	}
+	if o.Previous {
+		return errors.New("the log of an earlier run is read once: it has nothing to follow")
+	}
+	args, err := k8sLogArgs(ctx, ns, pod, o)
+	if err != nil {
+		return err
+	}
+	if d := s.kubeOf(sid); d != nil {
+		api, path, err := d.logPath(ctx, ns, args[1:], true) // args[0] is "logs": the API path is the log itself
+		if err != nil {
+			return err
+		}
+		return s.startFollow(sid, key, func(x *serverSession, out *lineBatcher) (*logFollow, error) {
+			c, cancel := context.WithCancel(context.Background())
+			f := &logFollow{halt: cancel, done: make(chan struct{})}
+			go func() {
+				defer close(f.done)
+				if err := api.Stream(c, path, out); err != nil {
+					_, _ = out.Write([]byte(err.Error() + "\n"))
+				}
+			}()
+			return f, nil
+		})
+	}
+	if strings.Contains(ns, ",") {
+		return errors.New("a list of namespaces is only available for a cluster opened with a kubeconfig")
+	}
+	st, err := s.k8sOf(sid)
+	if err != nil {
+		return err
+	}
+	script := followScript(st.line(kcmd{ctx: ctx, ns: ns, args: append(args, "-f")})) // followScript brings $SUDO itself
+	return s.startFollow(sid, key, func(x *serverSession, out *lineBatcher) (*logFollow, error) {
+		if x.client == nil {
+			return nil, errNoKubectl
+		}
+		return s.followOnHost(x, out, script)
+	})
 }
 
 // k8sKinds are what K8sYAML may show (the right of the command map: get that kind).
