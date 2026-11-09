@@ -8,7 +8,7 @@ import {openInSftp} from '../sftp/openRequest'
 import {Select} from '../ui/Select'
 import {formatBytes} from '../sftp/format'
 import {errMsg} from '../util'
-import {actionQuestion, Card, Err, stackQuestion, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
+import {actionQuestion, Card, Err, stackQuestion, Loading, Toolbar, useLoad, useServerConnection, type ServerAction, type ServiceAction, type StackAction, FilterInput} from './shared'
 import {ansiSpans, stripAnsi} from '../ansi'
 import {backupLevel, certLevel, formatRate, formatUptime, level, logLevel, pct} from './format'
 import {Docker, RowMenu} from './Docker'
@@ -503,6 +503,9 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
   const matcher = useMemo(() => lineMatcher(filter, regex), [filter, regex])
   // what the programs print can hold colour codes: they are read for the colours, but what is searched, counted as an error or saved is the text
   const text = streaming ? stream.rows.join('\n') : data
+  // the first reading, or another source, pod or time: a ring says so instead of an empty box (or the lines of the log before). A Follow that
+  // reads again every 2 seconds, and a stream, keep their lines.
+  const loading = busy && !streaming && !follow && !error
   const loaded = streaming ? stream.rows.length > 0 || stream.ended : data !== null
   const all = useMemo(() => (text ?? '').split('\n').filter(l => stripAnsi(l) !== ''), [text])
   const passes = useCallback((l: string) => { const p = stripAnsi(l); return (!matcher.test || matcher.test(p)) && (lv === 'all' || (lv === 'info' ? logLevel(p) === '' : logLevel(p) === lv)) }, [matcher, lv])
@@ -559,7 +562,7 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
       {isMulti && multi && <div className="sp-note k8s-hint" role="status">{tn(multi.pods, '{n} pod read', '{n} pods read')}{multi.skipped > 0 && ' · ' + t('{n} more pods are not shown', {n: multi.skipped})}{multi.failed.length > 0 && ' · ' + t('Could not read: {list}', {list: multi.failed.join('; ')})}</div>}
       <Err error={error} />
       <div ref={boxRef} className="sp-log" role="log" aria-label={t('Logs')} aria-busy={busy && !streaming} onScroll={onScroll}>
-        {rows.map((l, i) => {
+        {(loading ? [] : rows).map((l, i) => {
           if (l === null) return <div key={i} className="sp-log-gap" aria-hidden>···</div>
           const p = stripAnsi(l)
           // the colours of the program, unless a search is on (a match is marked on the plain text) or the line is an error or a warning (its own colour)
@@ -571,7 +574,8 @@ export function Logs({sid, visible, source, onSource, k8sCtx, k8sNs = '', podsOn
           const clickable = timed && lineTime(p) !== null
           return <div key={i} className={'sp-log-line ' + logLevel(p) + (l === picked ? ' picked' : '')} onClick={clickable ? () => setPicked(l === picked ? '' : l) : undefined} style={clickable ? {cursor: 'pointer'} : undefined}>{body}</div>
         })}
-        {loaded && rows.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
+        {loading && <Loading kind="lines" what={t('Loading the log…')} />}
+        {loaded && !loading && rows.length === 0 && <div className="muted">{podsOnly && !isPod ? t('Choose a pod above, or press Logs on one in the Pods view.') : t('No log lines.')}</div>}
       </div>
     </div>
   )

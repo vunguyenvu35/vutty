@@ -460,6 +460,7 @@ export default {
   "What is used now needs a metrics-server, which this cluster does not have (or this login may not read).": "Lượng đang dùng cần metrics-server, cluster này không có (hoặc tài khoản này không được đọc).",
   "Loading the overview…": "Đang tải tổng quan…",
   "Loading the details…": "Đang tải chi tiết…",
+  "Loading the log…": "Đang tải log…",
   "Loading pods…": "Đang tải pod…",
   "Loading workloads…": "Đang tải workload…",
   "Loading services and ingress…": "Đang tải service và ingress…",

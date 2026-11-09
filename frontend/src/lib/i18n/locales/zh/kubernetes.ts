@@ -460,6 +460,7 @@ export default {
   "What is used now needs a metrics-server, which this cluster does not have (or this login may not read).": "当前使用量需要 metrics-server，此集群没有（或此登录无权读取）。",
   "Loading the overview…": "正在加载概览…",
   "Loading the details…": "正在加载详情…",
+  "Loading the log…": "正在加载日志…",
   "Loading pods…": "正在加载 Pod…",
   "Loading workloads…": "正在加载工作负载…",
   "Loading services and ingress…": "正在加载 Service 和 Ingress…",
