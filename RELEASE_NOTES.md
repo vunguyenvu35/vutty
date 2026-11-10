@@ -1,8 +1,22 @@
 <p align="center"><img src="docs/assets/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.7
+# Vutty 1.6.8
 
-Release date: 2026-11-06 · Platform: macOS (arm64 build verified) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-10 · Platform: macOS, Windows and Linux (built by the release workflow; not yet tried by hand in the packaged app) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.8
+
+- **The Kubernetes tab in the style of Panel (#77).** The context and namespace bar is Panel's own bar: menus, labelled *Namespace* and *Forget* buttons, and the version of the server as a note. The views (Overview, Pods, Workloads, Network, Config & storage, Apps, Resources, Security, Nodes, Events) are a rail on the left with an icon each and the counts as badges, like the sections of Panel; the back button is its first item. Events are rows with a severity stripe, a kind tag, a message cut after three lines, and when and how often at the right.
+- **A default namespace for a cluster (#74).** *Add cluster* and *Edit cluster* take a namespace (a DNS label). The cluster tab opens on it and, for a login that may not list namespaces, starts its list of added namespaces with it. A namespace set in *Edit cluster* now reaches a tab that is already open.
+- **Panel: Follow streams the log of a pod (#73).** On a host it runs `kubectl logs -f` over the SSH connection; for a cluster opened with a kubeconfig the API server streams it (`follow=true`). Lines arrive in batches, like the log of the host. The log of an earlier run and the merged log of a workload are still read again every 2 seconds. A ring shows while a log is being read.
+- **Panel: a folder scan in Maintenance goes on while you look at another section (#71).** A message says when it is done if you are elsewhere.
+- **Pods: a click anywhere on the row of a group opens or closes it (#78)**, not only on its name.
+- **Deployments: tidier Ready and Up to date (#79).** A Deployment or StatefulSet scaled to 0 is one grey pill, "Scaled to 0", instead of "0 / 0" and a note that wrapped. Otherwise the pill comes with a thin bar of how much is ready and the reason on its own line; Up to date shows updated / wanted, amber while a rollout is behind.
+- **Mosh is offered only for a host that has it turned on.** The protocol screen offered it to every host, so a host without `mosh-server` got a choice that could only fail. Turn it on with *Add Mosh* in the host form.
+- **Docs.** The user guide is split into 14 chapters with an index (Panel, Kubernetes, Mosh, VNC, RDP and FTP brought up to date, new screenshots), and `docs/` is grouped into design, development, evaluation, getting-started and assets (#70). The Kubernetes competitors page is in English.
+- **Repository.** `frontend/package.json.md5` is no longer tracked (#69).
+
+Not yet seen in the packaged app or against a real cluster: the changes to the Kubernetes tab and the log stream are covered by component and unit tests; look at them against a real cluster first.
 
 ## What's new in 1.6.7
 
