@@ -4,7 +4,7 @@ import {useT} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {useToast} from '../ui/Toast'
 import {useMinBusy} from '../ui/useMinBusy'
-import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh} from '../ui/Icons'
+import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh, IconSearch} from '../ui/Icons'
 import {errMsg} from '../util'
 import {cdCommand, folderOf, formatBytes, joinPath, parentOf, validName} from './format'
 import {PermissionsDialog} from './Permissions'
@@ -23,6 +23,13 @@ let seq = 0
 
 const HIDDEN_KEY = 'vutty.sidebar.files.hidden'
 const loadHidden = () => { try { return localStorage.getItem(HIDDEN_KEY) === '1' } catch { return false } }
+
+/** The name with the first place the filter matches in a <mark>, so it can be seen at a glance why the row is shown. */
+function marked(name: string, needle: string) {
+  const at = needle ? name.toLowerCase().indexOf(needle) : -1
+  if (at < 0) return name
+  return <>{name.slice(0, at)}<mark>{name.slice(at, at + needle.length)}</mark>{name.slice(at + needle.length)}</>
+}
 
 /**
  * The Files section of the terminal sidebar: the server of the focused terminal as a compact list, with
@@ -67,6 +74,8 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [hidden, setHidden] = useState(loadHidden)
+  const [filtering, setFiltering] = useState(false)
+  const [filter, setFilter] = useState('')
   const [pfs, setPfs] = useState<PaneFs | null>(null)
   const edited = useRef(new Set<string>()) // remote files being edited from here: released when the connection ends
   const [menu, setMenu] = useState<{x: number; y: number} | null>(null)
@@ -174,7 +183,8 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
     setPrompt(null)
   }
 
-  const shown = useMemo(() => (hidden ? entries : entries.filter(e => !e.name.startsWith('.'))), [entries, hidden])
+  const needle = filter.trim().toLowerCase()
+  const shown = useMemo(() => (hidden ? entries : entries.filter(e => !e.name.startsWith('.'))).filter(e => !needle || e.name.toLowerCase().includes(needle)), [entries, hidden, needle])
   const toggleHidden = () => setHidden(h => { try { localStorage.setItem(HIDDEN_KEY, h ? '0' : '1') } catch { /* not remembered */ } return !h })
   const chosen = useMemo(() => entries.filter(e => selected.includes(e.path)), [entries, selected])
   const ready = phase === 'ready' && !!sid && !!cwd
@@ -198,7 +208,8 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
     setError('')
     try { await fn() } catch (e) { setError(errMsg(e)) }
   }
-  const open = (e: RemoteEntry) => (e.is_dir ? void load(sid, e.path) : pfs?.open ? void guard(() => pfs.open!(e)) : undefined)
+  // going into a folder starts a new search: what was typed was for the folder that is left
+  const open = (e: RemoteEntry) => (e.is_dir ? (setFilter(''), void load(sid, e.path)) : pfs?.open ? void guard(() => pfs.open!(e)) : undefined)
   // what the shell reported (OSC 7) is the freshest; otherwise the backend asks the shell's process (this computer, or a Linux server)
   const toTerminal = () => guard(async () => {
     const term = paneId ? sessionOfPane(paneId) : ''
@@ -278,8 +289,23 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
         <button className="icon ghost" aria-label={hidden ? t('Hide hidden files') : t('Show hidden files')} aria-pressed={hidden} title={hidden ? t('Hide hidden files') : t('Show hidden files')} onClick={toggleHidden}>
           {hidden ? <IconEye size={15} /> : <IconEyeOff size={15} />}
         </button>
+        <button className={'icon ghost' + (filtering ? ' on' : '')} aria-label={t('Filter')} title={t('Filter')} aria-pressed={filtering} onClick={() => { setFiltering(f => !f); setFilter('') }}><IconSearch size={15} /></button>
         <code className="side-files-path" title={cwd} aria-label={t('Current folder')}>{cwd ? <bdi>{cwd}</bdi> : phase === 'connecting' ? t('Connecting…') : ''}</code>
       </div>
+      {filtering && (
+        <div className="side-files-bar side-files-name">
+          <input aria-label={t('Filter')} autoFocus placeholder={t('Filter')} value={filter} onChange={e => setFilter(e.target.value)}
+            onKeyDown={ev => {
+              if (ev.key === 'Escape') { setFilter(''); setFiltering(false) }
+              // Enter: the only match is opened, otherwise the first one is selected
+              else if (ev.key === 'Enter' && shown.length > 0) {
+                ev.preventDefault()
+                if (shown.length === 1) open(shown[0])
+                else { setSelected([shown[0].path]); setAnchor(shown[0].path) }
+              }
+            }} />
+        </div>
+      )}
       {!local && <div className="side-files-bar">
         {!podMode && <button disabled={!ready} onClick={() => void upload(false)}>{t('Upload file…')}</button>}
         {!podMode && <button disabled={!ready} onClick={() => void upload(true)}>{t('Upload folder…')}</button>}
@@ -317,11 +343,11 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
             <div key={e.path} role="option" tabIndex={0} aria-selected={selected.includes(e.path)} className={'side-item side-file' + (selected.includes(e.path) ? ' on' : '')}
               onClick={ev => pick(e, ev)} onContextMenu={ev => openMenu(ev, e)} onDoubleClick={() => open(e)} onKeyDown={ev => { if (ev.key === 'Enter') open(e); else if (ev.key === 'Backspace' && cwd !== '/') { ev.preventDefault(); void load(sid, parentOf(cwd)) } }}>
               {e.is_dir ? <IconFolder size={15} /> : <IconFile size={15} />}
-              <span className="side-main"><b>{e.name}</b></span>
+              <span className="side-main"><b>{marked(e.name, needle)}</b></span>
               <small className="muted">{e.is_dir ? '' : formatBytes(e.size)}</small>
             </div>
           ))}
-          {!loading && shown.length === 0 && !error && <div className="side-empty">{t('This folder is empty.')}</div>}
+          {!loading && shown.length === 0 && !error && <div className="side-empty">{needle && entries.length > 0 ? t('Nothing matches.') : t('This folder is empty.')}</div>}
         </div>
       )}
       {error && <div className="error side-files-error" role="alert">{error}</div>}

@@ -147,6 +147,38 @@ describe('terminal sidebar: Files', () => {
     localStorage.removeItem('vutty.sidebar.files.hidden')
   })
 
+  it('Filter narrows the folder by name as you type, says when nothing matches, and Escape clears it', async () => {
+    setup('local')
+    await waitFor(() => expect(names()).toEqual(['Documents', 'notes.txt']))
+    await userEvent.click(screen.getByRole('button', {name: 'Filter'}))
+    const box = screen.getByRole('textbox', {name: 'Filter'})
+    await userEvent.type(box, 'NOTE')
+    expect(names()).toEqual(['notes.txt'])
+    await userEvent.clear(box)
+    await userEvent.type(box, 'zzz')
+    expect(names()).toEqual([])
+    expect(screen.getByText('Nothing matches.')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('textbox', {name: 'Filter'})).toBeNull()
+    expect(names()).toEqual(['Documents', 'notes.txt'])
+  })
+
+  it('Filter marks the matching letters, and Enter opens the only match or selects the first of several', async () => {
+    setup('local', {local: {'/': {dir: true, size: 0}, '/Users': {dir: true, size: 0}, '/Users/me': {dir: true, size: 0}, '/Users/me/Documents': {dir: true, size: 0}, '/Users/me/Docs-old': {dir: true, size: 0}, '/Users/me/notes.txt': {dir: false, size: 3}, '/Users/me/Documents/cv.pdf': {dir: false, size: 2}}})
+    await waitFor(() => expect(names()).toHaveLength(3))
+    await userEvent.click(screen.getByRole('button', {name: 'Filter'}))
+    const box = screen.getByRole('textbox', {name: 'Filter'})
+    await userEvent.type(box, 'doc')
+    expect(names()).toEqual(['Docs-old', 'Documents'])
+    expect(within(files()).getAllByText(/^Doc$/i, {selector: 'mark'})).toHaveLength(2)
+    await userEvent.keyboard('{Enter}')
+    const rows = within(files()).getAllByRole('option')
+    expect(rows[0]).toHaveAttribute('aria-selected', 'true')
+    expect(rows[1]).toHaveAttribute('aria-selected', 'false')
+    await userEvent.type(box, 'uments{Enter}')
+    await waitFor(() => expect(names()).toEqual(['cv.pdf'])) // the one match was opened
+  })
+
   it('right-click on a file offers what the SFTP screen offers: download, upload, rename, delete, new folder, hidden files', async () => {
     const {be} = setup('h1')
     await waitFor(() => expect(names()).toHaveLength(2))
