@@ -289,6 +289,7 @@ export default {
   "DaemonSet": "DaemonSet",
   "Job": "Job",
   "CronJob": "CronJob",
+  "Scaled to 0": "0 にスケール済み",
   "Suspended": "一時停止中",
   "Completed": "完了",
   "never": "なし",

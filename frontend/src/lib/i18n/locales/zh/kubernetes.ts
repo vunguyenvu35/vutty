@@ -289,6 +289,7 @@ export default {
   "DaemonSet": "DaemonSet",
   "Job": "Job",
   "CronJob": "CronJob",
+  "Scaled to 0": "已缩到 0",
   "Suspended": "已暂停",
   "Completed": "已完成",
   "never": "从未",

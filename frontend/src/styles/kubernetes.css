@@ -109,6 +109,20 @@
 .k8s-diff .skip { color: var(--muted); }
 .modal-foot-inline { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .page-acts { display: inline-flex; align-items: center; gap: 8px; }
+/* the Ready and Up to date cells of the workloads tables */
+.k8s-ready { white-space: nowrap; }
+.k8s-rline { display: flex; align-items: center; gap: 8px; }
+.k8s-rline .sp-pill { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.k8s-rbar { flex: none; width: 44px; height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.k8s-rbar i { display: block; height: 100%; border-radius: 2px; background: var(--ok); }
+.k8s-rbar i.warn { background: var(--warn); }
+.k8s-rbar i.bad { background: var(--danger); }
+.k8s-rnote { display: block; margin-top: 3px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11.5px; }
+.k8s-rnote.warn { color: var(--warn); }
+.k8s-rnote.bad { color: var(--danger); }
+.k8s-upd small { color: var(--muted); font-size: 11.5px; }
+.k8s-upd.lag { color: var(--warn); }
+.k8s-upd.none { color: var(--muted); }
 .k8s-group { cursor: pointer; }
 .k8s-group td { background: var(--bg-2); padding-top: 8px; padding-bottom: 8px; border-top: 1px solid var(--line); }
 .k8s-group:hover td { background: var(--bg-3); }

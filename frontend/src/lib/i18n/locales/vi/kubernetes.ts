@@ -289,6 +289,7 @@ export default {
   "DaemonSet": "DaemonSet",
   "Job": "Job",
   "CronJob": "CronJob",
+  "Scaled to 0": "Đã scale về 0",
   "Suspended": "Đã tạm dừng",
   "Completed": "Hoàn tất",
   "never": "chưa bao giờ",
