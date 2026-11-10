@@ -173,6 +173,23 @@ describe('Pods', () => {
     expect(inW1().length).toBeGreaterThan(0)
   })
 
+  it('a group opens and closes when the empty part of its row is clicked, and a click on the button counts once', async () => {
+    await openOn('Pods')
+    await screen.findByText('redis-0')
+    const w1 = screen.getByRole('button', {name: 'Node: worker-1'})
+    const row = w1.closest('tr')!
+    const inW1 = () => w1.closest('tbody')!.querySelectorAll('tr.k8s-group ~ tr').length
+    expect(inW1()).toBeGreaterThan(0)
+    await userEvent.click(row.querySelector('td')!) // the blank space to the right of the name
+    expect(w1).toHaveAttribute('aria-expanded', 'false')
+    expect(inW1()).toBe(0)
+    await userEvent.click(row.querySelector('td')!)
+    expect(w1).toHaveAttribute('aria-expanded', 'true')
+    expect(inW1()).toBeGreaterThan(0)
+    await userEvent.click(w1) // the button: one click, one change (it must not toggle twice)
+    expect(w1).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('can group by namespace or by the workload that owns the pods, or not at all, and remembers the choice', async () => {
     await openOn('Pods')
     await screen.findByText('redis-0')

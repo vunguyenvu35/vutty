@@ -157,8 +157,8 @@ export function KubernetesPods({seed}: {seed: string}) {
         {groups.map(g => (
           <tbody key={g.key || '·'}>
             {groupBy !== 'none' && (
-              <tr className="k8s-group">
-                <td colSpan={7}><button className="sp-link" aria-expanded={!folded.includes(g.key)} aria-label={title(g.key)} onClick={() => fold(g.key)}>
+              <tr className="k8s-group" onClick={() => fold(g.key)}>{/* the whole row opens and closes the group; the button below is for the keyboard and the screen reader, and its click reaches this row */}
+                <td colSpan={7}><button className="sp-link" aria-expanded={!folded.includes(g.key)} aria-label={title(g.key)}>
                   <span className={'k8s-chev' + (folded.includes(g.key) ? '' : ' open')}><IconChevron size={12} /></span> <span>{title(g.key)}</span> <small>{tn(g.pods.length, '{n} pod', '{n} pods')}</small></button></td>
               </tr>
             )}
