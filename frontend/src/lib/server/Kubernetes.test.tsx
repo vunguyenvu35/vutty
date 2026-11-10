@@ -398,6 +398,27 @@ describe('Workloads', () => {
     expect(screen.getByText('migrate-20261103')).toBeInTheDocument()
   })
 
+  it('shows a Deployment scaled to 0 as one pill, and how far a rollout has got in Up to date', async () => {
+    const be = makeFake({hosts: [web]})
+    const base = be.state.k8s.workloads.find(w => w.name === 'web')!
+    be.state.k8s.workloads.push(
+      {...base, name: 'blog', ready: '0/0', desired: 0, available: 0, up_to_date: 0, tone: '', note: 'scaled to 0', image: 'registry/blog:1.0'},
+      {...base, name: 'checkout', ready: '2/2', desired: 2, available: 2, up_to_date: 1, tone: 'warn', note: 'rolling out: 1 of 2 updated', image: 'registry/checkout:2.1'},
+    )
+    await openOn('Workloads', {be})
+    await screen.findByText('registry/blog:1.0')
+    const blog = within(rowOf('registry/blog:1.0'))
+    expect(blog.getByText('Scaled to 0')).toHaveClass('sp-pill') // one pill, not "0 / 0" and a note that wraps under it
+    expect(blog.queryByText('0 / 0')).toBeNull()
+    expect(blog.queryByText('scaled to 0')).toBeNull()
+    expect(rowOf('registry/blog:1.0').querySelector('.k8s-upd')).toHaveTextContent('–')
+    const checkout = rowOf('registry/checkout:2.1')
+    expect(within(checkout).getByTitle('rolling out: 1 of 2 updated')).toHaveClass('k8s-rnote', 'warn') // the reason sits on its own line under the pill
+    expect(checkout.querySelector('.k8s-upd')).toHaveClass('lag') // behind: amber
+    expect(checkout.querySelector('.k8s-upd')).toHaveTextContent('1 / 2')
+    expect(rowOf('registry/web:4.2').querySelector('.k8s-upd')).not.toHaveClass('lag')
+  })
+
   it('scales through a dialog with a stepper, sends the call, and only that button waits', async () => {
     const be = makeFake({hosts: [web]})
     let release = () => {}

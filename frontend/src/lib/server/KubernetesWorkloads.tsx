@@ -92,7 +92,27 @@ export function Workloads() {
   const mine = all.filter(w => w.kind === kind && matches(filter, w.name, w.namespace, w.image))
   const rows = apply(mine, (w, key) => key === 'name' ? w.name : key === 'ready' ? w.available : key === 'up' ? w.up_to_date : key === 'image' ? w.image : key === 'age' ? w.age_sec : key === 'last' ? (w.last_run_sec ?? Infinity) : key === 'schedule' ? w.schedule : w.result)
   const name = (w: K8sWorkload) => <td className="k8s-name">{w.kind === 'Deployment' ? <button className="sp-link" onClick={() => k.open({k: 'deploy', ns: w.namespace, name: w.name})}><b>{w.name}</b></button> : <b>{w.name}</b>}<small>{w.namespace}{w.owner ? ` · ${w.owner}` : ''}</small></td>
-  const ready = (w: K8sWorkload) => <td><Pill tone={w.tone}>{w.ready.replace('/', ' / ')}</Pill>{w.note && <> <span className="sp-note">{w.note}</span></>}</td>
+  // Ready: one pill (a Deployment or StatefulSet scaled to 0 says so in the pill instead of "0 / 0" and a note that wraps), a thin bar of
+  // how much is ready, and the reason on its own line under it
+  const ready = (w: K8sWorkload) => {
+    const off = w.desired === 0 && (w.kind === 'Deployment' || w.kind === 'StatefulSet')
+    const [have, want] = w.ready.split('/').map(Number)
+    const pct = want > 0 ? Math.min(100, Math.round((have / want) * 100)) : 0
+    return (
+      <td className="k8s-ready">
+        <div className="k8s-rline">
+          <Pill tone={w.tone}>{off ? t('Scaled to 0') : w.ready.replace('/', ' / ')}</Pill>
+          {!off && want > 0 && <span className="k8s-rbar" aria-hidden="true"><i className={w.tone} style={{width: pct + '%'}} /></span>}
+        </div>
+        {w.note && !off && <span className={'k8s-rnote ' + w.tone} title={w.note}>{w.note}</span>}
+      </td>
+    )
+  }
+  // Up to date: how many replicas run the newest template, out of the wanted number; it turns amber while a rollout is behind
+  const upToDate = (w: K8sWorkload) => (
+    <td className="n m">{w.desired === 0 ? <span className="k8s-upd none">–</span>
+      : <span className={'k8s-upd' + (w.up_to_date < w.desired ? ' lag' : '')}>{w.up_to_date}<small> / {w.desired}</small></span>}</td>
+  )
   const yaml = (w: K8sWorkload) => <button aria-label={t('YAML of {name}', {name: w.name})} onClick={() => act.yaml(w)}>{t('YAML')}</button>
   const logs = (w: K8sWorkload) => <ActBtn id={'logs:' + rid(w)} right="logs" label={t('Logs of {name}', {name: w.name})} onClick={() => void act.logs(w)}>{t('Logs')}</ActBtn>
   const restart = (w: K8sWorkload) => <ActBtn id={'restart:' + w.kind + ':' + rid(w)} right="restart" label={t('Restart {name}', {name: w.name})} title={t('Redeploy: replaces the pods one after another')} onClick={() => void act.restart(w)}>{t('Restart')}</ActBtn>
@@ -121,7 +141,7 @@ export function Workloads() {
           {rows.map(w => (
             <tr key={w.kind + rid(w)}>
               {name(w)}
-              {w.kind === 'Deployment' && <>{ready(w)}<td className="n m">{w.up_to_date}</td><td className="m">{w.image}</td><td className="n">{age(w.age_sec)}</td>
+              {w.kind === 'Deployment' && <>{ready(w)}{upToDate(w)}<td className="m">{w.image}</td><td className="n">{age(w.age_sec)}</td>
                 <td><div className="sp-acts"><ActBtn id={'scale:' + rid(w)} right="scale" label={t('Scale {name}', {name: w.name})} onClick={() => setScaling(w)}>{t('Scale')}</ActBtn>{restart(w)}{logs(w)}<WorkloadMenu w={w} /></div></td></>}
               {w.kind === 'StatefulSet' && <>{ready(w)}<td className="m">{w.volumes || '–'}</td><td className="n">{age(w.age_sec)}</td><td><div className="sp-acts">{restart(w)}{logs(w)}{yaml(w)}<WorkloadMenu w={w} /></div></td></>}
               {w.kind === 'DaemonSet' && <>{ready(w)}<td className="n">{age(w.age_sec)}</td><td><div className="sp-acts">{restart(w)}{logs(w)}{yaml(w)}<WorkloadMenu w={w} /></div></td></>}
