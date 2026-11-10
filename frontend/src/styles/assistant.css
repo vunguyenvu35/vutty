@@ -250,4 +250,6 @@
 .side-file.on, .side-file:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .side-file .side-main b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-files-name input { flex: 1; min-width: 0; }
+.side-file mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; border-radius: 2px; }
+.side-files-bar button.on { background: var(--accent-soft); color: var(--accent); }
 .side-files-error { margin: 0; }
