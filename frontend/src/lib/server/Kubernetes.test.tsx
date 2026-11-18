@@ -119,9 +119,16 @@ describe('Overview', () => {
   })
 })
 
+/** the Pods list starts on the Running pods: show every pod */
+async function allStatuses() {
+  await userEvent.click(await screen.findByRole('combobox', {name: /^Status/}))
+  await userEvent.click(await screen.findByRole('option', {name: /^All statuses/}))
+}
+
 describe('Pods', () => {
   it('lists the pods, filters them, and shows only the problems on request', async () => {
     const {be} = await openOn('Pods')
+    await allStatuses()
     expect(await screen.findByText('redis-0')).toBeInTheDocument()
     expect(calls(be, 'server.k8sPods')[0]).toEqual(['server.k8sPods', CTX, ''])
     expect(screen.getByRole('status')).toHaveTextContent('6 of 6 pods')
@@ -136,8 +143,19 @@ describe('Pods', () => {
     expect(screen.queryByText('redis-0')).toBeNull()
   })
 
+  it('starts on the Running pods, and All statuses brings every pod back', async () => {
+    await openOn('Pods')
+    await screen.findByText('redis-0')
+    expect(screen.getByRole('combobox', {name: /^Status/})).toHaveTextContent('Running')
+    expect(screen.queryByText('api-7d9f6c-x2kq8')).toBeNull() // CrashLoopBackOff
+    await allStatuses()
+    expect(screen.getByText('api-7d9f6c-x2kq8')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('6 of 6 pods')
+  })
+
   it('sorts by a column and turns the order round on a second click (numbers start with the biggest)', async () => {
     await openOn('Pods')
+    await allStatuses()
     await screen.findByText('redis-0')
     // the order of the columns is the order of the whole list when there are no groups (inside each group otherwise)
     await userEvent.click(screen.getByRole('combobox', {name: /^Group by,/}))
@@ -235,6 +253,7 @@ describe('Pods', () => {
 
   it('opens the shell at once for a pod with one container, and is locked for a pod with none running', async () => {
     const {be, onShell} = await openOn('Pods')
+    await allStatuses()
     await screen.findByText('redis-0')
     await userEvent.click(within(podRow('redis-0')).getByRole('button', {name: 'Shell'}))
     await waitFor(() => expect(onShell).toHaveBeenCalledTimes(1))
@@ -281,6 +300,7 @@ describe('Pods', () => {
 
   it('opens a pod with its conditions, containers and events, and reads its previous logs', async () => {
     const {be} = await openOn('Pods')
+    await allStatuses()
     await userEvent.click(await screen.findByRole('button', {name: 'api-7d9f6c-x2kq8'}))
     expect(await screen.findByRole('heading', {name: 'api-7d9f6c-x2kq8'})).toBeInTheDocument()
     expect(calls(be, 'server.k8sPod')[0]).toEqual(['server.k8sPod', CTX, 'shop', 'api-7d9f6c-x2kq8'])
