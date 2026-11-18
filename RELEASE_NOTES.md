@@ -1,8 +1,18 @@
 <p align="center"><img src="docs/assets/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.8
+# Vutty 1.6.9
 
-Release date: 2026-11-10 · Platform: macOS, Windows and Linux (built by the release workflow; not yet tried by hand in the packaged app) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-18 · Platform: macOS, Windows and Linux (built by the release workflow; not yet tried by hand in the packaged app) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.9
+
+- **Open with… lists the apps that can open the file (#82).** In the Files section of the sidebar and on the SFTP screen (remote, local and pod files), *Open with…* turns the menu into the apps installed on this computer for that type of file, the one macOS uses first, with *Other…* for any other app and a row to go back. Where the system cannot list apps (Windows, Linux) it asks for an app straight away, as before. Files that run programs are still never opened from here.
+- **The Pods list starts on the Running pods (#83).** The Status filter defaults to *Running*; *All statuses* is one click away and the choice is still kept for the tab. When no pod has the kept status, every pod is listed instead of an empty list. With the default on, *Problems only* also hides pods that are not Running (CrashLoopBackOff, Pending) until *All statuses* is chosen.
+- **The app is called Vutty, not vutty (#84).** The Dock, Cmd-Tab, the menu bar and Launchpad use the display name *Vutty*. The bundle is still `vutty.app` (the updater and the download links are unchanged), so Finder and the DMG window still show `vutty`.
+- **The Files section of the sidebar can be filtered by name (#81).**
+- **Packaging.** `scripts/package-macos.sh` refuses to build a DMG or ZIP when the app has no executable inside. An empty bundle was packaged before, and macOS says such an app "may be damaged or incomplete" with no *Open Anyway*.
+
+Not yet seen in the packaged app: *Open with…* with the real list of apps and the display name are covered by tests and by reading the built bundle; open a file from the sidebar and look at the Dock first.
 
 ## What's new in 1.6.8
 
