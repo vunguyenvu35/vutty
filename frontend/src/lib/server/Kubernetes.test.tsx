@@ -123,6 +123,7 @@ describe('Overview', () => {
 async function allStatuses() {
   await userEvent.click(await screen.findByRole('combobox', {name: /^Status/}))
   await userEvent.click(await screen.findByRole('option', {name: /^All statuses/}))
+  await userEvent.keyboard('{Escape}') // the menu stays open: it ticks several
 }
 
 describe('Pods', () => {
@@ -150,6 +151,24 @@ describe('Pods', () => {
     expect(screen.queryByText('api-7d9f6c-x2kq8')).toBeNull() // CrashLoopBackOff
     await allStatuses()
     expect(screen.getByText('api-7d9f6c-x2kq8')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('6 of 6 pods')
+  })
+
+  it('the status filter ticks several statuses; none ticked is every status', async () => {
+    await openOn('Pods')
+    await screen.findByText('redis-0')
+    const status = () => screen.getByRole('combobox', {name: /^Status/})
+    expect(status()).toHaveAccessibleName('Status, Running')
+    await userEvent.click(status())
+    await userEvent.click(await screen.findByRole('option', {name: /^CrashLoopBackOff/}))
+    expect(status()).toHaveAccessibleName('Status, CrashLoopBackOff, Running')
+    expect(screen.getByText('api-7d9f6c-x2kq8')).toBeInTheDocument()
+    expect(screen.getByText('redis-0')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', {name: /^Running/}))
+    expect(screen.queryByText('redis-0')).toBeNull()
+    expect(screen.getByText('api-7d9f6c-x2kq8')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', {name: /^CrashLoopBackOff/}))
+    expect(status()).toHaveAccessibleName('Status, All statuses')
     expect(screen.getByRole('status')).toHaveTextContent('6 of 6 pods')
   })
 

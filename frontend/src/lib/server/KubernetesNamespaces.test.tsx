@@ -32,6 +32,7 @@ describe('a login that may not list the namespaces', () => {
     await addNamespace('shop')
     await userEvent.click(await screen.findByRole('combobox', {name: /^Status/})) // the list starts on the Running pods
     await userEvent.click(await screen.findByRole('option', {name: /^All statuses/}))
+    await userEvent.keyboard('{Escape}')
     expect(await screen.findByText('api-7d9f6c-x2kq8')).toBeInTheDocument() // the pods of that namespace are asked for
     expect(calls(be, 'server.k8sPods').some(c => c[2] === 'shop')).toBe(true)
     expect(screen.getByRole('combobox', {name: /^Namespace,/})).toHaveTextContent('shop')

@@ -4,6 +4,7 @@ import {useT, useTn} from '../i18n'
 import {useConfirm} from '../ui/Confirm'
 import {usePref} from '../ui/ListTools'
 import {Select} from '../ui/Select'
+import {MultiSelect} from '../ui/MultiSelect'
 import {IconChevron} from '../ui/Icons'
 import {Card, Err, Loading, Toolbar, FilterInput} from './shared'
 import {ActBtn, age, Age, Crumb, lockText, matches, Pill, useK8s, useKept, useKLoad, useSort, useMenuAnchor} from './KubernetesShared'
@@ -104,7 +105,7 @@ export function KubernetesPods({seed}: {seed: string}) {
   const t = useT()
   const [filter, setFilter] = useKept('pods.filter', '')
   const [problems, setProblems] = useKept('pods.problems', false)
-  const [status, setStatus] = useKept('pods.status', 'Running') // '' = every status; Running until another is chosen
+  const [statusSel, setStatusSel] = useKept<string[]>('pods.statuses', ['Running']) // the statuses shown; none = every status; Running until others are chosen
   useEffect(() => { if (seed) setFilter(seed) }, [seed]) // eslint-disable-line react-hooks/exhaustive-deps -- coming from the Overview with a pod to look at
   const tn = useTn()
   const [groupBy, setGroupBy] = usePref<PodGroup>('vutty.k8s.pods.group', POD_GROUPS, 'node')
@@ -114,8 +115,8 @@ export function KubernetesPods({seed}: {seed: string}) {
   const {th, apply} = useSort<PodSort>(['name', 'status', 'node'])
   const del = useDeletePod()
   const statuses = [...new Set((data ?? []).map(p => p.status))].sort((a, b) => a.localeCompare(b))
-  const shownStatus = statuses.includes(status) ? status : '' // a status no pod has (no Running pod yet) shows every pod
-  const list = (data ?? []).filter(p => matches(filter, p.name, p.namespace, p.node, p.status) && (!shownStatus || p.status === shownStatus) && (!problems || p.tone === 'bad' || p.tone === 'warn'))
+  const shownStatuses = statusSel.filter(s => statuses.includes(s)) // statuses no pod has (no Running pod yet) are left out: none left shows every pod
+  const list = (data ?? []).filter(p => matches(filter, p.name, p.namespace, p.node, p.status) && (shownStatuses.length === 0 || shownStatuses.includes(p.status)) && (!problems || p.tone === 'bad' || p.tone === 'warn'))
   const shown = apply(list, (p, key) => key === 'ready' ? Number(p.ready.split('/')[0]) : key === 'age' ? p.age_sec : key === 'restarts' ? p.restarts : p[key])
   // the groups, by name (what has no node, no owner, ... last); the order of the pods inside each is the order of the columns
   const keyOf = (p: K8sPod) => groupBy === 'node' ? p.node : groupBy === 'namespace' ? p.namespace : groupBy === 'workload' ? workloadOf(p.owner) : ''
@@ -146,8 +147,8 @@ export function KubernetesPods({seed}: {seed: string}) {
       <Toolbar busy={busy} onReload={reload}>
         <FilterInput label={t('Filter pods')} placeholder={t('Filter pods')} value={filter} onChange={setFilter} />
         <button aria-pressed={problems} className={problems ? 'primary' : ''} onClick={() => setProblems(!problems)}>{t('Problems only')}</button>
-        <Select className="sp-pick" label={t('Status')} value={shownStatus} onChange={setStatus}
-          options={[{value: '', label: t('All statuses')}, ...statuses.map(x => ({value: x, label: x, hint: String((data ?? []).filter(p => p.status === x).length)}))]} />
+        <MultiSelect className="sp-pick" label={t('Status')} values={shownStatuses} onChange={setStatusSel} allLabel={t('All statuses')}
+          options={statuses.map(x => ({value: x, label: x, hint: String((data ?? []).filter(p => p.status === x).length)}))} />
         <Select className="sp-pick" label={t('Group by')} value={groupBy} onChange={v => setGroupBy(v as PodGroup)}
           options={[{value: 'node', label: t('Group by node')}, {value: 'namespace', label: t('Group by namespace')}, {value: 'workload', label: t('Group by workload')}, {value: 'none', label: t('No groups')}]} />
         <span className="sp-note" role="status">{data ? t('{shown} of {total} pods', {shown: shown.length, total: data.length}) : ''}</span>
