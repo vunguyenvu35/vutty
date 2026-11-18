@@ -42,6 +42,7 @@ export default {
   "File menu": "Menu tệp",
   "Open": "Mở",
   "Open with…": "Mở bằng…",
+  "Other…": "Khác…",
   "Edit and save back": "Sửa và lưu lại",
   "Copy to target directory": "Sao chép sang thư mục đích",
   "New Folder": "Thư mục mới",

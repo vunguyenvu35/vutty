@@ -19,9 +19,10 @@ export function localPaneFs(be: Backend): PaneFs {
     remove: (p, isDir) => be.local.remove(p, isDir),
     chmod: (p, m) => be.local.chmod(p, m),
     open: e => be.system.openPath(e.path),
-    openWith: async e => {
-      const app = await be.system.pickFile(t('Open with…'))
+    openWith: async (e, chosen) => {
+      const app = chosen ?? await be.system.pickFile(t('Open with…'))
       if (app) await be.system.openPathWith(e.path, app)
     },
+    apps: e => be.system.openWithApps(e.name),
   }
 }

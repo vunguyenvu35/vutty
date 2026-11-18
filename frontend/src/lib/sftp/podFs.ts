@@ -19,9 +19,10 @@ export function podFs(be: Backend, t: TFn, hostId: string): PaneFs {
     rename: readOnly,
     remove: readOnly,
     open: async e => { await be.system.openPath(await fetch(e.path)) },
-    openWith: async e => {
-      const app = await be.system.pickFile(t('Open with…'))
+    openWith: async (e, chosen) => {
+      const app = chosen ?? await be.system.pickFile(t('Open with…'))
       if (app) await be.system.openPathWith(await fetch(e.path), app)
     },
+    apps: e => be.system.openWithApps(e.name),
   }
 }

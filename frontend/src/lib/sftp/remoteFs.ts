@@ -24,10 +24,11 @@ export function remoteFs(be: Backend, t: TFn, s: string, edited: Set<string>): P
     remove: (p, isDir) => be.sftp.remove(s, p, isDir),
     chmod: (p, m) => be.sftp.chmod(s, p, m),
     open: async e => { await be.system.openPath(await fetch(e.path, e.name)) },
-    openWith: async e => {
-      const app = await be.system.pickFile(t('Open with…'))
+    openWith: async (e, chosen) => {
+      const app = chosen ?? await be.system.pickFile(t('Open with…'))
       if (app) await be.system.openPathWith(await fetch(e.path, e.name), app)
     },
+    apps: e => be.system.openWithApps(e.name),
     edit: async e => {
       const local = await fetch(e.path, e.name)
       await be.system.openPath(local)

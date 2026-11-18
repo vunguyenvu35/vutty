@@ -17,7 +17,8 @@ import {AuthPrompt} from '../ui/AuthPrompt'
 import {cwdOfPane, paneStatusVersion, sessionOfPane, watchPaneStatus, writeToPane, toTerminalInput} from '../terminal/panes'
 import {LOCAL_HOST_ID, localPaneFs} from './localFs'
 import {POD_PREFIX, podFs} from './podFs'
-import type {AuthChallenge, Host, HostKeyPrompt, QueueJob, RemoteEntry} from '../types'
+import type {AuthChallenge, Host, HostKeyPrompt, OpenApp, QueueJob, RemoteEntry} from '../types'
+import {OpenWithList} from './OpenWithList'
 
 let seq = 0
 
@@ -78,7 +79,7 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
   const [filter, setFilter] = useState('')
   const [pfs, setPfs] = useState<PaneFs | null>(null)
   const edited = useRef(new Set<string>()) // remote files being edited from here: released when the connection ends
-  const [menu, setMenu] = useState<{x: number; y: number} | null>(null)
+  const [menu, setMenu] = useState<{x: number; y: number; apps?: {entry: RemoteEntry; list: OpenApp[]}} | null>(null)
   const [naming, setNaming] = useState<{mode: 'mkdir' | 'rename'; value: string; err: string} | null>(null)
   const [perms, setPerms] = useState<RemoteEntry | null>(null)
 
@@ -253,6 +254,12 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
     if (!paneId || !writeToPane(paneId, toTerminalInput(cdCommand(folderOf(e)), true))) toast.error(t('The terminal is not available'))
   }
   const act = (fn: () => void | Promise<void>) => { setMenu(null); void guard(async () => { await fn() }) }
+  // Open with…: the menu turns into the apps that can open the file; with none to offer (or no way to ask) it asks for one
+  const chooseApp = (e: RemoteEntry) => void guard(async () => {
+    const list = (await pfs?.apps?.(e)) ?? []
+    if (list.length === 0) { setMenu(null); await pfs!.openWith!(e); return }
+    setMenu(m => m && {...m, y: Math.max(4, Math.min(m.y, window.innerHeight - (list.length + 4) * 32 - 16)), apps: {entry: e, list}})
+  })
   const remove = (list: RemoteEntry[]) => guard(async () => {
     const question = list.length > 1 ? t('Delete these {n} items (folders with everything in them)? This cannot be undone.', {n: list.length})
       : list[0].is_dir ? t('Delete the folder "{name}" and everything in it? This cannot be undone.', {name: list[0].name}) : t('Delete "{name}"? This cannot be undone.', {name: list[0].name})
@@ -357,9 +364,13 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
         return (
           <div className="ctx-menu" role="menu" aria-label={none ? t('Folder menu') : t('File menu')} style={{left: menu.x, top: menu.y}}
             onMouseDown={ev => ev.stopPropagation()} onContextMenu={ev => ev.preventDefault()}>
+            {menu.apps ? (
+              <OpenWithList apps={menu.apps.list} t={t} onBack={() => setMenu(m => m && {...m, apps: undefined})}
+                onPick={app => act(() => pfs!.openWith!(menu.apps!.entry, app.path))} onOther={() => act(() => pfs!.openWith!(menu.apps!.entry))} />
+            ) : <>
             <button role="menuitem" disabled={!entry || (!entry.is_dir && !pfs?.open)} onClick={() => act(() => open(entry!))}>{t('Open')}</button>
             <button role="menuitem" disabled={!entry || !paneId} onClick={() => act(() => goToFolder(entry!))}>{t('Go to folder')}</button>
-            <button role="menuitem" disabled={!entry || entry.is_dir || !pfs?.openWith} onClick={() => act(() => pfs!.openWith!(entry!))}>{t('Open with…')}</button>
+            <button role="menuitem" disabled={!entry || entry.is_dir || !pfs?.openWith} onClick={() => chooseApp(entry!)}>{t('Open with…')}</button>
             {pfs?.edit && <button role="menuitem" disabled={!entry || entry.is_dir} onClick={() => act(() => pfs.edit!(entry!))}>{t('Edit and save back')}</button>}
             {!local && <>
               <button role="menuitem" disabled={none} onClick={() => act(download)}>{chosen.length > 1 ? t('Download {n}', {n: chosen.length}) : t('Download')}</button>
@@ -374,6 +385,7 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
             <button role="menuitem" onClick={() => { setMenu(null); toggleHidden() }}>{hidden ? t('Hide Hidden Files') : t('Show Hidden Files')}</button>
             {!readOnly && <button role="menuitem" disabled={!entry || !pfs?.chmod} onClick={() => { setMenu(null); setPerms(entry) }}>{t('Edit Permissions')}</button>}
             <button role="menuitem" disabled={shown.length === 0} onClick={() => { setMenu(null); setSelected(shown.map(e => e.path)) }}>{t('Select All')}</button>
+            </>}
           </div>
         )
       })()}

@@ -551,6 +551,15 @@ describe('SftpBrowser: right-click menu', () => {
     await waitFor(() => expect(calls(be, 'system.openPath')).toEqual([['system.openPath', '/Users/me/notes.txt']]))
   })
 
+  it('Open with… lists the apps for a local file, and a click opens the file with that app', async () => {
+    const be = setup()
+    await ready()
+    fireEvent.contextMenu(row(L(), 'notes.txt'))
+    await userEvent.click(within(menuOf()).getByRole('menuitem', {name: 'Open with…'}))
+    await userEvent.click(await within(menuOf()).findByRole('menuitem', {name: 'TextEdit'}))
+    await waitFor(() => expect(calls(be, 'system.openPathWith')).toEqual([['system.openPathWith', '/Users/me/notes.txt', '/Applications/TextEdit.app']]))
+  })
+
   it('Upload (local pane) and Download (remote pane) in the menu send the chosen items to the other pane', async () => {
     const be = setup()
     await ready()

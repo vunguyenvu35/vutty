@@ -275,6 +275,12 @@ export interface Snippet {
   updated_at?: string
 }
 
+/** An installed application that can open a file (the Open with… menu). */
+export interface OpenApp {
+  name: string
+  path: string
+}
+
 export interface RemoteEntry {
   name: string
   path: string

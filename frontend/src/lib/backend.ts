@@ -3,7 +3,7 @@ import {t} from './i18n'
 import type {Cluster, K8sContainerEdit, K8sEditable, K8sEditPreview, K8sSidecar, K8sWorkloadKind, K8sWorkloadSpec, ClusterInput, ClusterPreview, K8sAccess, K8sCheck, K8sConfig, K8sConfigItem, K8sContexts, K8sDeployment, K8sDetect, K8sDrainOpts, K8sDrainPlan, K8sEvent, K8sAPIResource, K8sResRef, K8sObjList, K8sMultiLogs, K8sHelmRelease, K8sHelmDetail, K8sSecurity, K8sDebug, K8sForward, K8sLogOpts, K8sNamespaces, K8sNetwork, K8sNode, K8sOverview, K8sPod, K8sPodDetail, K8sWorkloads} from './types'
 import type {ServerUsers, UserKey, DockerInspect, DockerObjects, DockerStat, ExecRun, ExecSpec, InventoryOptions, SSHLink, VaultHealth, 
   CacheReport, ConnectionTest, ExportReport, ForwardStatus, Group, Host, HostFilter, Identity, ImportReport, PortForward, Settings,
-  ActivityEntry, KnownHost, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
+  ActivityEntry, KnownHost, OpenApp, QueueJob, QueueSpec, RemoteEntry, SftpInfo, SyncDiff, Snippet, SyncStatus, TransferResult, VaultStatus,
   AiAskOptions, AiAttachment, AiCommandCheck, AiCustomProvider, AiModelList, AiPolicy, AiPreview, AiProvider, AiSessionState, AiSettings,
   McpImportItem, McpServer, McpServerInput, McpTool, FirewallRule, ServerBackup, ServerClock, ServerIncident, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerInfo, ServerOverview, ServerPorts, ServerProcess, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUnit, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile,
 } from './types'
@@ -454,6 +454,8 @@ export interface Backend {
     openPath(path: string): Promise<void>
     /** Opens a file with the chosen application. */
     openPathWith(path: string, app: string): Promise<void>
+    /** The installed applications that can open a file called name, the system's own first. Empty where the system cannot say. */
+    openWithApps(name: string): Promise<OpenApp[]>
     /** Zoom the native window (the green button / a double click on the title bar). A no-op in a browser. */
     toggleMaximise(): Promise<void>
     /** The system clipboard: through the native runtime (a webview often refuses to read it), else the browser. */
@@ -837,6 +839,7 @@ export function wailsBackend(): Backend {
       openWindow: (h, t) => call('app', 'SystemService', 'OpenWindow', h, t),
       openPath: p => call('app', 'SystemService', 'OpenPath', p),
       openPathWith: (p, a) => call('app', 'SystemService', 'OpenPathWith', p, a),
+      openWithApps: n => call('app', 'SystemService', 'OpenWithApps', n),
       toggleMaximise: async () => { window.runtime?.WindowToggleMaximise?.() },
       isFullscreen: async () => (await window.runtime?.WindowIsFullscreen?.()) ?? false,
       readClipboard: async () => {

@@ -192,6 +192,43 @@ describe('terminal sidebar: Files', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('Open with… lists the apps for the file, and a click opens the file with that app', async () => {
+    const {be} = setup('h1')
+    await waitFor(() => expect(names()).toHaveLength(2))
+    fireEvent.contextMenu(within(files()).getByRole('option', {name: /readme\.txt/}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Open with…'}))
+    expect(calls(be, 'system.openWithApps')).toEqual([['system.openWithApps', 'readme.txt']])
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getAllByRole('menuitem').map(b => b.textContent)).toEqual(['‹ Open with…', 'TextEdit', 'Visual Studio Code', 'Other…'])
+    await userEvent.click(within(menu).getByRole('menuitem', {name: 'Visual Studio Code'}))
+    await waitFor(() => expect(calls(be, 'system.openPathWith')).toHaveLength(1))
+    expect(calls(be, 'system.openPathWith')[0][2]).toBe('/Applications/Visual Studio Code.app')
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('Open with… › Other… asks for an app, and the back row returns to the file menu', async () => {
+    const {be} = setup('h1')
+    await waitFor(() => expect(names()).toHaveLength(2))
+    fireEvent.contextMenu(within(files()).getByRole('option', {name: /readme\.txt/}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Open with…'}))
+    await userEvent.click(await screen.findByRole('menuitem', {name: '‹ Open with…'}))
+    expect(screen.getByRole('menuitem', {name: 'Rename'})).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Open with…'}))
+    await userEvent.click(await screen.findByRole('menuitem', {name: 'Other…'}))
+    await waitFor(() => expect(calls(be, 'system.openPathWith')).toHaveLength(1))
+    expect(calls(be, 'system.openPathWith')[0][2]).toBe('/tmp/picked')
+  })
+
+  it('Open with… asks for an app straight away when the system has no list', async () => {
+    const {be} = setup('h1')
+    be.state.openApps = []
+    await waitFor(() => expect(names()).toHaveLength(2))
+    fireEvent.contextMenu(within(files()).getByRole('option', {name: /readme\.txt/}))
+    await userEvent.click(screen.getByRole('menuitem', {name: 'Open with…'}))
+    await waitFor(() => expect(calls(be, 'system.openPathWith')).toHaveLength(1))
+    expect(calls(be, 'system.openPathWith')[0][2]).toBe('/tmp/picked')
+  })
+
   it('right-click: Rename and New Folder ask for a name, Delete asks first', async () => {
     const {be} = setup('h1')
     await waitFor(() => expect(names()).toHaveLength(2))

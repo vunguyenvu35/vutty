@@ -42,6 +42,7 @@ export default {
   "File menu": "ファイルメニュー",
   "Open": "開く",
   "Open with…": "このアプリで開く…",
+  "Other…": "その他…",
   "Edit and save back": "編集して書き戻す",
   "Copy to target directory": "コピー先フォルダへコピー",
   "New Folder": "新規フォルダ",

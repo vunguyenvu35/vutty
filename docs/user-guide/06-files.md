@@ -57,6 +57,8 @@ The sidebar of a terminal has a **Files (SFTP)** section for the host of the foc
 
 The file lists have a **right-click menu**: Open, Open with…, Copy to target directory, Rename, Delete, Refresh, New Folder and **Edit Permissions** (a grid of read / write / execute, or the octal number).
 
+**Open with…** shows the apps installed on this computer that can open the file (the one macOS uses for that type first), and **Other…** picks any other app. A remote file is downloaded to a private temporary folder first. Where the system cannot list apps (Windows, Linux), Open with… asks for the app right away. Files that run programs (`.sh`, `.app`, `.command`…) are never opened from here.
+
 ![SFTP right-click menu](../assets/screenshots/34-sftp-context-menu.png)
 
 ![Edit permissions](../assets/screenshots/35-sftp-permissions.png)

@@ -5,9 +5,10 @@ import {useConfirm} from '../ui/Confirm'
 import {useMinBusy} from '../ui/useMinBusy'
 import {IconArrowUp, IconChevron, IconClose, IconPlus, IconEye, IconEyeOff, IconFile, IconFolder, IconHome, IconRefresh, IconSearch} from '../ui/Icons'
 import {PermissionsDialog} from './Permissions'
+import {OpenWithList} from './OpenWithList'
 import {breadcrumbs, formatBytes, formatDate, joinPath, kindOf, parentOf, validName} from './format'
 import {byName, SortMenu, usePref, type SortOption} from '../ui/ListTools'
-import type {RemoteEntry} from '../types'
+import type {OpenApp, RemoteEntry} from '../types'
 
 type Sort = 'name' | 'name-desc' | 'size' | 'modified'
 const SORT_IDS: Sort[] = ['name', 'name-desc', 'size', 'modified']
@@ -23,8 +24,10 @@ export interface PaneFs {
   chmod?(path: string, mode: number): Promise<void>
   /** open a file with the system's app for it */
   open?(e: RemoteEntry): Promise<void>
-  /** open a file with an app the user picks */
-  openWith?(e: RemoteEntry): Promise<void>
+  /** open a file with the given app, or with one the user picks when none is given */
+  openWith?(e: RemoteEntry, app?: string): Promise<void>
+  /** the installed apps that can open the file (the system's own first); absent or empty: Open with… asks for an app */
+  apps?(e: RemoteEntry): Promise<OpenApp[]>
   /** the files cannot be changed (a pod): the menu has no Rename, Delete, New Folder or Edit Permissions */
   readOnly?: boolean
   /** open a remote file and save it back to the server every time it is saved; absent: no such menu item */
@@ -87,7 +90,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
   const [error, setError] = useState('')
   const [hidden, setHidden] = useState(showHiddenDefault)
   const [over, setOver] = useState(false)
-  const [menu, setMenu] = useState<{x: number; y: number; right?: boolean} | null>(null)
+  const [menu, setMenu] = useState<{x: number; y: number; right?: boolean; apps?: {entry: RemoteEntry; list: OpenApp[]}} | null>(null)
   const [filtering, setFiltering] = useState(false)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = usePref<Sort>('vutty.sftp.sort', SORT_IDS, 'name')
@@ -186,6 +189,12 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
     setMenu({x: Math.max(8, window.innerWidth - r.right), y: r.bottom + 4, right: true})
   }
   const act = (fn: () => void | Promise<void>) => { setMenu(null); void guard(async () => { await fn() }) }
+  // Open with…: the menu turns into the apps that can open the file; with none to offer (or no way to ask) it asks for one
+  const chooseApp = (e: RemoteEntry) => void guard(async () => {
+    const list = (await fs?.apps?.(e)) ?? []
+    if (list.length === 0) { setMenu(null); await fs!.openWith!(e); return }
+    setMenu(m => m && {...m, y: Math.max(8, Math.min(m.y, window.innerHeight - (list.length + 4) * 32 - 16)), apps: {entry: e, list}})
+  })
   const openEntry = (e: RemoteEntry) => (e.is_dir ? load(e.path) : fs?.open ? fs.open(e) : Promise.resolve())
   const selectAll = () => setSelected(shown.map(e => e.path))
 
@@ -311,8 +320,12 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
         return (
           <div className="ctx-menu" role="menu" aria-label={menu.right ? t('Actions') : none ? t('Folder menu') : t('File menu')} style={menu.right ? {right: menu.x, top: menu.y} : {left: menu.x, top: menu.y}}
             onMouseDown={ev => ev.stopPropagation()} onContextMenu={ev => ev.preventDefault()}>
+            {menu.apps ? (
+              <OpenWithList apps={menu.apps.list} t={t} onBack={() => setMenu(m => m && {...m, apps: undefined})}
+                onPick={app => act(() => fs!.openWith!(menu.apps!.entry, app.path))} onOther={() => act(() => fs!.openWith!(menu.apps!.entry))} />
+            ) : <>
             <button role="menuitem" disabled={!entry || (!entry.is_dir && !fs?.open)} onClick={() => act(() => openEntry(entry!))}>{t('Open')}</button>
-            <button role="menuitem" disabled={!entry || entry.is_dir || !fs?.openWith} onClick={() => act(() => fs!.openWith!(entry!))}>{t('Open with…')}</button>
+            <button role="menuitem" disabled={!entry || entry.is_dir || !fs?.openWith} onClick={() => chooseApp(entry!)}>{t('Open with…')}</button>
             {fs?.edit && <button role="menuitem" disabled={!entry || entry.is_dir} onClick={() => act(() => fs.edit!(entry!))}>{t('Edit and save back')}</button>}
             <button role="menuitem" disabled={none || !onCopyOut} onClick={() => { setMenu(null); onCopyOut?.(targets.map(x => ({path: x.path, name: x.name, is_dir: x.is_dir}))) }}>{copyLabel ?? t('Copy to target directory')}</button>
             <button role="menuitem" disabled={!entry} onClick={() => { setMenu(null); setNaming({mode: 'rename', value: entry!.name, err: ''}) }}>{t('Rename')}</button>
@@ -323,6 +336,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
             <button role="menuitem" disabled={!entry || !fs?.chmod} onClick={() => { setMenu(null); setPerms(entry) }}>{t('Edit Permissions')}</button>
             <button role="menuitem" disabled={shown.length === 0} onClick={() => { setMenu(null); selectAll() }}>{t('Select All')}</button>
             <button role="menuitem" className="danger-item" disabled={!onClose} onClick={() => { setMenu(null); onClose?.() }}>{t('Close')}</button>
+            </>}
           </div>
         )
       })()}

@@ -42,6 +42,7 @@ export default {
   "File menu": "文件菜单",
   "Open": "打开",
   "Open with…": "打开方式…",
+  "Other…": "其他…",
   "Edit and save back": "编辑并保存回去",
   "Copy to target directory": "复制到目标目录",
   "New Folder": "新建文件夹",

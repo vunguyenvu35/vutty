@@ -134,6 +134,8 @@ button.on-banner { background: #ffffff33; color: #fff; }
 .ctx-menu { position: fixed; z-index: 70; min-width: 150px; padding: 5px; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow); }
 .ctx-menu button { text-align: left; background: transparent; border: 0; padding: 7px 10px; border-radius: 6px; }
 .ctx-menu button:hover:not(:disabled) { background: var(--bg-3); }
+.ctx-menu .ctx-back { font-weight: 600; }
+.ctx-menu { max-height: calc(100vh - 16px); overflow-y: auto; }
 
 /* New Key: floating labels and the drop area */
 .float-field { position: relative; }

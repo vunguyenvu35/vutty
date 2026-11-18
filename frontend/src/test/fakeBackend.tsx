@@ -4,7 +4,7 @@ import {ToastProvider} from '../lib/ui/Toast'
 import {DEFAULT_SETTINGS} from '../lib/settings/defaults'
 import {k8sApi, makeK8s, type K8sFake} from './fakeK8s'
 import type {ServerUsers, UserKey, DockerObjects, ExecRun, ServerBackup, ServerClock, ServerIncident, ServerCerts, ServerCleanup, ServerContainers, ServerFleetHost, ServerFolder, ServerSchedule, ServerAudit, ServerFleetResult, ServerUpgrade, ServerLogin, ServerSecurity, ServerSystem, ServerUpdates, ServerWeb, ServerWebResult, WebSiteFile, ServerOverview, ServerPorts, ServerProcess, ServerUnit, SSHLink, VaultHealth, ActivityEntry, KnownHost, QueueJob, RemoteEntry, SyncDiff, TransferResult, ConnectionTest, ForwardStatus, Group, Host, Identity, PortForward, Settings, Snippet, VaultStatus,
-  CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
+  OpenApp, CacheReport, AiCommandCheck, AiModelList, AiPreview, AiProvider, AiReply, AiSessionState, AiSettings, McpImportItem, McpServer, McpTool, Cluster, ClusterPreview} from '../lib/types'
 
 export interface Fake extends Backend {
   state: {
@@ -31,6 +31,8 @@ export interface Fake extends Backend {
     serialPorts: string[]
     /** the system clipboard */
     clipboard: string
+    /** the apps Open with… offers */
+    openApps: OpenApp[]
     knownHosts: KnownHost[]
     /** true: queued transfers stay running (40 %) until a test finishes them with finishJob */
     holdQueue: boolean
@@ -188,6 +190,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
     cache: {files: 3, bytes: 5120},
     serialPorts: ['/dev/cu.usbserial-1410', '/dev/cu.usbmodem1101'],
     clipboard: '',
+    openApps: [{name: 'TextEdit', path: '/Applications/TextEdit.app'}, {name: 'Visual Studio Code', path: '/Applications/Visual Studio Code.app'}],
     knownHosts: [],
     logs: [],
     testResult: {ok: true, message: 'Connected to 10.0.0.1 as root', server_version: 'SSH-2.0-OpenSSH_9.6', latency_ms: 42, hops: 1},
@@ -860,6 +863,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       openWindow: async (h, t) => { rec('system.openWindow', h, t) },
       openPath: async p => { rec('system.openPath', p) },
       openPathWith: async (p, a) => { rec('system.openPathWith', p, a) },
+      openWithApps: async n => { rec('system.openWithApps', n); return state.openApps },
     },
     finishJob: (sid, jobId, patch = {}) => patchJob(sid, jobId, {state: 'done', done: 100, total: 100, ...patch}),
     jobs: sid => (queues[sid] ?? []).map(j => ({...j})),
