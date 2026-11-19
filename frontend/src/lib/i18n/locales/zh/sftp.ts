@@ -178,6 +178,7 @@ export default {
   "Enter a name": "请输入名称",
   "Choose a different name": "请选择其他名称",
   "A name cannot contain \"/\"": "名称不能包含“/”",
+  "A name cannot contain any of \\ < > : \" | ? *": "名称不能包含 \\ < > : \" | ? * 中的任何字符",
   "folder": "文件夹",
   "file": "文件",
   "This computer": '本机',

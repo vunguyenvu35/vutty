@@ -178,6 +178,7 @@ export default {
   "Enter a name": "Hãy nhập tên",
   "Choose a different name": "Hãy chọn tên khác",
   "A name cannot contain \"/\"": "Tên không được chứa \"/\"",
+  "A name cannot contain any of \\ < > : \" | ? *": "Tên không được chứa ký tự nào trong \\ < > : \" | ? *",
   "folder": "thư mục",
   "file": "tệp",
   "This computer": "Máy tính này",

@@ -178,6 +178,7 @@ export default {
   "Enter a name": "名前を入力してください",
   "Choose a different name": "別の名前を選んでください",
   "A name cannot contain \"/\"": "名前に「/」は使えません",
+  "A name cannot contain any of \\ < > : \" | ? *": "名前に \\ < > : \" | ? * は使えません",
   "folder": "フォルダ",
   "file": "ファイル",
   "This computer": "このコンピュータ",

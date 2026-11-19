@@ -6,7 +6,7 @@ import {useToast} from '../ui/Toast'
 import {useMinBusy} from '../ui/useMinBusy'
 import {IconArrowUp, IconDownload, IconEye, IconEyeOff, IconFile, IconFolder, IconLocate, IconRefresh, IconSearch} from '../ui/Icons'
 import {errMsg} from '../util'
-import {cdCommand, folderOf, formatBytes, joinPath, parentOf, validName} from './format'
+import {cdCommand, folderOf, formatBytes, isRoot, joinPath, parentOf, validName} from './format'
 import {PermissionsDialog} from './Permissions'
 import type {PaneFs} from './FilePane'
 import {remoteFs, watchEdits} from './remoteFs'
@@ -273,7 +273,7 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
   const submitName = (ev: FormEvent) => {
     ev.preventDefault()
     if (!naming || !pfs) return
-    const bad = validName(naming.value)
+    const bad = validName(naming.value, cwd)
     if (bad) return setNaming({...naming, err: bad})
     const name = naming.value.trim()
     const one = chosen.length === 1 ? chosen[0] : null
@@ -288,7 +288,7 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
   return (
     <div className="side-files" aria-label={t('Server files')}>
       <div className="side-files-bar">
-        <button className="icon ghost" aria-label={t('Up one folder')} disabled={!ready || cwd === '/'} onClick={() => void load(sid, parentOf(cwd))}><IconArrowUp size={15} /></button>
+        <button className="icon ghost" aria-label={t('Up one folder')} disabled={!ready || isRoot(cwd)} onClick={() => void load(sid, parentOf(cwd))}><IconArrowUp size={15} /></button>
         <button className="icon ghost" aria-label={t('Refresh files')} aria-busy={spinning} disabled={!ready} onClick={() => void load(sid, cwd)}><IconRefresh size={15} /></button>
         <button className="icon ghost" aria-label={t("Go to the terminal's folder")} disabled={!ready}
           title={t("Go to the terminal's folder")}
@@ -348,7 +348,7 @@ function Files({host, pod, paneId}: {host: Host | null; pod?: string; paneId?: s
         <div ref={listRef} className="side-list side-files-list" role="listbox" aria-multiselectable="true" aria-label={t('Files')} aria-busy={loading} onContextMenu={ev => openMenu(ev, null)}>
           {shown.map(e => (
             <div key={e.path} role="option" tabIndex={0} aria-selected={selected.includes(e.path)} className={'side-item side-file' + (selected.includes(e.path) ? ' on' : '')}
-              onClick={ev => pick(e, ev)} onContextMenu={ev => openMenu(ev, e)} onDoubleClick={() => open(e)} onKeyDown={ev => { if (ev.key === 'Enter') open(e); else if (ev.key === 'Backspace' && cwd !== '/') { ev.preventDefault(); void load(sid, parentOf(cwd)) } }}>
+              onClick={ev => pick(e, ev)} onContextMenu={ev => openMenu(ev, e)} onDoubleClick={() => open(e)} onKeyDown={ev => { if (ev.key === 'Enter') open(e); else if (ev.key === 'Backspace' && !isRoot(cwd)) { ev.preventDefault(); void load(sid, parentOf(cwd)) } }}>
               {e.is_dir ? <IconFolder size={15} /> : <IconFile size={15} />}
               <span className="side-main"><b>{marked(e.name, needle)}</b></span>
               <small className="muted">{e.is_dir ? '' : formatBytes(e.size)}</small>

@@ -6,7 +6,7 @@ import {useMinBusy} from '../ui/useMinBusy'
 import {IconArrowUp, IconChevron, IconClose, IconPlus, IconEye, IconEyeOff, IconFile, IconFolder, IconHome, IconRefresh, IconSearch} from '../ui/Icons'
 import {PermissionsDialog} from './Permissions'
 import {OpenWithList} from './OpenWithList'
-import {breadcrumbs, formatBytes, formatDate, joinPath, kindOf, parentOf, validName} from './format'
+import {breadcrumbs, formatBytes, formatDate, isAbsolutePath, isRoot, joinPath, kindOf, parentOf, validName} from './format'
 import {byName, SortMenu, usePref, type SortOption} from '../ui/ListTools'
 import type {OpenApp, RemoteEntry} from '../types'
 
@@ -201,7 +201,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
   const submitName = (ev: FormEvent) => {
     ev.preventDefault()
     if (!naming) return
-    const bad = validName(naming.value)
+    const bad = validName(naming.value, cwd)
     if (bad) return setNaming({...naming, err: bad})
     const name = naming.value.trim()
     void guard(async () => {
@@ -215,7 +215,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
   const goPath = (ev: FormEvent) => {
     ev.preventDefault()
     const p = pathText.trim() || '/'
-    void load(p.startsWith('/') ? p : joinPath(cwd, p))
+    void load(isAbsolutePath(p) ? p : joinPath(cwd, p))
   }
 
   const dragStart = (e: DragEvent, entry: RemoteEntry) => {
@@ -265,7 +265,7 @@ export function FilePane({side, title, icon, fs, startDir, reloadKey, showHidden
       </div>
 
       <div className="sftp-bar">
-        <button className="icon" aria-label={t('Up one folder')} disabled={!ready || cwd === '/'} onClick={() => load(parentOf(cwd))}><IconArrowUp size={16} /></button>
+        <button className="icon" aria-label={t('Up one folder')} disabled={!ready || isRoot(cwd)} onClick={() => load(parentOf(cwd))}><IconArrowUp size={16} /></button>
         <button className="icon" aria-label={t('Home folder')} disabled={!ready} onClick={() => load(startDir)} title={t('Home')}><IconHome size={16} /></button>
         <button className="icon" aria-label={t('Refresh')} aria-busy={spinning} disabled={!ready} onClick={() => load(cwd)}><IconRefresh size={16} /></button>
         <form className="sftp-path" onSubmit={goPath}>

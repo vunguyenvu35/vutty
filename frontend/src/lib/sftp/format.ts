@@ -15,8 +15,35 @@ export function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'}) + ' ' + d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'})
 }
 
-/** "/a/b/c" -> [{name:'/', path:'/'}, {name:'a', path:'/a'}, ...] */
+const WINDOWS_PATH = /^([A-Za-z]:[\\/]|[A-Za-z]:$|\\\\)/
+
+/** True for a Windows path (drive letter or UNC): the local pane on Windows. Remote paths are always POSIX. */
+export const isWindowsPath = (p: string) => WINDOWS_PATH.test(p)
+
+/** True for the top of a filesystem: "/", "C:\\", or a UNC share root. Nothing is above it. */
+export function isRoot(path: string): boolean {
+  if (!isWindowsPath(path)) return path === '/' || path === ''
+  return /^[A-Za-z]:[\\/]*$/.test(path) || /^\\\\[^\\/]+[\\/]+[^\\/]+[\\/]*$/.test(path)
+}
+
+/** Whether a path typed in a "go to" box is complete rather than relative to the current folder. */
+export const isAbsolutePath = (p: string) => p.startsWith('/') || isWindowsPath(p)
+
+/** "/a/b/c" -> [{name:'/', path:'/'}, {name:'a', path:'/a'}, ...]; "C:\\a\\b" -> [C:\\, a, b]. */
 export function breadcrumbs(path: string): {name: string; path: string}[] {
+  if (isWindowsPath(path)) {
+    const m = /^([A-Za-z]:|\\\\[^\\/]+[\\/]+[^\\/]+)(.*)$/.exec(path)
+    if (m) {
+      const root = m[1].startsWith('\\\\') ? m[1] : m[1] + '\\'
+      const out = [{name: root, path: root}]
+      let acc = m[1]
+      for (const part of m[2].split(/[\\/]+/).filter(Boolean)) {
+        acc += '\\' + part
+        out.push({name: part, path: acc})
+      }
+      return out
+    }
+  }
   const out = [{name: '/', path: '/'}]
   let acc = ''
   for (const part of path.split('/').filter(Boolean)) {
@@ -27,20 +54,29 @@ export function breadcrumbs(path: string): {name: string; path: string}[] {
 }
 
 export function parentOf(path: string): string {
+  if (isWindowsPath(path)) {
+    if (isRoot(path)) return path
+    const trimmed = path.replace(/[\\/]+$/, '')
+    const i = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+    const dir = trimmed.slice(0, i)
+    return /^[A-Za-z]:$/.test(dir) ? dir + '\\' : dir // C:\a goes to C:\, not C:
+  }
   const i = path.replace(/\/+$/, '').lastIndexOf('/')
   return i <= 0 ? '/' : path.slice(0, i)
 }
 
 export function joinPath(dir: string, name: string): string {
+  if (isWindowsPath(dir)) return dir.replace(/[\\/]+$/, '') + '\\' + name
   return (dir === '/' ? '' : dir.replace(/\/+$/, '')) + '/' + name
 }
 
 /** A file or folder name must be one path segment. */
-export function validName(name: string): string | null {
+export function validName(name: string, dir = ''): string | null {
   const n = name.trim()
   if (!n) return t('Enter a name')
   if (n === '.' || n === '..') return t('Choose a different name')
   if (/[/\0]/.test(n)) return t('A name cannot contain "/"')
+  if (isWindowsPath(dir) && /[\\<>:"|?*]/.test(n)) return t('A name cannot contain any of \\ < > : " | ? *')
   return null
 }
 
@@ -50,8 +86,6 @@ export function kindOf(e: {name: string; is_dir: boolean}): string {
   const i = e.name.lastIndexOf('.')
   return i > 0 && i < e.name.length - 1 ? e.name.slice(i + 1).toUpperCase() : t('file')
 }
-
-const WINDOWS_PATH = /^([A-Za-z]:[\\/]|\\\\)/
 
 /**
  * The line that makes a terminal change into `dir`. A Windows path (drive letter or UNC) gets PowerShell
