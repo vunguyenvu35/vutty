@@ -124,7 +124,7 @@ Nothing leaves your machine by default. `--tag` creates a local annotated tag; `
 Notes:
 
 - The tag must match `VERSION`; the build reads the version from the file. Do not reuse a tag.
-- The release is created as a **pre-release**. The in-app *Check for updates* reads GitHub's `releases/latest`, which ignores pre-releases, so untick *Set as a pre-release* on the release page (or drop `--prerelease` in the workflow) for users to be offered it.
+- The release is published as the **latest** release (not a pre-release), so *Check for updates* and the `releases/latest/download/...` links of the README point to it at once. To hold a release back, mark it as a pre-release on the release page.
 - If a release for the tag already exists (made by hand), the workflow adds the files to it (`--clobber`) instead of failing.
 - Run it by hand from **Actions → release → Run workflow** to test the three builds: it only builds and keeps the files as artifacts; no release is made.
 - `package-macos.sh` (or `make package`) makes the same `.dmg` and `.zip`, for both kinds of Mac, on a Mac. Builds are not signed with a developer certificate, so macOS and Windows warn on first launch.

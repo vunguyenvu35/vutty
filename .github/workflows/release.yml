@@ -153,6 +153,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             # a release made by hand for this tag: add (or replace) the files
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --prerelease=false --latest
           else
-            gh release create "$TAG" dist/* --title "Vutty $VERSION" --notes-file notes.md --prerelease
+            gh release create "$TAG" dist/* --title "Vutty $VERSION" --notes-file notes.md --latest
           fi
