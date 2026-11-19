@@ -1,8 +1,17 @@
 <p align="center"><img src="docs/assets/brand/logo-mark-256.png" alt="Vutty" width="88"></p>
 
-# Vutty 1.6.9
+# Vutty 1.6.10
 
-Release date: 2026-11-18 · Platform: macOS, Windows and Linux (built by the release workflow; not yet tried by hand in the packaged app) · Status: beta. Read [Known issues](#known-issues) first.
+Release date: 2026-11-19 · Platform: macOS, Windows and Linux (built by the release workflow; not yet tried by hand in the packaged app) · Status: beta. Read [Known issues](#known-issues) first.
+
+## What's new in 1.6.10
+
+- **The local Terminal tab works on Windows (#88).** It never opened there, because the pseudo-terminal library has no Windows support. The shell now runs on ConPTY (Windows 10 1809 or later): PowerShell 7 if installed, else Windows PowerShell, else `cmd`. macOS and Linux are unchanged.
+- **The Local pane of the SFTP screen understands Windows paths (#88).** Up one folder, Backspace, the breadcrumbs, new folder, rename and the go-to box handle drive letters (`C:\`) and network shares; names with `\ < > : " | ? *` are refused in a Windows folder.
+- **The Pods Status filter ticks several statuses (#86).**
+- **macOS builds for Apple silicon and Intel (#87).**
+
+Not yet seen on a real Windows machine: open the Terminal tab and the Local pane first. There is no drive list in the Local pane yet (type `D:\` in the go-to box), and *Open with…* still asks for an app on Windows.
 
 ## What's new in 1.6.9
 
