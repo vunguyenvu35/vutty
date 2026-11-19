@@ -9,7 +9,7 @@ Vutty betas are not signed with an Apple Developer ID and not notarized yet, so 
 Each release lists `SHA256SUMS`. In Terminal, in the folder you downloaded to:
 
 ```sh
-shasum -a 256 vutty-<version>-macos.dmg
+shasum -a 256 vutty-<version>-macos-<arm64 or amd64>.dmg
 ```
 
 The result must match the line for that file in `SHA256SUMS` on the [Releases](https://github.com/vunguyenvu35/vutty/releases/latest) page.

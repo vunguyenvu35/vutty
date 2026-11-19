@@ -109,9 +109,9 @@ The default keys are listed in [Keyboard shortcuts](14-shortcuts.md).
 
 ## Updates
 
-**Check for updates** (under the help links) asks GitHub for the latest release and compares it with your version. If there is a newer one, **Version X is available** appears: click it to open the release page and download the build for your system (macOS `.dmg` or `.zip`, Windows `.exe`, Linux `.tar.gz`). To update by hand, quit Vutty and replace the old app with the new one; your data is kept outside the app, so nothing is lost.
+**Check for updates** (under the help links) asks GitHub for the latest release and compares it with your version. If there is a newer one, **Version X is available** appears: click it to open the release page and download the build for your system (macOS `.dmg` or `.zip`, for Apple silicon or Intel, Windows `.exe`, Linux `.tar.gz`). To update by hand, quit Vutty and replace the old app with the new one; your data is kept outside the app, so nothing is lost.
 
-**On a Mac with Apple silicon, Vutty can install the update for you:** open **Help → About → Check for updates**, and when a newer version is found choose **Install and restart**.
+**On a Mac, Vutty can install the update for you (the file for Apple silicon or Intel, whichever your Mac is):** open **Help → About → Check for updates**, and when a newer version is found choose **Install and restart**.
 
 - It downloads the update itself, checks that its checksum list is signed with the project's key and that the download matches it (an update that fails either check is not installed, and says so), puts the new copy in place and starts it. The old copy stays next to it as `vutty.app.previous` for the first half minute.
 - It needs Vutty to be in a folder you can write to (your Applications folder), not running from the disk image; if it is not, About says why.

@@ -6,7 +6,7 @@ Vutty can install a newer version of itself (**Help → About → Check for upda
 
 1. It reads the latest release from GitHub and only goes on if its version is higher than the running one.
 2. It downloads `SHA256SUMS` (the checksum list of the release) and `SHA256SUMS.sig` (its signature) and checks the signature against the **public key built into the app** (`internal/updater/pubkey.go`). Without a valid signature nothing else is downloaded.
-3. It downloads `vutty-<version>-macos.zip`, hashing it as it arrives, and compares the SHA-256 with the line the signed list gives for that name. The version in that name must be the version of the release.
+3. It downloads `vutty-<version>-macos-<arch>.zip` (`arm64` for Apple silicon, `amd64` for Intel, the one for its own Mac), hashing it as it arrives, and compares the SHA-256 with the line the signed list gives for that name. The version in that name must be the version of the release.
 4. It unpacks the zip with `ditto`, checks that the result is this application (same bundle identifier, a program that can run, a `codesign --verify` that passes), puts it next to the running copy and, after Vutty quits, swaps it in and opens it. The old copy is kept as `vutty.app.previous` until the new one has run for 30 seconds.
 
 Everything is fetched over HTTPS from GitHub only (a redirect to another host stops the update), the downloads have size limits, and nothing in the running application is touched before every check has passed.

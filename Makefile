@@ -5,7 +5,7 @@ WAILS   ?= $(shell go env GOPATH)/bin/wails
 
 help:
 	@echo "make dev        run the app in development mode (hot reload)"
-	@echo "make build      build the desktop app into build/bin"
+	@echo "make build      build the desktop app into build/bin (macOS: arm64 and amd64 flavours)"
 	@echo "make test       run Go + frontend tests"
 	@echo "make e2e        run the Playwright walkthrough (real backend) and refresh docs/assets/screenshots"
 	@echo "make guide-shots  screenshots of the newer features into docs/assets/screenshots/guide"
@@ -22,10 +22,23 @@ dev:
 	@# the macOS Vietnamese input method logs this line for every key typed; it is not from Vutty and means nothing
 	$(WAILS) dev 2>&1 | grep --line-buffered -v 'getApplicationProperty: called with invalid property' || true
 
+# On macOS this builds both flavours, build/bin/arm64/vutty.app (Apple silicon, M1 and later) and build/bin/amd64/vutty.app
+# (Intel), and leaves a copy of the one for this Mac in build/bin/vutty.app, which package, release and the docs rely on.
 build:
+ifeq ($(shell uname),Darwin)
+	@rm -rf build/bin
+	@NATIVE=$$([ "$$(uname -m)" = arm64 ] && echo arm64 || echo amd64); first=1; \
+	for arch in arm64 amd64; do \
+		flags=""; [ $$first = 1 ] || flags="-s -skipbindings"; first=0; \
+		$(WAILS) build $$flags -platform darwin/$$arch -ldflags "-X vutty/app.Version=$(VERSION)" || exit 1; \
+		mkdir -p build/bin/$$arch && mv build/bin/vutty.app build/bin/$$arch/vutty.app; \
+		cp THIRD_PARTY_NOTICES.md LICENSE build/bin/$$arch/vutty.app/Contents/Resources/; \
+		codesign --force --deep --sign - build/bin/$$arch/vutty.app || exit 1; \
+	done; \
+	cp -R build/bin/$$NATIVE/vutty.app build/bin/vutty.app
+else
 	$(WAILS) build -ldflags "-X vutty/app.Version=$(VERSION)"
-	@if [ "$$(uname)" = Darwin ]; then cp THIRD_PARTY_NOTICES.md LICENSE build/bin/vutty.app/Contents/Resources/; fi
-	@if [ "$$(uname)" = Darwin ]; then codesign --force --deep --sign - build/bin/vutty.app; fi
+endif
 
 notices:
 	node scripts/notices.mjs

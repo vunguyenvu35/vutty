@@ -41,7 +41,7 @@ func newFakeRelease(t *testing.T, tag string) *fakeRelease {
 	seed := make([]byte, ed25519.SeedSize)
 	rand.Read(seed)
 	f := &fakeRelease{t: t, seed: seed, pub: ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey), tag: tag, zip: []byte("PK-the-new-application-bytes"),
-		zipName: "vutty-" + strings.TrimPrefix(tag, "v") + "-macos.zip"}
+		zipName: zipFileName(strings.TrimPrefix(tag, "v"))}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(f.srv.Close)
 	return f
@@ -205,7 +205,7 @@ func TestAReleaseSignedByAnotherKeyIsRefusedAndTheAppIsNotEvenDownloaded(t *test
 
 func TestTheNameInTheSignedListMustCarryTheVersionOfTheRelease(t *testing.T) {
 	f := newFakeRelease(t, "v1.3.0")
-	f.zipName = "vutty-1.2.9-macos.zip" // GitHub's tag says 1.3.0, but the file is another version: a replayed older one
+	f.zipName = zipFileName("1.2.9") // GitHub's tag says 1.3.0, but the file is another version: a replayed older one
 	r := f.installer(t, "1.2.1")
 	err := r.in.run(context.Background())
 	if err == nil {
@@ -276,5 +276,22 @@ func TestTheBuiltInKeyIsAValidOneAndOtherSystemsSayTheyCannotUpdateThemselves(t 
 	}
 	if !st.Supported && st.Reason == "" {
 		t.Fatal("a refusal must say why")
+	}
+}
+
+func TestACopyInstallsOnlyTheFileBuiltForItsKindOfMac(t *testing.T) {
+	defer func(a string) { macArch = a }(macArch)
+	f := newFakeRelease(t, "v1.3.0")
+	macArch = "arm64"
+	f.zipName = zipFileName("1.3.0")
+	macArch = "amd64" // an Intel Mac, while the release only has the Apple silicon file
+	r := f.installer(t, "1.2.1")
+	if err := r.in.run(context.Background()); err == nil || len(r.applied) != 0 {
+		t.Fatalf("an Intel Mac took the Apple silicon build: %v", err)
+	}
+	f.zipName = zipFileName("1.3.0")
+	r = f.installer(t, "1.2.1")
+	if err := r.in.run(context.Background()); err != nil || len(r.applied) != 1 {
+		t.Fatalf("%v %v", err, r.applied)
 	}
 }

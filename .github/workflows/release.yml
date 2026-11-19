@@ -1,5 +1,5 @@
 name: release
-# Builds Vutty for macOS, Windows and Linux and attaches the files to a GitHub Release.
+# Builds Vutty for macOS (Apple silicon and Intel), Windows and Linux and attaches the files to a GitHub Release.
 # Start it by merging a change of VERSION into main (the tag is made here), by pushing a tag, or by hand
 # (Actions tab -> release -> Run workflow: builds only, publishes nothing).
 on:
@@ -114,13 +114,16 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      # A copy of every file without the version in its name (vutty-macos.dmg), so that the links of the README never change:
-      # https://github.com/<owner>/vutty/releases/latest/download/vutty-macos.dmg is always the newest release. They are in
+      # Copies of the Apple silicon macOS files under the names that releases before the Intel build used (vutty-<version>-macos.zip):
+      # those copies of the app, all Apple silicon, look their update up by that name.
+      # A copy of every file without the version in its name (vutty-macos-arm64.dmg), so that the links of the README never change:
+      # https://github.com/<owner>/vutty/releases/latest/download/vutty-macos-arm64.dmg is always the newest release. They are in
       # SHA256SUMS too; the app that updates itself looks its file up by the name with the version, so the extra lines do no harm.
       - name: Names without a version
         run: |
           VERSION="$(cat VERSION)"
           cd dist
+          for e in dmg zip; do cp "vutty-$VERSION-macos-arm64.$e" "vutty-$VERSION-macos.$e"; done
           for f in vutty-"$VERSION"-*; do cp "$f" "${f/-$VERSION/}"; done
           ls
       - name: Checksums

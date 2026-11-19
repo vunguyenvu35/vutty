@@ -14,7 +14,7 @@ For people who want to build, test or change Vutty. End users should read the [R
 
 ```bash
 make dev          # hot-reload development mode (wails dev)
-make build        # build/bin/vutty.app
+make build        # build/bin/arm64/vutty.app and build/bin/amd64/vutty.app (macOS); build/bin/vutty.app is the one for this Mac
 make test         # go vet + go test -race + frontend typecheck + vitest
 ./e2e/run.sh      # the walkthrough: also regenerates docs/assets/screenshots and then runs scripts/check-doc-links.sh
 make e2e          # end-to-end walkthrough on the real backend; refreshes docs/assets/screenshots
@@ -118,8 +118,8 @@ Nothing leaves your machine by default. `--tag` creates a local annotated tag; `
 
 1. Make a branch, bump `VERSION` and write the `# Vutty X.Y.Z` section in `RELEASE_NOTES.md` (it becomes the release description), and open a pull request.
 2. Merge it. When `VERSION` changes on `main`, the `prepare` job makes the tag `vX.Y.Z` itself, and the build and release jobs run in the same run. There is no tag to push. If the tag already exists the run does nothing, so a version is never released twice. (A tag pushed by hand still works.)
-3. About three minutes later the release has: `vutty-X.Y.Z-macos.dmg` and `.zip`, `vutty-X.Y.Z-windows-amd64.exe`, `vutty-X.Y.Z-linux-amd64.tar.gz` and `SHA256SUMS`.
-   The workflow also attaches a copy of each file without the version in its name (`vutty-macos.dmg`, `vutty-macos.zip`, `vutty-windows-amd64.exe`, `vutty-linux-amd64.tar.gz`), which `SHA256SUMS` lists too. The download links of the README (`releases/latest/download/vutty-macos.dmg`) rely on them, so keep these names; the self-update looks its file up by the name with the version.
+3. About three minutes later the release has: `vutty-X.Y.Z-macos-arm64.dmg` and `.zip` (Apple silicon) and `vutty-X.Y.Z-macos-amd64.dmg` and `.zip` (Intel), `vutty-X.Y.Z-windows-amd64.exe`, `vutty-X.Y.Z-linux-amd64.tar.gz` and `SHA256SUMS`.
+   The workflow also attaches a copy of each file without the version in its name (`vutty-macos-arm64.dmg`, `vutty-macos-amd64.dmg`, the same as `.zip`, `vutty-windows-amd64.exe`, `vutty-linux-amd64.tar.gz`), which `SHA256SUMS` lists too. The download links of the README (`releases/latest/download/vutty-macos-arm64.dmg`) rely on them, so keep these names; the self-update looks its file up by the name with the version. The Apple silicon files also exist as `vutty-X.Y.Z-macos.dmg` and `.zip` (no arch), because installed copies up to 1.6.9 look for that name.
 
 Notes:
 
@@ -127,7 +127,7 @@ Notes:
 - The release is created as a **pre-release**. The in-app *Check for updates* reads GitHub's `releases/latest`, which ignores pre-releases, so untick *Set as a pre-release* on the release page (or drop `--prerelease` in the workflow) for users to be offered it.
 - If a release for the tag already exists (made by hand), the workflow adds the files to it (`--clobber`) instead of failing.
 - Run it by hand from **Actions → release → Run workflow** to test the three builds: it only builds and keeps the files as artifacts; no release is made.
-- `package-macos.sh` (or `make package`) makes the same `.dmg` and `.zip` on a Mac. Builds are not signed with a developer certificate, so macOS and Windows warn on first launch.
+- `package-macos.sh` (or `make package`) makes the same `.dmg` and `.zip`, for both kinds of Mac, on a Mac. Builds are not signed with a developer certificate, so macOS and Windows warn on first launch.
 - Windows builds have no terminal on this computer yet (the pty library does not support Windows); SSH, SFTP and the rest work. Linux needs `libgtk-3-dev` and `libwebkit2gtk-4.0-dev` to build.
 
 ## Windows, bridge and screenshots

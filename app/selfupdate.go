@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	grt "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -41,7 +42,16 @@ const (
 	sigName  = "SHA256SUMS.sig"
 )
 
-var zipName = regexp.MustCompile(`^vutty-(\d+\.\d+\.\d+)-macos\.zip$`)
+// macArch is the kind of Mac this copy runs on, as the release names it: arm64 (Apple silicon) or amd64 (Intel). A copy updates
+// only to the file built for it.
+var macArch = grt.GOARCH
+
+// zipFileName is the update this copy installs: vutty-<version>-macos-<arch>.zip.
+func zipFileName(version string) string { return "vutty-" + version + "-macos-" + macArch + ".zip" }
+
+func zipNameFor(arch string) *regexp.Regexp {
+	return regexp.MustCompile(`^vutty-(\d+\.\d+\.\d+)-macos-` + regexp.QuoteMeta(arch) + `\.zip$`)
+}
 
 // installer is one update from the GitHub release to the moment the new app is handed over. What depends on the system (unpacking,
 // checking the bundle, swapping it for the running one) comes in as functions, so the rest is the same everywhere and can be tested.
@@ -79,7 +89,7 @@ func (in *installer) run(ctx context.Context) error {
 	if !newerVersion(rel.Tag, in.current) {
 		return errors.New("you are already on the latest version")
 	}
-	zipAsset, ok1 := rel.Asset("vutty-" + version + "-macos.zip")
+	zipAsset, ok1 := rel.Asset(zipFileName(version))
 	sumsAsset, ok2 := rel.Asset(sumsName)
 	sigAsset, ok3 := rel.Asset(sigName)
 	if !ok1 || !ok2 || !ok3 {
@@ -110,7 +120,7 @@ func (in *installer) run(ctx context.Context) error {
 	if !ok {
 		return fmt.Errorf("the signed list does not have %s", zipAsset.Name)
 	}
-	if m := zipName.FindStringSubmatch(zipAsset.Name); m == nil || m[1] != version { // the version is in the signed name, not only in what GitHub says
+	if m := zipNameFor(macArch).FindStringSubmatch(zipAsset.Name); m == nil || m[1] != version { // the version is in the signed name, not only in what GitHub says
 		return errors.New("the update's name does not match its version")
 	}
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -47,11 +46,8 @@ func writable(dir string) bool {
 }
 
 // platformSelfUpdate: this copy can replace itself when it is an application bundle in a folder the user can write to, on the kind
-// of Mac that the release is built for.
+// of Mac (the release has a file for Apple silicon and one for Intel).
 func platformSelfUpdate() (bool, string) {
-	if runtime.GOARCH != "arm64" {
-		return false, "the update is built for Macs with Apple silicon: download this one from the release page"
-	}
 	root, ok := runningBundle()
 	if !ok {
 		return false, "this copy of Vutty is not an installed application (a development build)"
