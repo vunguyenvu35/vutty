@@ -35,7 +35,7 @@ If you need **mobile apps, a hosted cloud sync, or shared team vaults**, Termius
 | --- | --- | --- |
 | Price | Free, no tiers | Starter free, "available for commercial usage"; Pro $10 a month; Team $20 and Business $30 per seat a month (all "when paid annually"); Enterprise by quote |
 | Source code | Open (MIT) | not stated on the pages read |
-| Account | None. No telemetry | The pages do not say whether the free plan needs one ("Free to try. No credit card required") |
+| Account | None. No telemetry unless you opt in to anonymous usage statistics | The pages do not say whether the free plan needs one ("Free to try. No credit card required") |
 | Where hosts and keys live | An encrypted vault on your computer (AES-256-GCM, key from your master password) | A local vault in Starter; a personal cloud vault in Pro |
 | Sync between computers | Your own private Git repository or cloud folder, encrypted, free | "Sync across mobile and desktop" in Pro, through their cloud |
 | Backups, import, export | Encrypted backups, `~/.ssh/config` in and out, hosts from a listing made with `aws`, `gcloud` or `ansible-inventory` (or CSV); Vutty never contacts a cloud | Lists integrations with "AWS, DigitalOcean, Azure", an "API bridge" and Ansible |

@@ -52,6 +52,10 @@ jobs:
           - os: ubuntu-22.04
             name: linux
     runs-on: ${{ matrix.os }}
+    env:
+      # The Google Analytics stream of the release builds (optional: without both, the app never reports anything)
+      VUTTY_GA_MEASUREMENT_ID: ${{ secrets.VUTTY_GA_MEASUREMENT_ID }}
+      VUTTY_GA_API_SECRET: ${{ secrets.VUTTY_GA_API_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -85,7 +89,7 @@ jobs:
         if: matrix.name == 'windows'
         shell: bash
         run: |
-          wails build -nsis -ldflags "-X vutty/app.Version=${{ steps.ver.outputs.version }}"
+          wails build -nsis -ldflags "-X vutty/app.Version=${{ steps.ver.outputs.version }} $(./scripts/analytics-ldflags.sh)"
           mkdir dist
           cp build/bin/vutty.exe "dist/vutty-${{ steps.ver.outputs.version }}-windows-amd64.exe"
           cp THIRD_PARTY_NOTICES.md dist/
@@ -93,7 +97,7 @@ jobs:
       - name: Build (Linux)
         if: matrix.name == 'linux'
         run: |
-          wails build -ldflags "-X vutty/app.Version=${{ steps.ver.outputs.version }}"
+          wails build -ldflags "-X vutty/app.Version=${{ steps.ver.outputs.version }} $(./scripts/analytics-ldflags.sh)"
           mkdir dist
           cp THIRD_PARTY_NOTICES.md LICENSE build/bin/
           tar -C build/bin -czf "dist/vutty-${{ steps.ver.outputs.version }}-linux-amd64.tar.gz" vutty THIRD_PARTY_NOTICES.md LICENSE

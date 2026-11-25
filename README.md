@@ -100,7 +100,7 @@ Add hosts `127.0.0.1` port `2201` (bastion) and `2202`, username `demo`, passwor
 | --- | --- |
 | **Where it lives** | `~/Library/Application Support/vutty/` (one SQLite database plus a `known_hosts` file) |
 | **What is encrypted** | Keys and passwords: AES-256-GCM, with a key derived from your master password (Argon2id) |
-| **What leaves your Mac** | No telemetry, no analytics, no account. Only what you turn on: Git or cloud-folder sync (encrypted data, to *your* repository or folder) and the AI assistant (redacted terminal text goes to the provider of the CLI you enabled). The one automatic request is the update check below |
+| **What leaves your Mac** | No account, and no telemetry unless you opt in. Only what you turn on: Git or cloud-folder sync (encrypted data, to *your* repository or folder) and the AI assistant (redacted terminal text goes to the provider of the CLI you enabled). The one automatic request is the update check below. If you answer yes to the question about usage statistics, one more: see [Usage statistics](docs/user-guide/11-settings-and-security.md#usage-statistics) |
 | **Unknown servers** | You confirm the fingerprint once. If a known server's key ever changes, the connection is **blocked with no override** |
 | **Forwards** | Listen on `127.0.0.1` only, unless you explicitly allow more |
 | **Auto-lock** | The vault locks after 15 idle minutes (configurable) |
@@ -193,6 +193,7 @@ Start at the [documentation index](docs/README.md).
 | [Release notes](RELEASE_NOTES.md) | what is new, quality results, known issues |
 | [Development guide](docs/development/development.md) | build, test, Docker, deploy |
 | [Release signing](docs/development/release-signing.md) | how updates are signed, and how the app installs them itself |
+| [Usage statistics](docs/development/analytics.md) | the opt-in Google Analytics count of how many people use the app, and how to set it up for a build |
 | [Architecture](docs/design/clean-architecture.md) | layers, decisions, technical debt |
 | [Comparison](docs/evaluation/comparison.md) | short table against Termius, Tabby and WindTerm |
 | [Assessment](docs/evaluation/assessment.md) | honest comparison with the original design |

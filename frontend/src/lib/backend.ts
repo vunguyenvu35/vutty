@@ -437,7 +437,7 @@ export interface Backend {
     openUrl(url: string): Promise<void>
     /** Tells the native menu bar which language to show (en|vi|ja|zh). */
     setLanguage(lang: string): Promise<void>
-    info(): Promise<{version: string}>
+    info(): Promise<{version: string; analytics: boolean}>
     /** Asks GitHub for the latest release and compares it with this build. */
     checkUpdate(): Promise<UpdateInfo>
     selfUpdateStatus(): Promise<SelfUpdateStatus>

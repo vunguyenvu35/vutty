@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // Services is the full set of use cases, built around one Core.
@@ -127,6 +129,7 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	s.c.settings.GpuRenderer = in.GpuRenderer
 	s.c.settings.ReduceMotion = in.ReduceMotion
 	s.c.settings.AutoUpdateCheck = in.AutoUpdateCheck
+	s.c.settings.applyAnalyticsConsent(in.AnalyticsConsent)
 	s.c.settings.BiometricOnOpen = in.BiometricOnOpen
 	s.c.settings.Suggest = in.Suggest
 	s.c.settings.SuggestHost = in.SuggestHost
@@ -139,6 +142,21 @@ func (s *SettingsService) Save(in Settings) (Settings, error) {
 	s.c.settings.SyncWhat = cleanSyncWhat(in.SyncWhat)
 	s.c.stampPrefs(before)
 	return s.c.settings, s.c.saveSettings()
+}
+
+// applyAnalyticsConsent records the answer to the statistics question. An empty or unknown answer keeps the current
+// one (a window that has not loaded the settings yet must not undo a choice). "yes" makes the random id the first
+// time; "no" forgets it, so a later "yes" is a new, unrelated installation.
+func (s *Settings) applyAnalyticsConsent(answer string) {
+	switch answer {
+	case "yes":
+		if s.AnalyticsID == "" {
+			s.AnalyticsID = uuid.NewString()
+		}
+		s.AnalyticsConsent = "yes"
+	case "no":
+		s.AnalyticsConsent, s.AnalyticsID = "no", ""
+	}
 }
 
 var themeID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)

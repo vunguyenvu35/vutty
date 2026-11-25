@@ -18,8 +18,8 @@ function Harness({be, vault = vaultSt, onVault = vi.fn(), onClose}: {be: ReturnT
   return <SettingsWindow settings={s} appearance="dark" vault={vault} onSettings={setS} onVault={onVault} onChanged={vi.fn()} onClose={onClose} />
 }
 
-function setup(over: Partial<Settings> = {}, vault = vaultSt) {
-  const be = makeFake({settings: {...makeFake().state.settings, ...over}})
+function setup(over: Partial<Settings> = {}, vault = vaultSt, extra: Parameters<typeof makeFake>[0] = {}) {
+  const be = makeFake({settings: {...makeFake().state.settings, ...over}, ...extra})
   const onVault = vi.fn(), onClose = vi.fn()
   render(<Providers be={be}><Harness be={be} vault={vault} onVault={onVault} onClose={onClose} /></Providers>)
   return {be, onVault, onClose}
@@ -869,5 +869,24 @@ describe('SettingsWindow: What to sync, Kubernetes clusters', () => {
     expect(screen.getByRole('checkbox', {name: /^Keys and passwords/})).toBeChecked()
     await userEvent.click(screen.getByRole('checkbox', {name: /^Kubernetes clusters/}))
     await waitFor(() => expect(be.state.settings.sync_what).toContain('clusters'))
+  })
+})
+
+describe('SettingsWindow: anonymous usage statistics', () => {
+  it('has no switch in a build without a Google Analytics stream', async () => {
+    setup()
+    await screen.findByRole('switch', {name: 'Check for updates automatically'})
+    expect(screen.queryByRole('switch', {name: 'Share anonymous usage statistics'})).toBeNull()
+  })
+
+  it('is off until the user turns it on, says what is sent, and saves yes and no', async () => {
+    const {be} = setup({}, vaultSt, {analytics: true})
+    const sw = await screen.findByRole('switch', {name: 'Share anonymous usage statistics'})
+    expect(sw).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('that the app was opened')).toBeInTheDocument()
+    await userEvent.click(sw)
+    await waitFor(() => expect(be.state.settings.analytics_consent).toBe('yes'))
+    await userEvent.click(screen.getByRole('switch', {name: 'Share anonymous usage statistics'}))
+    await waitFor(() => expect(be.state.settings.analytics_consent).toBe('no'))
   })
 })

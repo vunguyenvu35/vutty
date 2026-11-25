@@ -8,7 +8,7 @@ Everything needed to publish the product page. Copy the text blocks as they are.
 | --- | --- |
 | Name | Vutty: SSH client with an encrypted vault |
 | URL slug | `vutty` |
-| Tagline | Your hosts, keys and passwords in one encrypted vault you own. No account, no cloud, no telemetry. |
+| Tagline | Your hosts, keys and passwords in one encrypted vault you own. No account, no cloud, and no telemetry unless you opt in. |
 | Category | Software / Developer tools |
 | Tags | ssh, sftp, terminal, devops, developer-tools, kubernetes, open-source |
 | Cover | `docs/assets/gumroad/gumroad-cover-1280x720.png` |
@@ -42,7 +42,7 @@ WHAT YOU GET
 - Interface in English, Tiếng Việt, 日本語 and 中文
 
 PRIVATE BY DESIGN
-No account, no analytics, no server of ours. A changed server key blocks the connection with no override.
+No account, no server of ours, and no analytics unless you say yes to anonymous usage statistics (asked once, off until you answer; only a random id, the version and your system type are sent). A changed server key blocks the connection with no override.
 
 PLATFORMS
 macOS (Apple silicon and Intel), Windows 64-bit, Linux 64-bit.

@@ -19,6 +19,8 @@ export interface Fake extends Backend {
     settings: Settings
     /** the newest release GitHub reports (a test sets it higher than the running version to get an update) */
     latest?: string
+    /** the build reports to Google Analytics, so the app asks about statistics */
+    analytics?: boolean
     /** remote file system for SFTP: path -> entry ("/" is the root) */
     remote: Record<string, {dir: boolean; size: number}>
     /** this computer's files for the Local pane: path -> entry */
@@ -852,7 +854,7 @@ export function makeFake(init: Partial<Fake['state']> = {}): Fake {
       saveText: async (_t, name, text) => { rec('system.saveText', name, text); return '/tmp/' + name },
       openUrl: async u => { rec('system.openUrl', u) },
       setLanguage: async l => { rec('system.setLanguage', l) },
-      info: async () => ({version: '1.1.0-test'}),
+      info: async () => ({version: '1.1.0-test', analytics: !!state.analytics}),
       checkUpdate: async () => { rec('system.checkUpdate'); const latest = state.latest ?? '1.1.0-test'; return {current: '1.1.0-test', latest, available: latest !== '1.1.0-test', url: 'https://github.com/vunguyenvu35/vutty/releases/tag/v' + latest, notes: ''} },
       selfUpdateStatus: async () => state.selfUpdate ?? {supported: false, reason: 'this copy of Vutty is not an installed application (a development build)'},
       installUpdate: async () => { rec('system.installUpdate'); if (state.installError) throw state.installError },
