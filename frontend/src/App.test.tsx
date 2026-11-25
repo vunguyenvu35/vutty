@@ -1284,6 +1284,20 @@ describe('App: the application menu bar', () => {
     localStorage.removeItem('vutty.update.checked')
   })
 
+  it('asks about anonymous statistics after the unlock, only in a build with a Google Analytics stream', async () => {
+    let be = setup()
+    await unlock(be)
+    await screen.findByRole('button', {name: 'Open settings'})
+    expect(screen.queryByRole('dialog', {name: 'Share anonymous usage statistics?'})).toBeNull()
+    cleanup()
+
+    be = setup({analytics: true})
+    expect(screen.queryByRole('dialog', {name: 'Share anonymous usage statistics?'})).toBeNull() // not while the vault is locked
+    await unlock(be)
+    await userEvent.click(await screen.findByRole('button', {name: 'No thanks'}))
+    await waitFor(() => expect(be.state.settings.analytics_consent).toBe('no'))
+  })
+
   it('Help → Support Vutty opens the Support dialog (USDT addresses only when enabled), also while the vault is locked', async () => {
     const be = setup()
     await screen.findByLabelText('Master password')

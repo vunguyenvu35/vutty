@@ -24,6 +24,7 @@ import {toTerminalInput, writeToPane} from './lib/terminal/panes'
 import {PortForwardsPage} from './lib/panels/PortForwardsPage'
 import {AboutPanel} from './lib/panels/AboutPanel'
 import {SupportPanel} from './lib/panels/SupportPanel'
+import {AnalyticsPrompt} from './lib/panels/AnalyticsPrompt'
 import {DataPanel} from './lib/panels/DataPanel'
 import {SettingsWindow} from './lib/settings/SettingsWindow'
 import {useAppearance} from './lib/settings/appearance'
@@ -703,6 +704,7 @@ export default function App({initial}: {/** an app window opened for this place 
             ? <ClusterEditForm key={dialog.cluster.id} cluster={dialog.cluster} groups={groups} onGroupCreated={() => void refreshData()} onReplace={() => setDialog({k: 'cluster', cluster: dialog.cluster, replace: true})} onChanged={() => void refreshData()} onClose={close} onSaved={() => { close(); void refreshData() }} />
             : <ClusterAddForm key={dialog.cluster?.id ?? 'new'} groups={groups} onGroupCreated={() => void refreshData()} replace={dialog.cluster} onClose={close} onSaved={c => { close(); void refreshData(); toast.info(dialog.replace ? t('Kubeconfig replaced') : t('Added {name}', {name: c.label})) }} />)}
           {dialog?.k === 'snippet' && <SnippetForm key={dialog.snippet?.id ?? 'new'} snippet={dialog.snippet} onClose={close} onSaved={() => { close(); void refreshData() }} />}
+          {vault?.unlocked && <AnalyticsPrompt onSettings={setSettings} />}
         </div>
         <Workspace tabs={tabs} activeTab={onHome ? '' : termActive} settings={settings} appearance={appearance} shortcuts={bindings} hosts={hosts} onFocusPane={focusPane} onPaneExit={paneExit} onClosePane={closePaneAsk} onToggleBroadcast={broadcastTab} onToggleZoom={zoomPane} onDropTab={dropTab} onMovePane={movePaneTo} onPopPane={popPaneOut} onProtocol={chooseProtocol} onAccessHost={accessHost} onShell={shellInPod} onPodShell={openPodShell} clusters={clusters} onOpenFromNewTab={openFromBlank} onLocalFromNewTab={localFromBlank} onSelectTab={id => setActive(id)} groups={groups} onCloseTab={closeTab} onShowLogs={() => goHome('logs')}
           renderSettings={() => vault && (

@@ -107,6 +107,18 @@ The default keys are listed in [Keyboard shortcuts](14-shortcuts.md).
 
 ![Light theme](../assets/screenshots/53-light-theme.png)
 
+## Usage statistics
+
+The first time you unlock the vault, Vutty asks **Share anonymous usage statistics?** It is how the developer learns roughly how many people use the app. Nothing is sent until you choose **Share**; **No thanks**, or closing the question, means no and it is not asked again. You can change the answer any time in **Settings → General → Share anonymous usage statistics**.
+
+If you share, Vutty sends one message to Google Analytics each time it opens, with only:
+
+- a random id made for this installation (not linked to you, your hosts or your vault; turning the switch off forgets it);
+- the Vutty version, the operating system and the processor type;
+- that the app was opened.
+
+No host, key, command, file or password is ever part of it. Google receives the message like any internet request, so it sees your IP address. A copy of Vutty built without a Google Analytics stream (for example one you built yourself) never asks and never sends anything. How it is built and set up is in [Usage statistics](../development/analytics.md).
+
 ## Updates
 
 **Check for updates** (under the help links) asks GitHub for the latest release and compares it with your version. If there is a newer one, **Version X is available** appears: click it to open the release page and download the build for your system (macOS `.dmg` or `.zip`, for Apple silicon or Intel, Windows `.exe`, Linux `.tar.gz`). To update by hand, quit Vutty and replace the old app with the new one; your data is kept outside the app, so nothing is lost.

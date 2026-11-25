@@ -147,6 +147,10 @@ export interface Settings {
   reduce_motion: boolean
   /** look for a newer release when the app opens (at most once a day) */
   auto_update_check: boolean
+  /** the answer to "Share anonymous usage statistics?": '' (not asked yet), 'yes' or 'no' */
+  analytics_consent: '' | 'yes' | 'no'
+  /** the random id of this installation, made by the backend when the answer is yes (read only here) */
+  analytics_id: string
   account_name: string
   account_email: string
   shortcuts: Record<string, string> // overrides only: action id -> combo

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"vutty/internal/analytics"
+
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -34,6 +36,9 @@ func (s *SystemService) SetContext(ctx context.Context) { s.ctx = ctx }
 
 type AppInfo struct {
 	Version string `json:"version"`
+	// Analytics is true when this build knows a Google Analytics stream to report to. A developer build or a fork has none,
+	// and then the UI does not ask the user about statistics at all.
+	Analytics bool `json:"analytics"`
 }
 
 // SetMenuBuilder installs what makes this window's menu bar for a set of shortcuts and a language.
@@ -183,7 +188,9 @@ func (s *SystemService) openFile(path, with string) error {
 	return nil
 }
 
-func (s *SystemService) Info() AppInfo { return AppInfo{Version: Version} }
+func (s *SystemService) Info() AppInfo {
+	return AppInfo{Version: Version, Analytics: analytics.Enabled()}
+}
 
 var errNoDialog = errors.New("native dialogs are not available in this environment")
 

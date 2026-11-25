@@ -55,6 +55,11 @@ type Settings struct {
 	ReduceMotion bool `json:"reduce_motion"` // turn animations off
 	// AutoUpdateCheck: look for a newer release on GitHub when the app opens, at most once a day (on by default)
 	AutoUpdateCheck bool `json:"auto_update_check"`
+	// AnalyticsConsent is the answer to "Share anonymous usage statistics?": "" (not asked yet), "yes" or "no". Nothing is
+	// sent unless it is "yes". AnalyticsID is the random id of this installation, made when the answer becomes "yes" and
+	// forgotten when it becomes "no"; the UI cannot set it. Neither is part of a preference group, so neither is synced.
+	AnalyticsConsent string `json:"analytics_consent"`
+	AnalyticsID      string `json:"analytics_id"`
 	// BiometricOnOpen: the lock screen asks for Touch ID / Windows Hello by itself (on by default)
 	BiometricOnOpen bool `json:"biometric_on_open"`
 	// Suggest shows a command suggestion while typing in a terminal (on by default); SuggestHost also reads the

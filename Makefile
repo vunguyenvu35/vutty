@@ -2,6 +2,9 @@
 
 VERSION ?= $(shell cat VERSION)
 WAILS   ?= $(shell go env GOPATH)/bin/wails
+# The Google Analytics stream of this build, from VUTTY_GA_MEASUREMENT_ID and VUTTY_GA_API_SECRET. Without both the build
+# never reports anything. See docs/development/analytics.md.
+GA_LDFLAGS := $(shell ./scripts/analytics-ldflags.sh)
 
 help:
 	@echo "make dev        run the app in development mode (hot reload)"
@@ -30,14 +33,14 @@ ifeq ($(shell uname),Darwin)
 	@NATIVE=$$([ "$$(uname -m)" = arm64 ] && echo arm64 || echo amd64); first=1; \
 	for arch in arm64 amd64; do \
 		flags=""; [ $$first = 1 ] || flags="-s -skipbindings"; first=0; \
-		$(WAILS) build $$flags -platform darwin/$$arch -ldflags "-X vutty/app.Version=$(VERSION)" || exit 1; \
+		$(WAILS) build $$flags -platform darwin/$$arch -ldflags "-X vutty/app.Version=$(VERSION) $(GA_LDFLAGS)" || exit 1; \
 		mkdir -p build/bin/$$arch && mv build/bin/vutty.app build/bin/$$arch/vutty.app; \
 		cp THIRD_PARTY_NOTICES.md LICENSE build/bin/$$arch/vutty.app/Contents/Resources/; \
 		codesign --force --deep --sign - build/bin/$$arch/vutty.app || exit 1; \
 	done; \
 	cp -R build/bin/$$NATIVE/vutty.app build/bin/vutty.app
 else
-	$(WAILS) build -ldflags "-X vutty/app.Version=$(VERSION)"
+	$(WAILS) build -ldflags "-X vutty/app.Version=$(VERSION) $(GA_LDFLAGS)"
 endif
 
 notices:

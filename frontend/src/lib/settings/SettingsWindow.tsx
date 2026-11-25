@@ -9,6 +9,7 @@ import {rich} from '../assistant/rich'
 import {setLanguageSetting} from '../i18n/store'
 import {biometricName, errMsg} from '../util'
 import {ThemePicker} from './ThemePicker'
+import {AnalyticsFacts} from '../panels/AnalyticsPrompt'
 import {resolveTerminalTheme} from '../terminal/themes'
 import {IconArrowUpRight, IconClose, IconCloud, IconEnterKey, IconFolder, IconGear, IconMaximizePane, IconMinimizePane, IconOpenInTab, IconShield, IconSparkle, IconTerminal, IconUser} from '../ui/Icons'
 import {formatBytes} from '../sftp/format'
@@ -153,6 +154,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
   const catRef = useRef(cat)
   catRef.current = cat
   const [version, setVersion] = useState('')
+  const [analytics, setAnalytics] = useState(false) // this build reports to Google Analytics: only then is there something to switch
   const [logFolder, setLogFolder] = useState('')
   const [scroll, setScroll] = useState(String(s.scrollback))
   const [zoomText, setZoomText] = useState(String(s.zoom))
@@ -219,7 +221,7 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
     } catch (e) { toast.error(errMsg(e)) } finally { setChecking(false) }
   }
   useEffect(() => { const timer = setTimeout(preload, 150); return () => clearTimeout(timer) }, [])
-  useEffect(() => { void be.system.info().then(i => setVersion(i.version)).catch(() => {}) }, [be])
+  useEffect(() => { void be.system.info().then(i => { setVersion(i.version); setAnalytics(i.analytics) }).catch(() => {}) }, [be])
   // where session logs go now: asked again when the choice changes
   useEffect(() => { if (ready && s.session_log !== 'off') void be.settings.sessionLogFolder().then(setLogFolder).catch(() => {}) }, [be, ready, s.session_log, s.session_log_dir])
   useEffect(() => {
@@ -424,6 +426,12 @@ export function SettingsWindow({settings: s, appearance, vault, onSettings, onVa
                       <div><b>{t('Check for updates automatically')}</b><div className="muted">{t('When Vutty opens, ask GitHub (at most once a day) whether a newer release exists. Only the release information is read; nothing about you is sent.')}</div></div>
                       <Switch label={t('Check for updates automatically')} checked={s.auto_update_check} onChange={v => update({auto_update_check: v})} />
                     </div>
+                    {analytics && (
+                      <div className="setting-row">
+                        <div><b>{t('Share anonymous usage statistics')}</b><div className="muted">{t('Once each time Vutty opens, tell the developer how many people use it. Sent:')}<AnalyticsFacts /></div></div>
+                        <Switch label={t('Share anonymous usage statistics')} checked={s.analytics_consent === 'yes'} onChange={v => update({analytics_consent: v ? 'yes' : 'no'})} />
+                      </div>
+                    )}
                     <div className="setting-row">
                       <div><b>{t('Ask which protocol to use')}</b><div className="muted">{t('Opening a host first shows SSH, Mosh and Telnet to choose from. Turn it off to connect with SSH straight away (hosts that have Telnet still ask).')}</div></div>
                       <Switch label={t('Ask which protocol to use')} checked={s.ask_protocol} onChange={v => update({ask_protocol: v})} />
